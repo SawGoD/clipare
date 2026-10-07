@@ -25,6 +25,7 @@ var globalLock = kernel.NewProc("GlobalLock")
 var globalUnlock = kernel.NewProc("GlobalUnlock")
 var globalFree = kernel.NewProc("GlobalFree")
 var globalSize = kernel.NewProc("GlobalSize")
+var moveMemory = syscall.NewLazyDLL("ntdll.dll").NewProc("RtlMoveMemory")
 
 type Native struct{}
 
@@ -58,12 +59,18 @@ func (*Native) Read() (string, bool, error) {
 	if n > 2*(maxText+1) {
 		return "", false, ErrTooLarge
 	}
+	if n < 2 {
+		return "", false, errors.New("invalid clipboard allocation")
+	}
 	p, _, _ := globalLock.Call(h)
 	if p == 0 {
 		return "", false, errors.New("clipboard lock failed")
 	}
 	defer globalUnlock.Call(h)
-	buf := unsafe.Slice((*uint16)(unsafe.Pointer(p)), int(n/2))
+	// Copy OS-owned memory into a Go buffer without treating an integer address
+	// returned by GlobalLock as a Go pointer.
+	buf := make([]uint16, int(n/2))
+	moveMemory.Call(uintptr(unsafe.Pointer(&buf[0])), p, uintptr(len(buf)*2))
 	end := 0
 	for end < len(buf) && buf[end] != 0 {
 		end++
@@ -106,7 +113,7 @@ func (*Native) Write(s string) error {
 	if p == 0 {
 		return errors.New("clipboard lock failed")
 	}
-	copy(unsafe.Slice((*uint16)(unsafe.Pointer(p)), len(b)), b)
+	moveMemory.Call(p, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)*2))
 	globalUnlock.Call(h)
 	if r, _, _ := empty.Call(); r == 0 {
 		return errors.New("clipboard clear failed")
