@@ -49,7 +49,11 @@ func (m *Manager) LocalChanged() {
 	defer m.mu.Unlock()
 	s, ok, e := m.backend.Read()
 	if e != nil {
-		m.log.Warn("clipboard read failed")
+		if errors.Is(e, clipboard.ErrTooLarge) {
+			m.log.Warn("clipboard text exceeds limit")
+		} else {
+			m.log.Warn("clipboard read failed")
+		}
 		return
 	}
 	if !ok {
@@ -65,7 +69,7 @@ func (m *Manager) LocalChanged() {
 	if m.mode != "bidirectional" && m.mode != "send-only" {
 		return
 	}
-	msg, e := NewMessage(m.device, s)
+	msg, e := newMessageAfter(m.device, s, m.latestTime, m.latestID)
 	if e != nil || msg.Validate() != nil {
 		m.log.Warn("clipboard text rejected", "size", len(s))
 		return
@@ -98,11 +102,11 @@ func (m *Manager) Receive(ctx context.Context, msg Message) error {
 		return nil
 	}
 	h := Hash(msg.Data)
-	if !m.hasCurrent || h != m.currentHash {
-		if e := m.backend.Write(msg.Data); e != nil {
-			m.log.Error("clipboard write failed", "id", msg.ID)
-			return errors.New("clipboard write failed")
-		}
+	// The OS clipboard may have changed before its pending notification is read.
+	// Apply every new winning ID rather than trusting our last observed hash.
+	if e := m.backend.Write(msg.Data); e != nil {
+		m.log.Error("clipboard write failed", "id", msg.ID)
+		return errors.New("clipboard write failed")
 	}
 	m.currentHash = h
 	m.hasCurrent = true

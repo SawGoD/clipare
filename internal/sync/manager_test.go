@@ -112,3 +112,18 @@ func TestSimultaneousChangesConverge(t *testing.T) {
 		t.Fatal("divergence")
 	}
 }
+
+func TestRemoteWriteWithPendingLocalEvent(t *testing.T) {
+	f := &fake{text: "old"}
+	m := NewManager(f, "b", "bidirectional", slog.New(slog.NewTextHandler(io.Discard, nil)), func(Message) { t.Error("remote echo") })
+	m.Initialize()
+	f.text = "unobserved local copy"
+	x, _ := NewMessage("a", "old")
+	if e := m.Receive(context.Background(), x); e != nil {
+		t.Fatal(e)
+	}
+	m.LocalChanged()
+	if f.text != "old" || f.writes != 1 {
+		t.Fatal("stale hash skipped remote write")
+	}
+}

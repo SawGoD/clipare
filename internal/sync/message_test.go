@@ -38,3 +38,14 @@ func TestCache(t *testing.T) {
 		t.Fatal("capacity")
 	}
 }
+
+func TestRapidLocalCopiesOrdered(t *testing.T) {
+	previous, _ := NewMessage("a", "first")
+	for i := 0; i < 100; i++ {
+		next, e := newMessageAfter("a", "next", previous.Timestamp, previous.ID)
+		if e != nil || next.Validate() != nil || next.Timestamp < previous.Timestamp || (next.Timestamp == previous.Timestamp && next.ID <= previous.ID) {
+			t.Fatal("local copy order regressed")
+		}
+		previous = next
+	}
+}
