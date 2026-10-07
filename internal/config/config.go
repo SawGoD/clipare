@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"clipare/internal/identity"
 	"errors"
 	"fmt"
 	"io"
@@ -18,11 +19,18 @@ type Device struct {
 	Name string `yaml:"name"`
 }
 type Peer struct {
-	ID      string `yaml:"id"`
-	Name    string `yaml:"name"`
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
+	ID           string `yaml:"id"`
+	Name         string `yaml:"name"`
+	Address      string `yaml:"address"`
+	Port         int    `yaml:"port"`
+	PublicKey    string `yaml:"public_key,omitempty"`
+	Legacy       bool   `yaml:"legacy,omitempty"`
+	LegacySecret string `yaml:"legacy_secret,omitempty" json:"-"`
+	LastKnownIP  string `yaml:"last_known_ip,omitempty"`
 }
+
+func (p Peer) String() string   { return "peer:" + p.ID }
+func (p Peer) GoString() string { return p.String() }
 
 func (p Peer) URL() string { return "http://" + net.JoinHostPort(p.Address, strconv.Itoa(p.Port)) }
 
@@ -35,6 +43,11 @@ func (Security) String() string   { return "[redacted]" }
 func (Security) GoString() string { return "[redacted]" }
 
 type Config struct {
+	SchemaVersion int               `yaml:"schema_version,omitempty"`
+	Identity      identity.Identity `yaml:"identity,omitempty"`
+	Group         struct {
+		ID string `yaml:"id"`
+	} `yaml:"group,omitempty"`
 	Autostart bool   `yaml:"autostart"`
 	Device    Device `yaml:"device"`
 	Listen    struct {
@@ -87,6 +100,17 @@ func (c Config) ListenAddress() string {
 	return net.JoinHostPort(c.Listen.Address, strconv.Itoa(c.Listen.Port))
 }
 func (c Config) Validate() error {
+	if c.SchemaVersion != 0 && c.SchemaVersion != 2 {
+		return errors.New("unsupported configuration schema")
+	}
+	if c.SchemaVersion == 2 {
+		if _, err := c.Identity.Private(); err != nil {
+			return err
+		}
+		if c.Group.ID == "" || len(c.Group.ID) > 128 {
+			return errors.New("invalid group id")
+		}
+	}
 	if strings.TrimSpace(c.Device.ID) == "" || len(c.Device.ID) > 128 {
 		return errors.New("device.id must contain 1-128 bytes")
 	}
@@ -110,6 +134,14 @@ func (c Config) Validate() error {
 			return fmt.Errorf("peer %d: invalid or duplicate id", i)
 		}
 		ids[p.ID] = true
+		if c.SchemaVersion == 2 && !p.Legacy {
+			if _, err := identity.Public(p.PublicKey); err != nil {
+				return fmt.Errorf("peer %d: invalid public key", i)
+			}
+		}
+		if p.LegacySecret != "" && len(p.LegacySecret) < 32 {
+			return errors.New("invalid legacy peer secret")
+		}
 		if p.Port < 1 || p.Port > 65535 || p.Address == "" || strings.ContainsAny(p.Address, "/\\?#@ \t\r\n") {
 			return fmt.Errorf("peer %d: invalid address or port", i)
 		}

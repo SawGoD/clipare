@@ -59,7 +59,10 @@ func Default() (Config, error) {
 		}
 	}
 	c.Security.Secret, e = NewSecret()
-	return c, e
+	if e != nil {
+		return c, e
+	}
+	return Upgrade(c)
 }
 
 // Save atomically replaces the config, with owner-only permissions on Unix.
@@ -122,6 +125,10 @@ func AddConnection(c Config, code string) (Config, error) {
 	if json.Unmarshal(b, &v) != nil {
 		return c, errors.New("Некорректный код подключения")
 	}
+	// Codes are deliberately legacy-only. Never import untrusted identity fields.
+	v.Peer.PublicKey = ""
+	v.Peer.Legacy = true
+	v.Peer.LegacySecret = v.Secret
 	if len(c.Peers) > 0 && c.Security.Secret != v.Secret {
 		return c, errors.New("Общий ключ отличается: используйте код из существующей группы устройств")
 	}

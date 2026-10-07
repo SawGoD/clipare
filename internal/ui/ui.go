@@ -98,16 +98,16 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		return e
 	}
 	defer d.Close()
-	c, e := config.Load(path)
+	c, e := config.LoadMigrated(path)
 	needsSetup := e != nil
 	first := os.IsNotExist(e)
 	if e != nil {
+		if !first {
+			return errors.New("Не удалось загрузить или обновить настройки. Исходный файл сохранён; проверьте конфигурацию и резервную копию")
+		}
 		c, e = config.Default()
 		if e != nil {
 			return e
-		}
-		if !first {
-			d.Alert("Не удалось прочитать настройки. Проверьте и сохраните их заново")
 		}
 	}
 	draft := c
@@ -334,7 +334,7 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 					d.Alert(err.Error())
 					continue
 				}
-				peer := config.Peer{ID: f.Values[7], Name: f.Values[6], Address: f.Values[8], Port: p}
+				peer := config.Peer{ID: f.Values[7], Name: f.Values[6], Address: f.Values[8], Port: p, Legacy: true, LegacySecret: draft.Security.Secret}
 				next.Peers = append([]config.Peer(nil), draft.Peers...)
 				index := d.Selected()
 				if index >= 0 && index < len(next.Peers) {

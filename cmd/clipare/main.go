@@ -65,7 +65,7 @@ func run(args []string) error {
 	if !status && !*headless {
 		return ui.Run(ctx, *path, log)
 	}
-	c, e := config.Load(*path)
+	c, e := config.LoadMigrated(*path)
 	if e != nil {
 		return e
 	}
