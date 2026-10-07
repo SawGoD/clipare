@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -9,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 type Device struct {
@@ -60,7 +61,11 @@ func Parse(r io.Reader) (Config, error) {
 	c.Listen.Port = 45873
 	c.Sync.Enabled = true
 	c.Sync.Mode = "bidirectional"
-	d := yaml.NewDecoder(io.LimitReader(r, 1<<20))
+	b, err := io.ReadAll(io.LimitReader(r, (1<<20)+1))
+	if err != nil || len(b) > 1<<20 {
+		return Config{}, errors.New("cannot read configuration or size exceeds 1 MiB")
+	}
+	d := yaml.NewDecoder(bytes.NewReader(b))
 	d.KnownFields(true)
 	if e := d.Decode(&c); e != nil {
 		return Config{}, errors.New("invalid YAML configuration")

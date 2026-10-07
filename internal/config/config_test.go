@@ -17,4 +17,7 @@ func TestParse(t *testing.T) {
 			t.Fatal("accepted invalid config")
 		}
 	}
+	if _, e := Parse(strings.NewReader(valid + strings.Repeat(" ", 1<<20))); e == nil {
+		t.Fatal("oversize configuration accepted")
+	}
 }
