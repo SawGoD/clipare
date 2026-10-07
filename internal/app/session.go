@@ -12,8 +12,18 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"syscall"
 	"time"
 )
+
+var ErrAddressUnavailable = errors.New("Локальный адрес ещё недоступен")
+
+func listenError(err error) error {
+	if errors.Is(err, syscall.EADDRNOTAVAIL) {
+		return ErrAddressUnavailable
+	}
+	return errors.New("Не удалось слушать выбранный адрес. Проверьте NetBird, IP и порт; возможно, Clipare уже запущен")
+}
 
 type Session struct {
 	cancel context.CancelFunc
@@ -25,7 +35,7 @@ type Session struct {
 func Start(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool)) (*Session, error) {
 	listener, e := net.Listen("tcp", c.ListenAddress())
 	if e != nil {
-		return nil, errors.New("Не удалось слушать выбранный адрес. Проверьте NetBird, IP и порт; возможно, Clipare уже запущен")
+		return nil, listenError(e)
 	}
 	ctx, cancel := context.WithCancel(parent)
 	client := transport.NewClient(security.StaticSecret(c.Security.Secret))

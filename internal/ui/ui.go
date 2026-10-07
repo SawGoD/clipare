@@ -62,32 +62,42 @@ func fromForm(f form, c config.Config) (config.Config, error) {
 }
 
 type result struct {
-	c   config.Config
-	s   *app.Session
-	err error
+	c       config.Config
+	s       *app.Session
+	err     error
+	persist bool
 }
 type peerStatus struct {
 	id     string
 	online bool
 }
 
+type sessionStarter func(context.Context, config.Config, clipboard.Backend, *slog.Logger, func(string, bool)) (*app.Session, error)
+type loopTiming struct{ poll, refresh, retry time.Duration }
+
 func Run(parent context.Context, path string, log *slog.Logger) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	ctx, cancel := context.WithCancel(parent)
-	defer cancel()
 	d, e := newDesktop()
 	if e != nil {
 		return e
 	}
-	if e = d.Init(); e != nil {
-		return e
-	}
-	defer d.Close()
 	b, e := clipboard.New()
 	if e != nil {
 		return e
 	}
+	return runDesktop(parent, path, log, d, b, app.Start, loopTiming{30 * time.Millisecond, 2 * time.Second, 5 * time.Second})
+}
+
+// The GUI loop is also exercised with a synthetic desktop and clipboard, so
+// recovery tests never modify the user's pasteboard, settings or login items.
+func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop, b clipboard.Backend, start sessionStarter, timing loopTiming) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	if e := d.Init(); e != nil {
+		return e
+	}
+	defer d.Close()
 	c, e := config.Load(path)
 	needsSetup := e != nil
 	first := os.IsNotExist(e)
@@ -114,12 +124,14 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 	done := make(chan result, 1)
 	busy := false
 	status := "Настройте подключение"
+	var retryAt time.Time
 	exe, e := os.Executable()
 	if e != nil {
 		return e
 	}
 	apply := func(next config.Config, persist bool) {
 		busy = true
+		retryAt = time.Time{}
 		status = "Применение настроек…"
 		states = map[string]bool{}
 		d.Update(status, false, c.Peers, states)
@@ -131,24 +143,27 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 			if old != nil {
 				old.Stop()
 			}
-			s, err := app.Start(ctx, next, b, log, health)
-			if err == nil && persist {
-				err = config.Save(path, next)
-				if err == nil && (next.Autostart || previousAutostart) {
-					err = autostart.Set(next.Autostart, exe, path)
+			s, err := start(ctx, next, b, log, health)
+			if (err == nil || errors.Is(err, app.ErrAddressUnavailable)) && persist {
+				storageErr := config.Save(path, next)
+				if storageErr == nil && (next.Autostart || previousAutostart) {
+					storageErr = autostart.Set(next.Autostart, exe, path)
 				}
-				if err != nil {
-					s.Stop()
+				if storageErr != nil {
+					err = storageErr
+					if s != nil {
+						s.Stop()
+					}
 					s = nil
 					if old != nil {
 						_ = config.Save(path, previousConfig)
 					}
 				}
 			}
-			if err != nil && old != nil {
-				s, _ = app.Start(ctx, previousConfig, b, log, health)
+			if err != nil && !errors.Is(err, app.ErrAddressUnavailable) && old != nil {
+				s, _ = start(ctx, previousConfig, b, log, health)
 			}
-			done <- result{next, s, err}
+			done <- result{next, s, err, persist}
 		}()
 	}
 	if needsSetup {
@@ -156,7 +171,7 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 	} else {
 		apply(c, false)
 	}
-	tick := time.NewTicker(30 * time.Millisecond)
+	tick := time.NewTicker(timing.poll)
 	defer tick.Stop()
 	defer func() {
 		cancel()
@@ -170,7 +185,7 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 			session.Stop()
 		}
 	}()
-	refresh := time.NewTicker(2 * time.Second)
+	refresh := time.NewTicker(timing.refresh)
 	defer refresh.Stop()
 	d.Update(status, false, c.Peers, states)
 	for {
@@ -180,13 +195,24 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 		case r := <-done:
 			busy = false
 			session = r.s
-			if r.err != nil {
+			if errors.Is(r.err, app.ErrAddressUnavailable) {
+				c = r.c
+				needsSetup = false
+				if r.persist {
+					draft = c
+				}
+				retryAt = time.Now().Add(timing.retry)
+				status = "Ожидание NetBird: локальный IP ещё недоступен"
+			} else if r.err != nil {
 				status = r.err.Error()
 				d.Alert(status)
 				d.Show(toForm(draft), draft.Peers, config.Addresses())
 			} else {
 				c = r.c
-				draft = c
+				needsSetup = false
+				if r.persist {
+					draft = c
+				}
 				status = "Синхронизация включена"
 				if c.Mode() == "disabled" {
 					status = "Синхронизация приостановлена"
@@ -208,6 +234,9 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 					session = nil
 				default:
 				}
+			}
+			if shouldRetry(time.Now(), retryAt, busy, session != nil, needsSetup) {
+				apply(c, false)
 			}
 			d.Update(status, session != nil && c.Mode() != "disabled", c.Peers, states)
 		case <-tick.C:
@@ -343,4 +372,8 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 			}
 		}
 	}
+}
+
+func shouldRetry(now, due time.Time, busy, running, needsSetup bool) bool {
+	return !due.IsZero() && !now.Before(due) && !busy && !running && !needsSetup
 }

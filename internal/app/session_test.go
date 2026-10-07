@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -21,6 +22,16 @@ func (f *fakeClipboard) Read() (string, bool, error) {
 		return "", false, errors.New("failed")
 	}
 	return "", true, nil
+}
+
+func TestListenErrorClassification(t *testing.T) {
+	wrapped := &net.OpError{Op: "listen", Err: syscall.EADDRNOTAVAIL}
+	if !errors.Is(listenError(wrapped), ErrAddressUnavailable) {
+		t.Fatal("missing address not recoverable")
+	}
+	if errors.Is(listenError(syscall.EADDRINUSE), ErrAddressUnavailable) {
+		t.Fatal("occupied port must not silently retry")
+	}
 }
 func (*fakeClipboard) Write(string) error { return nil }
 func (f *fakeClipboard) Watch(ctx context.Context, ch chan<- struct{}) error {
