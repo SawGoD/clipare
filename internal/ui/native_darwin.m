@@ -36,9 +36,30 @@ static void input(NSView *root,int index,CGFloat x,CGFloat y,CGFloat width,BOOL 
 static void button(NSView *root,NSString *text,CGFloat x,CGFloat y,CGFloat width,int tag) {
  NSButton *v=[NSButton buttonWithTitle:text target:delegate action:@selector(action:)]; v.tag=tag; v.frame=NSMakeRect(x,y,width,30); [root addSubview:v];
 }
+// AppKit routes Command shortcuts through the application menu to the field
+// editor. A status-bar menu alone does not provide the standard editing actions.
+static void install_edit_menu(void) {
+ NSMenu *main=[[NSMenu alloc] initWithTitle:@"Clipare"];
+ NSMenuItem *appItem=[[NSMenuItem alloc] initWithTitle:@"Clipare" action:nil keyEquivalent:@""];
+ NSMenu *appMenu=[[NSMenu alloc] initWithTitle:@"Clipare"];
+ NSMenuItem *quit=[[NSMenuItem alloc] initWithTitle:@"Выйти из Clipare" action:@selector(action:) keyEquivalent:@"q"];
+ quit.target=delegate;quit.tag=4;[appMenu addItem:quit];[quit release];appItem.submenu=appMenu;[appMenu release];[main addItem:appItem];[appItem release];
+ NSMenuItem *editItem=[[NSMenuItem alloc] initWithTitle:@"Правка" action:nil keyEquivalent:@""];
+ NSMenu *edit=[[NSMenu alloc] initWithTitle:@"Правка"];
+ NSArray *titles=@[@"Отменить",@"Вырезать",@"Копировать",@"Вставить",@"Выделить всё"];
+ NSArray *keys=@[@"z",@"x",@"c",@"v",@"a"];
+ SEL actions[]={@selector(undo:),@selector(cut:),@selector(copy:),@selector(paste:),@selector(selectAll:)};
+ for(NSUInteger i=0;i<titles.count;i++){
+  NSMenuItem *item=[[NSMenuItem alloc] initWithTitle:titles[i] action:actions[i] keyEquivalent:keys[i]];
+  item.keyEquivalentModifierMask=NSEventModifierFlagCommand;
+  [edit addItem:item];[item release];
+ }
+ editItem.submenu=edit;[edit release];[main addItem:editItem];[editItem release];[NSApp setMainMenu:main];[main release];
+}
 void clipare_init(void) { @autoreleasepool {
  [NSApplication sharedApplication]; [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
  delegate=[ClipareDelegate new]; rows=[NSMutableArray new];events=[NSMutableArray new];stateText=[@"Clipare" copy];
+ install_edit_menu();
  tray=[[[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength] retain];
  tray.button.title=@"⇄"; tray.button.font=[NSFont systemFontOfSize:20 weight:NSFontWeightMedium]; tray.button.toolTip=@"Clipare";
  window=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,760,620) styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable backing:NSBackingStoreBuffered defer:NO];

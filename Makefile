@@ -1,4 +1,4 @@
-.PHONY: mac windows windows-console test
+.PHONY: mac windows windows-console test test-macos-ui
 
 mac:
 	mkdir -p dist/Clipare.app/Contents/MacOS
@@ -16,3 +16,9 @@ windows-console:
 test:
 	go test -race ./...
 	go vet ./...
+
+# Runs in an interactive macOS session; briefly opens a test window.
+test-macos-ui:
+	mkdir -p dist
+	clang -fblocks -framework AppKit -o dist/edit-menu-test tests/macos/edit_menu_test.m
+	./dist/edit-menu-test
