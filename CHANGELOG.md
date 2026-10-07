@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+
+- Automatically start synchronization when the configured NetBird IP becomes available after login.
+- Save valid settings while waiting for NetBird, without repeated error dialogs or manual retries.
+- Preserve unsaved peer edits during background recovery; occupied ports remain explicit errors.
+- Add GUI recovery integration coverage using a synthetic clipboard and isolated settings.
+
 ## 0.2.1
 
 - Copy Windows clipboard memory through WinAPI without integer-to-Go pointer conversion; all platform vet checks remain enabled.
