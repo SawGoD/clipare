@@ -29,8 +29,7 @@ var globalSize = kernel.NewProc("GlobalSize")
 type Native struct{}
 
 func New() (Backend, error) { return &Native{}, nil }
-func open() error {
-	owner, _, _ := user.NewProc("GetDesktopWindow").Call()
+func open(owner uintptr) error {
 	for i := 0; i < 5; i++ {
 		r, _, _ := openClipboard.Call(owner)
 		if r != 0 {
@@ -41,7 +40,9 @@ func open() error {
 	return errors.New("clipboard is busy")
 }
 func (*Native) Read() (string, bool, error) {
-	if e := open(); e != nil {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if e := open(0); e != nil {
 		return "", false, e
 	}
 	defer closeClipboard.Call()
@@ -74,11 +75,20 @@ func (*Native) Read() (string, bool, error) {
 	return s, true, nil
 }
 func (*Native) Write(s string) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	b, e := syscall.UTF16FromString(s)
 	if e != nil {
 		return errors.New("invalid clipboard text")
 	}
-	if e = open(); e != nil {
+	// EmptyClipboard must have a real owner for SetClipboardData to succeed.
+	class, _ := syscall.UTF16PtrFromString("STATIC")
+	owner, _, _ := user.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(class)), 0, 0, 0, 0, 0, 0, ^uintptr(2), 0, 0, 0)
+	if owner == 0 {
+		return errors.New("create clipboard owner failed")
+	}
+	defer user.NewProc("DestroyWindow").Call(owner)
+	if e = open(owner); e != nil {
 		return e
 	}
 	defer closeClipboard.Call()
