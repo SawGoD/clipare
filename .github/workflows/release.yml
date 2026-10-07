@@ -1,0 +1,110 @@
+name: CI and release
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clipare-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION=$(tr -d '\r\n' < VERSION)
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$RELEASE_TAG" == "v$VERSION" ]]
+      - name: Race tests
+        if: runner.os != 'Windows'
+        run: go test -race ./...
+      - name: Windows tests without CGO
+        if: runner.os == 'Windows'
+        env:
+          CGO_ENABLED: '0'
+        run: go test ./...
+      - run: go vet ./...
+
+  build:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: macos-15, os: darwin, arch: arm64}
+          - {runner: macos-15, os: darwin, arch: amd64}
+          - {runner: ubuntu-latest, os: windows, arch: amd64}
+          - {runner: ubuntu-latest, os: windows, arch: arm64}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+      - name: Build archive
+        run: go run ./scripts/build -os ${{ matrix.os }} -arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clipare-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: clipare-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify and publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          cat *.zip.sha256 > SHA256SUMS
+          test "$(find . -maxdepth 1 -name '*.zip' | wc -l)" -eq 4
+          sha256sum --check SHA256SUMS
+          gh release create "$RELEASE_TAG" ./*.zip SHA256SUMS \
+            --verify-tag --generate-notes --title "Clipare $RELEASE_TAG"

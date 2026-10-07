@@ -60,6 +60,35 @@ make windows
 
 Для Windows arm64 замените `GOARCH` на `arm64`. Сборку macOS выполняйте на macOS с соответствующим SDK. Linux не входит в поддерживаемые платформы; протокол и тесты могут запускаться без native clipboard.
 
+## Версии и GitHub Releases
+
+Готовые архивы публикуются в [GitHub Releases](https://github.com/SawGoD/clipare/releases). Для Mac выбирайте `darwin-arm64` (Apple Silicon) или `darwin-amd64` (Intel), для Windows — `windows-amd64` или `windows-arm64`. Архив Mac содержит `Clipare.app`; Windows — GUI `Clipare.exe` и диагностический `clipare-console.exe`. `SHA256SUMS` позволяет проверить загрузку.
+
+Единственный источник номера версии — файл `VERSION`, формат SemVer `MAJOR.MINOR.PATCH`. Версия приложения и `Info.plist` берутся из него; release-бинарники также содержат Git commit (`--version`). Пока поддерживаются стабильные теги `vX.Y.Z`; тег обязан совпадать с `VERSION`.
+
+Для следующего релиза:
+
+1. Обновите `VERSION` и `CHANGELOG.md`: PATCH для исправлений, MINOR для новых возможностей, MAJOR для несовместимых изменений. До 1.0 несовместимые изменения отмечайте новой MINOR-версией.
+2. Выполните `make test`, проверьте diff и создайте подписанный Conventional Commit.
+3. Создайте подписанный тег и отправьте его вместе с веткой:
+
+```sh
+git tag -s v0.2.1 -m "Clipare v0.2.1"
+git push origin master
+git push origin v0.2.1
+```
+
+Workflow запускает проверки на Linux/macOS/Windows. После успешных проверок он собирает четыре архива, проверяет SHA-256 и публикует Release с автоматически сформированными notes. Обычные push/PR запускают только CI; автоматического повышения версии при каждом коммите нет. Неправильный тег или неуспешная сборка блокируют публикацию. Существующий Release не перезаписывается.
+
+Локальная проверка release-сборок:
+
+```sh
+make release-mac       # на macOS: Apple Silicon + Intel
+make release-windows   # Windows amd64 + arm64; можно собирать на Mac/Linux
+```
+
+Mac release имеет ad-hoc подпись, но не Apple Developer ID и notarization; Windows не имеет Authenticode подписи. При загрузке ОС может показывать предупреждение о неизвестном разработчике. Подписи Git-коммитов и SHA-256 не заменяют системную подпись приложения. Apple/Microsoft сертификаты и ключи в этот процесс не добавлялись.
+
 ## Настройка вручную и CLI
 
 Создайте `config.yaml` по [примеру](configs/config.example.yaml). Пример намеренно содержит невалидный `CHANGE_ME`: замените его на случайный общий secret длиной не менее 32 байт. Например, `openssl rand -hex 32` на Mac. Передайте его доверенным устройствам через безопасный канал. Ограничьте доступ к config текущим пользователем (на Mac `chmod 600 config.yaml`). Файл `config.yaml` исключён из Git; конфиги с секретами не коммитьте.
