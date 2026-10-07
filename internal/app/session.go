@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -36,6 +37,9 @@ type Session struct {
 }
 
 func Start(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool)) (*Session, error) {
+	return StartWithControl(parent, c, b, log, health, nil)
+}
+func StartWithControl(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool), control http.Handler) (*Session, error) {
 	listener, e := net.Listen("tcp", c.ListenAddress())
 	if e != nil {
 		return nil, listenError(e)
@@ -52,7 +56,15 @@ func Start(parent context.Context, c config.Config, b clipboard.Backend, log *sl
 		return nil, errors.New("Буфер обмена недоступен")
 	}
 	s := &Session{cancel: cancel, done: make(chan struct{})}
-	server := &http.Server{Handler: transport.Handler(c, security.NewPeerKeys(c), manager, log), ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, BaseContext: func(net.Listener) context.Context { return ctx }}
+	clipboardHandler := transport.Handler(c, security.NewPeerKeys(c), manager, log)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if control != nil && (r.URL.Path == "/api/v1/discovery" || strings.HasPrefix(r.URL.Path, "/api/v1/pair/") || r.URL.Path == "/api/v1/group/membership") {
+			control.ServeHTTP(w, r)
+			return
+		}
+		clipboardHandler.ServeHTTP(w, r)
+	})
+	server := &http.Server{Handler: handler, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, BaseContext: func(net.Listener) context.Context { return ctx }}
 	go func() {
 		defer close(s.done)
 		defer client.Close()

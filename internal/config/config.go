@@ -43,6 +43,7 @@ func (Security) String() string   { return "[redacted]" }
 func (Security) GoString() string { return "[redacted]" }
 
 type Config struct {
+	Removed       []string          `yaml:"removed,omitempty"`
 	SchemaVersion int               `yaml:"schema_version,omitempty"`
 	Identity      identity.Identity `yaml:"identity,omitempty"`
 	Group         struct {
