@@ -1,0 +1,21 @@
+# Example only. Replace the addresses and generate your own secret (32+ bytes).
+device:
+  id: macbook-home
+  name: MacBook
+listen:
+  address: 100.100.100.101
+  port: 45873
+security:
+  secret: CHANGE_ME
+sync:
+  enabled: true
+  mode: bidirectional
+peers:
+  - id: desktop
+    name: Desktop
+    address: desktop.netbird.cloud
+    port: 45873
+  - id: laptop
+    name: Laptop
+    address: 100.100.100.103
+    port: 45873
