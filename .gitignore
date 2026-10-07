@@ -1,0 +1,6 @@
+/clipare
+/clipare.exe
+/dist/
+/config.yaml
+*.test
+coverage.out
