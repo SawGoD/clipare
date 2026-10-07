@@ -51,7 +51,43 @@ func Handler(c config.Config, secret security.SecretProvider, receiver Receiver,
 			http.Error(w, "request too large", 413)
 			return
 		}
-		if !security.Verify(secret.Secret(), r.Header.Get(security.TimestampHeader), r.Header.Get(security.SignatureHeader), body, time.Now()) {
+		key := secret.Secret()
+		signed := body
+		claimed := r.Header.Get(security.SourceHeader)
+		if keys, ok := secret.(*security.PeerKeys); ok {
+			if method == "POST" {
+				var envelope struct {
+					Source string `json:"source"`
+				}
+				if json.Unmarshal(body, &envelope) != nil {
+					http.Error(w, "invalid message", 400)
+					return
+				}
+				if claimed != "" && claimed != envelope.Source {
+					http.Error(w, "source mismatch", 403)
+					return
+				}
+				claimed = envelope.Source
+			}
+			if claimed != "" {
+				key, e = keys.KeyForPeer(claimed)
+				if e != nil {
+					http.Error(w, "untrusted source", 403)
+					return
+				}
+				if !keys.Legacy(claimed) {
+					if r.Header.Get(security.SourceHeader) != claimed {
+						http.Error(w, "source required", 401)
+						return
+					}
+					signed = security.AuthenticatedData(r.Method, r.URL.Path, claimed, body)
+				}
+			} else if method != "GET" {
+				http.Error(w, "source required", 401)
+				return
+			}
+		}
+		if !security.Verify(key, r.Header.Get(security.TimestampHeader), r.Header.Get(security.SignatureHeader), signed, time.Now()) {
 			log.Warn("invalid request signature")
 			http.Error(w, "unauthorized", 401)
 			return

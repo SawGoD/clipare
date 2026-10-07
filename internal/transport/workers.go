@@ -28,7 +28,7 @@ func StartWorkersWithStatus(ctx context.Context, c *Client, peers []config.Peer,
 			tick := time.NewTicker(20 * time.Second)
 			defer tick.Stop()
 			check := func() {
-				h, e := c.Health(ctx, p.URL())
+				h, e := c.HealthPeer(ctx, p.ID, p.URL())
 				if ctx.Err() != nil {
 					return
 				}
@@ -47,7 +47,7 @@ func StartWorkersWithStatus(ctx context.Context, c *Client, peers []config.Peer,
 						return
 					}
 					log.Debug("sending clipboard", "peer", p.ID, "id", m.ID)
-					if e := c.Send(ctx, p.URL(), m); e != nil && ctx.Err() == nil {
+					if e := c.SendPeer(ctx, p.ID, p.URL(), m); e != nil && ctx.Err() == nil {
 						log.Warn("peer delivery failed", "peer", p.ID, "id", m.ID)
 						if status != nil {
 							status(p.ID, false)

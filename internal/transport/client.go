@@ -2,6 +2,7 @@ package transport
 
 import (
 	"bytes"
+	"clipare/internal/config"
 	"clipare/internal/security"
 	clipsync "clipare/internal/sync"
 	"context"
@@ -16,6 +17,13 @@ import (
 type Client struct {
 	http   *http.Client
 	secret security.SecretProvider
+	source string
+}
+
+func NewPeerClient(c config.Config) *Client {
+	client := NewClient(security.NewPeerKeys(c))
+	client.source = c.Device.ID
+	return client
 }
 
 func NewClient(secret security.SecretProvider) *Client {
@@ -23,13 +31,28 @@ func NewClient(secret security.SecretProvider) *Client {
 }
 func (c *Client) Close() { c.http.CloseIdleConnections() }
 func (c *Client) request(ctx context.Context, method, url string, body []byte) ([]byte, error) {
+	return c.peerRequest(ctx, "", method, url, body)
+}
+func (c *Client) peerRequest(ctx context.Context, peerID, method, url string, body []byte) ([]byte, error) {
 	r, e := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
 	if e != nil {
 		return nil, errors.New("invalid peer request")
 	}
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	r.Header.Set(security.TimestampHeader, ts)
-	r.Header.Set(security.SignatureHeader, security.Sign(c.secret.Secret(), ts, body))
+	key := c.secret.Secret()
+	signed := body
+	if keys, ok := c.secret.(*security.PeerKeys); ok && peerID != "" {
+		key, e = keys.KeyForPeer(peerID)
+		if e != nil {
+			return nil, e
+		}
+		if !keys.Legacy(peerID) {
+			r.Header.Set(security.SourceHeader, c.source)
+			signed = security.AuthenticatedData(method, r.URL.Path, c.source, body)
+		}
+	}
+	r.Header.Set(security.SignatureHeader, security.Sign(key, ts, signed))
 	r.Header.Set("Content-Type", "application/json")
 	res, e := c.http.Do(r)
 	if e != nil {
@@ -46,11 +69,14 @@ func (c *Client) request(ctx context.Context, method, url string, body []byte) (
 	return b, nil
 }
 func (c *Client) Send(ctx context.Context, url string, m clipsync.Message) error {
+	return c.SendPeer(ctx, "", url, m)
+}
+func (c *Client) SendPeer(ctx context.Context, peerID, url string, m clipsync.Message) error {
 	b, e := json.Marshal(m)
 	if e != nil {
 		return e
 	}
-	_, e = c.request(ctx, "POST", url+"/api/v1/clipboard", b)
+	_, e = c.peerRequest(ctx, peerID, "POST", url+"/api/v1/clipboard", b)
 	return e
 }
 
@@ -61,7 +87,10 @@ type Health struct {
 }
 
 func (c *Client) Health(ctx context.Context, url string) (Health, error) {
-	b, e := c.request(ctx, "GET", url+"/api/v1/health", nil)
+	return c.HealthPeer(ctx, "", url)
+}
+func (c *Client) HealthPeer(ctx context.Context, peerID, url string) (Health, error) {
+	b, e := c.peerRequest(ctx, peerID, "GET", url+"/api/v1/health", nil)
 	if e != nil {
 		return Health{}, e
 	}

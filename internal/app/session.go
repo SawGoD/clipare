@@ -41,7 +41,7 @@ func Start(parent context.Context, c config.Config, b clipboard.Backend, log *sl
 		return nil, listenError(e)
 	}
 	ctx, cancel := context.WithCancel(parent)
-	client := transport.NewClient(security.StaticSecret(c.Security.Secret))
+	client := transport.NewPeerClient(c)
 	workers := transport.StartWorkersWithStatus(ctx, client, c.Peers, log, health)
 	manager := clipsync.NewManager(b, c.Device.ID, c.Mode(), log, workers.Broadcast)
 	if e = manager.Initialize(); e != nil {
@@ -52,7 +52,7 @@ func Start(parent context.Context, c config.Config, b clipboard.Backend, log *sl
 		return nil, errors.New("Буфер обмена недоступен")
 	}
 	s := &Session{cancel: cancel, done: make(chan struct{})}
-	server := &http.Server{Handler: transport.Handler(c, security.StaticSecret(c.Security.Secret), manager, log), ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, BaseContext: func(net.Listener) context.Context { return ctx }}
+	server := &http.Server{Handler: transport.Handler(c, security.NewPeerKeys(c), manager, log), ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, BaseContext: func(net.Listener) context.Context { return ctx }}
 	go func() {
 		defer close(s.done)
 		defer client.Close()
