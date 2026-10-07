@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- Recognize real Winsock WSAEADDRNOTAVAIL errors during NetBird startup on Windows.
+- Verify recovery against a real Windows bind failure, not only synthetic errors.
+- Includes the startup recovery changes staged in v0.2.2; that release was cancelled before publication.
+
 ## 0.2.2
 
 - Automatically start synchronization when the configured NetBird IP becomes available after login.

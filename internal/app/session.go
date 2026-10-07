@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -19,7 +20,9 @@ import (
 var ErrAddressUnavailable = errors.New("Локальный адрес ещё недоступен")
 
 func listenError(err error) error {
-	if errors.Is(err, syscall.EADDRNOTAVAIL) {
+	// Winsock returns WSAEADDRNOTAVAIL (10049); Go's Windows
+	// syscall.EADDRNOTAVAIL is a synthetic application error, not this value.
+	if errors.Is(err, syscall.EADDRNOTAVAIL) || (runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10049))) {
 		return ErrAddressUnavailable
 	}
 	return errors.New("Не удалось слушать выбранный адрес. Проверьте NetBird, IP и порт; возможно, Clipare уже запущен")
