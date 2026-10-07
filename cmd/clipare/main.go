@@ -1,6 +1,7 @@
 package main
 
 import (
+	"clipare"
 	"clipare/internal/app"
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
@@ -17,8 +18,6 @@ import (
 	"runtime"
 	"syscall"
 )
-
-var version = "0.2.0-dev"
 
 // AppKit must run on the initial process thread.
 func init() { runtime.LockOSThread() }
@@ -53,7 +52,7 @@ func run(args []string) error {
 		return errors.New("unexpected arguments")
 	}
 	if *ver {
-		fmt.Println("Clipare", version)
+		fmt.Printf("Clipare %s (%s)\n", clipare.Version(), clipare.Commit)
 		return nil
 	}
 	level := slog.LevelInfo

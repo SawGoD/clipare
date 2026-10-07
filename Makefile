@@ -1,17 +1,29 @@
-.PHONY: mac windows windows-console test test-macos-ui
+.PHONY: mac windows windows-console release-mac release-windows test test-macos-ui
+
+VERSION := $(strip $(shell sed -n '1p' VERSION))
+COMMIT := $(shell git rev-parse HEAD)
+LDFLAGS := -X clipare.Commit=$(COMMIT)
 
 mac:
 	mkdir -p dist/Clipare.app/Contents/MacOS
-	cp assets/Info.plist dist/Clipare.app/Contents/Info.plist
-	CGO_ENABLED=1 go build -trimpath -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
+	sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@BUILD@/$(VERSION)/g' assets/Info.plist > dist/Clipare.app/Contents/Info.plist
+	CGO_ENABLED=1 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
 
 windows:
 	mkdir -p dist
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H=windowsgui" -o dist/Clipare.exe ./cmd/clipare
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS) -H=windowsgui" -o dist/Clipare.exe ./cmd/clipare
 
 windows-console:
 	mkdir -p dist
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o dist/clipare-console.exe ./cmd/clipare
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/clipare-console.exe ./cmd/clipare
+
+release-mac:
+	go run ./scripts/build -os darwin -arch arm64
+	go run ./scripts/build -os darwin -arch amd64
+
+release-windows:
+	go run ./scripts/build -os windows -arch amd64
+	go run ./scripts/build -os windows -arch arm64
 
 test:
 	go test -race ./...
