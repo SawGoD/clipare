@@ -2,7 +2,9 @@ package transport
 
 import (
 	"bytes"
+	"clipare"
 	"clipare/internal/config"
+	"clipare/internal/discovery"
 	"clipare/internal/security"
 	clipsync "clipare/internal/sync"
 	"context"
@@ -19,11 +21,18 @@ type Receiver interface {
 }
 
 func Handler(c config.Config, secret security.SecretProvider, receiver Receiver, log *slog.Logger) http.Handler {
+	discover := discovery.Handler(func() discovery.Info {
+		return discovery.Info{Protocol: 1, App: "clipare", Version: clipare.Version(), DeviceID: c.Device.ID, DeviceName: c.Device.Name, PublicKey: c.Identity.PublicKey, PairingAvailable: false}
+	})
 	trusted := map[string]bool{}
 	for _, p := range c.Peers {
 		trusted[p.ID] = true
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/discovery" {
+			discover.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path != "/api/v1/health" && r.URL.Path != "/api/v1/clipboard" {
 			http.NotFound(w, r)
 			return
