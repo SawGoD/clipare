@@ -15,6 +15,9 @@ type Workers struct {
 }
 
 func StartWorkers(ctx context.Context, c *Client, peers []config.Peer, log *slog.Logger) *Workers {
+	return StartWorkersWithStatus(ctx, c, peers, log, nil)
+}
+func StartWorkersWithStatus(ctx context.Context, c *Client, peers []config.Peer, log *slog.Logger, status func(string, bool)) *Workers {
 	w := &Workers{}
 	for _, peer := range peers {
 		q := make(chan clipsync.Message, 1)
@@ -30,6 +33,9 @@ func StartWorkers(ctx context.Context, c *Client, peers []config.Peer, log *slog
 					return
 				}
 				log.Debug("peer health", "peer", p.ID, "online", e == nil && h.Device == p.ID)
+				if status != nil {
+					status(p.ID, e == nil && h.Device == p.ID)
+				}
 			}
 			check()
 			for {
@@ -43,6 +49,9 @@ func StartWorkers(ctx context.Context, c *Client, peers []config.Peer, log *slog
 					log.Debug("sending clipboard", "peer", p.ID, "id", m.ID)
 					if e := c.Send(ctx, p.URL(), m); e != nil && ctx.Err() == nil {
 						log.Warn("peer delivery failed", "peer", p.ID, "id", m.ID)
+						if status != nil {
+							status(p.ID, false)
+						}
 					}
 				case <-tick.C:
 					check()

@@ -127,3 +127,11 @@ func TestRemoteWriteWithPendingLocalEvent(t *testing.T) {
 		t.Fatal("stale hash skipped remote write")
 	}
 }
+
+func TestConnectionCodeNeverBroadcast(t *testing.T) {
+	f := &fake{}
+	m := NewManager(f, "a", "bidirectional", slog.New(slog.NewTextHandler(io.Discard, nil)), func(Message) { t.Error("connection code broadcast") })
+	m.Initialize()
+	f.text = "clipare1:private-connection-code"
+	m.LocalChanged()
+}

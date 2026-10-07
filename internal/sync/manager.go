@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 )
@@ -66,6 +67,10 @@ func (m *Manager) LocalChanged() {
 	}
 	m.currentHash = h
 	m.hasCurrent = true
+	// Connection codes contain the shared secret and must never be broadcast.
+	if strings.HasPrefix(s, "clipare1:") {
+		return
+	}
 	if m.mode != "bidirectional" && m.mode != "send-only" {
 		return
 	}
