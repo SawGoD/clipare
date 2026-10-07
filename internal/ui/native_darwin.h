@@ -1,0 +1,13 @@
+void clipare_init(void);
+int clipare_poll(void);
+void clipare_show(void);
+void clipare_set(int index,const char *text);
+char *clipare_get(int index);
+void clipare_auto(int enabled);
+int clipare_is_auto(void);
+void clipare_addresses(const char *lines);
+void clipare_peers(const char *lines);
+int clipare_selected(void);
+void clipare_status(const char *status,int enabled,const char *peers);
+void clipare_alert(const char *text);
+void clipare_close(void);
