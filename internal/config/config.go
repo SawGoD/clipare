@@ -35,8 +35,9 @@ func (Security) String() string   { return "[redacted]" }
 func (Security) GoString() string { return "[redacted]" }
 
 type Config struct {
-	Device Device `yaml:"device"`
-	Listen struct {
+	Autostart bool   `yaml:"autostart"`
+	Device    Device `yaml:"device"`
+	Listen    struct {
 		Address string `yaml:"address"`
 		Port    int    `yaml:"port"`
 	} `yaml:"listen"`
