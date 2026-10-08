@@ -55,7 +55,8 @@ func Parse(b []byte) ([]Peer, error) {
 		return nil, ErrUnavailable
 	}
 	var status struct {
-		Peers *struct {
+		DaemonStatus string `json:"daemonStatus"`
+		Peers        *struct {
 			Details []struct {
 				FQDN   string `json:"fqdn"`
 				IP     string `json:"netbirdIp"`
@@ -65,6 +66,9 @@ func Parse(b []byte) ([]Peer, error) {
 		} `json:"peers"`
 	}
 	if json.Unmarshal(b, &status) != nil || status.Peers == nil || len(status.Peers.Details) > 1024 {
+		return nil, ErrUnavailable
+	}
+	if status.DaemonStatus != "" && !strings.EqualFold(status.DaemonStatus, "Connected") {
 		return nil, ErrUnavailable
 	}
 	var peers []Peer

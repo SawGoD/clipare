@@ -12,6 +12,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -82,7 +83,20 @@ func Handler(c config.Config, secret security.SecretProvider, receiver Receiver,
 					}
 					signed = security.AuthenticatedData(r.Method, r.URL.Path, claimed, body)
 				}
-			} else if method != "GET" {
+			} else if method == "GET" {
+				host, _, _ := net.SplitHostPort(r.RemoteAddr)
+				local := net.ParseIP(host) != nil && net.ParseIP(host).Equal(net.ParseIP(c.Listen.Address))
+				legacy := false
+				for _, p := range c.Peers {
+					if keys.Legacy(p.ID) {
+						legacy = true
+					}
+				}
+				if !local && !legacy {
+					http.Error(w, "source required", 401)
+					return
+				}
+			} else {
 				http.Error(w, "source required", 401)
 				return
 			}

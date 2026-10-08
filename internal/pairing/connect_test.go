@@ -6,11 +6,14 @@ import (
 	"clipare/internal/discovery"
 	"clipare/internal/identity"
 	"clipare/internal/peers"
+	"clipare/internal/security"
 	"context"
 	"crypto/hmac"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -73,7 +76,25 @@ func TestConnectAndThreeDeviceMetadata(t *testing.T) {
 	if len(sa.Config().Peers) != 2 || len(sb.Config().Peers) != 2 {
 		t.Fatal("pair metadata mesh")
 	}
-	c, err = peers.Merge(c, peers.Export(sb.Config()))
+	c, err = peers.Merge(c, peers.Membership{Group: c.Group.ID, Members: []peers.Member{peers.Local(b), peers.Local(c)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := NewService(filepath.Join(t.TempDir(), "c.yaml"), c)
+	body, _ := json.Marshal(peers.Export(sb.Config()))
+	key, _ := security.NewPeerKeys(sb.Config()).KeyForPeer(c.Device.ID)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	r := httptest.NewRequest("POST", "/api/v1/group/membership", bytes.NewReader(body))
+	r.RemoteAddr = b.Listen.Address + ":1234"
+	r.Header.Set(security.SourceHeader, b.Device.ID)
+	r.Header.Set(security.TimestampHeader, ts)
+	r.Header.Set(security.SignatureHeader, security.Sign(key, ts, security.AuthenticatedData(r.Method, r.URL.Path, b.Device.ID, body)))
+	w := httptest.NewRecorder()
+	sc.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("third member update status %d", w.Code)
+	}
+	c = sc.Config()
 	if err != nil || len(c.Peers) != 2 {
 		t.Fatal("third member metadata", err)
 	}

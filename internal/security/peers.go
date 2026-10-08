@@ -11,6 +11,9 @@ const SourceHeader = "X-Clipare-Source"
 type PeerKeyProvider interface{ KeyForPeer(string) ([]byte, error) }
 type PeerKeys struct{ config config.Config }
 
+func (*PeerKeys) String() string   { return "[redacted peer credentials]" }
+func (*PeerKeys) GoString() string { return "[redacted peer credentials]" }
+
 func NewPeerKeys(c config.Config) *PeerKeys { return &PeerKeys{c} }
 func (p *PeerKeys) Secret() []byte          { return []byte(p.config.Security.Secret) }
 func (p *PeerKeys) KeyForPeer(id string) ([]byte, error) {

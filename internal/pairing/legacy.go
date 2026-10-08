@@ -97,7 +97,9 @@ func (s *Service) tryUpgrade(ctx context.Context, client *http.Client, c config.
 	v := upgrade{c.Group.ID, peers.Local(c), nonce}
 	body, _ := json.Marshal(v)
 	// Legacy metadata may only have FQDN. Resolve it, but never probe a public IP.
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, p.Address)
+	lookup, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	ips, err := net.DefaultResolver.LookupIPAddr(lookup, p.Address)
+	cancel()
 	if err != nil {
 		return
 	}

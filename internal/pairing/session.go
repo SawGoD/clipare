@@ -55,6 +55,10 @@ type record struct {
 	sas            string
 	state          State
 }
+
+func (*record) String() string   { return "[redacted pairing session]" }
+func (*record) GoString() string { return "[redacted pairing session]" }
+
 type Sessions struct {
 	mu     sync.Mutex
 	active *record
@@ -63,6 +67,12 @@ type Sessions struct {
 }
 
 func NewSessions() *Sessions { return &Sessions{used: map[string]time.Time{}, now: time.Now} }
+func (s *Sessions) Available() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanup()
+	return s.active == nil
+}
 func NewID() (string, error) {
 	b := make([]byte, 32)
 	_, e := rand.Read(b)

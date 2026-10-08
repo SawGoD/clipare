@@ -50,6 +50,16 @@ func TestPeerCannotImpersonateAndRemovedPeer(t *testing.T) {
 	b.Peers = b.Peers[1:]
 	h = Handler(b, security.NewPeerKeys(b), rec, log)
 	request(a.Device.ID, body, 403)
+	r := httptest.NewRequest("GET", "/api/v1/health", nil)
+	r.RemoteAddr = "100.64.0.99:1234"
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	r.Header.Set(security.TimestampHeader, ts)
+	r.Header.Set(security.SignatureHeader, security.Sign([]byte(b.Security.Secret), ts, nil))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 401 {
+		t.Fatal("remote global-secret health accepted for paired-only group")
+	}
 	// Old and new senders coexist. Old health and clipboard keep their wire format.
 	b.Peers = append(b.Peers, config.Peer{ID: a.Device.ID, Legacy: true, LegacySecret: a.Security.Secret})
 	server := httptest.NewServer(Handler(b, security.NewPeerKeys(b), rec, log))

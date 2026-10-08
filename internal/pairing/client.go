@@ -27,6 +27,9 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 	r.Header.Set("Content-Type", "application/json")
 	res, e := client.Do(r)
 	if e != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return ErrPeerUnavailable
 	}
 	defer res.Body.Close()
@@ -46,6 +49,10 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 // Connect reports SAS only after commitment and key confirmation succeeded.
 // It persists trusted metadata only after the remote user's explicit approval.
 func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(string)) error {
+	if !s.sessions.Available() || !s.outgoing.CompareAndSwap(false, true) {
+		return errors.New("Другое подключение уже выполняется")
+	}
+	defer s.outgoing.Store(false)
 	if !discovery.NetBirdAddress(d.IP) {
 		return ErrInvalid
 	}
@@ -92,6 +99,19 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		return ErrInvalid
 	}
 	show(sas)
+	finished := false
+	defer func() {
+		if finished {
+			return
+		}
+		cleanup, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = wait(cleanup, time.Second)
+		var out struct {
+			Status string `json:"status"`
+		}
+		_ = post(cleanup, client, url, "/api/v1/pair/cancel", Confirmation{id, proof(key, id, "cancel")}, &out)
+	}()
 	failures := 0
 	for time.Now().Unix() < ch.Expires {
 		if e = wait(ctx, 1500*time.Millisecond); e != nil {
@@ -121,16 +141,18 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 					return ErrInvalid
 				}
 			}
-			if e = s.Adopt(state.Membership, ch.Hello.ID); e != nil {
+			if e = s.Adopt(state.Membership, ch.Hello.ID, d.FQDN); e != nil {
 				return e
 			}
+			finished = true
 			if e = wait(ctx, time.Second); e != nil {
 				return e
 			}
 			var done struct {
 				Status string `json:"status"`
 			}
-			return post(ctx, client, url, "/api/v1/pair/finish", Confirmation{id, proof(key, id, "finish")}, &done)
+			_ = post(ctx, client, url, "/api/v1/pair/finish", Confirmation{id, proof(key, id, "finish")}, &done)
+			return nil // Both sides have persisted trust; finish only erases ephemeral state.
 		}
 	}
 	return ErrExpired

@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,13 +29,19 @@ type Service struct {
 	discover http.Handler
 	Updates  chan config.Config
 	client   *http.Client // injectable transport for protocol integration tests
+	outgoing atomic.Bool
+	disabled atomic.Bool
+	wake     chan struct{}
 }
 
+func (*Service) String() string   { return "[redacted pairing service]" }
+func (*Service) GoString() string { return "[redacted pairing service]" }
+
 func NewService(path string, c config.Config) *Service {
-	s := &Service{c: c, path: path, sessions: NewSessions(), limiter: &discovery.Limiter{Interval: time.Second}, Updates: make(chan config.Config, 1)}
+	s := &Service{c: c, path: path, sessions: NewSessions(), limiter: &discovery.Limiter{Interval: time.Second}, Updates: make(chan config.Config, 1), wake: make(chan struct{}, 1)}
 	s.discover = discovery.Handler(func() discovery.Info {
 		v := s.Config()
-		return discovery.Info{Protocol: 1, App: "clipare", Version: clipare.Version(), DeviceID: v.Device.ID, DeviceName: v.Device.Name, PublicKey: v.Identity.PublicKey, PairingAvailable: true}
+		return discovery.Info{Protocol: 1, App: "clipare", Version: clipare.Version(), DeviceID: v.Device.ID, DeviceName: v.Device.Name, PublicKey: v.Identity.PublicKey, PairingAvailable: !s.disabled.Load() && !s.outgoing.Load() && s.sessions.Available()}
 	})
 	return s
 }
@@ -57,7 +64,7 @@ func (s *Service) SaveSettings(next config.Config) (config.Config, error) {
 	if discovery.NetBirdAddress(s.c.Listen.Address) {
 		merged, err := peers.Merge(next, peers.Export(s.c))
 		if err != nil {
-			return next, err
+			return next, ErrInvalid
 		}
 		next = merged
 	}
@@ -66,7 +73,7 @@ func (s *Service) SaveSettings(next config.Config) (config.Config, error) {
 	}
 	return next, nil
 }
-func (s *Service) SetConfig(c config.Config) { s.mu.Lock(); defer s.mu.Unlock(); s.c = c }
+func (s *Service) DisablePairing() { s.disabled.Store(true) }
 func (s *Service) saveLocked(c config.Config) error {
 	if reflect.DeepEqual(c, s.c) {
 		return nil
@@ -75,6 +82,10 @@ func (s *Service) saveLocked(c config.Config) error {
 		return errors.New("Не удалось сохранить подключение")
 	}
 	s.c = c
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
 	select {
 	case s.Updates <- c:
 	default:
@@ -103,6 +114,11 @@ func (s *Service) Decide(id string, allow bool) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for _, removed := range s.c.Removed {
+		if removed == a.remote.ID {
+			return errors.New("Это устройство удалено из группы. Повторное добавление этой identity пока не поддерживается")
+		}
+	}
 	v := peers.Export(s.c)
 	v.Members = append(v.Members, member(a.remote))
 	next, err := peers.Merge(s.c, v)
@@ -186,6 +202,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/v1/group/upgrade":
 		s.serveUpgrade(w, r, b, ip)
 	case "/api/v1/pair/request":
+		if s.disabled.Load() || s.outgoing.Load() {
+			fail(ErrApproval)
+			return
+		}
 		var v Request
 		if decode(b, &v) != nil {
 			fail(ErrInvalid)
@@ -304,7 +324,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Service) Adopt(v peers.Membership, expected string) error {
+func (s *Service) Adopt(v peers.Membership, expected string, fqdn ...string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.c
@@ -327,6 +347,13 @@ func (s *Service) Adopt(v peers.Membership, expected string) error {
 		return ErrInvalid
 	}
 	c.Group.ID = v.Group
+	if len(fqdn) > 0 && fqdn[0] != "" {
+		for j := range v.Members {
+			if v.Members[j].ID == expected {
+				v.Members[j].FQDN = fqdn[0]
+			}
+		}
+	}
 	next, err := peers.Merge(c, v)
 	if err != nil {
 		return ErrInvalid
@@ -346,6 +373,7 @@ func (s *Service) Propagate(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+		case <-s.wake:
 		}
 		c := s.Config()
 		body, _ := json.Marshal(peers.Export(c))

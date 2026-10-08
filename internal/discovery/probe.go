@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -55,7 +56,7 @@ func (p *HTTPProber) Probe(ctx context.Context, peer Peer) (Info, error) {
 		return Info{}, ErrUnavailable
 	}
 	var i Info
-	if json.Unmarshal(b, &i) != nil || i.Protocol != 1 || i.App != "clipare" || i.DeviceID == "" || len(i.DeviceID) > 128 || len(i.DeviceName) > 256 || len(i.Version) > 64 {
+	if json.Unmarshal(b, &i) != nil || i.Protocol != 1 || i.App != "clipare" || i.DeviceID == "" || len(i.DeviceID) > 128 || len(i.DeviceName) > 256 || strings.ContainsAny(i.DeviceName, "\n\r\x00") || len(i.Version) > 64 {
 		return Info{}, ErrUnavailable
 	}
 	if _, err = identity.Public(i.PublicKey); err != nil {

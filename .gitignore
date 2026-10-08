@@ -2,5 +2,6 @@
 /clipare.exe
 /dist/
 /config.yaml
+*.v1.backup
 *.test
 coverage.out

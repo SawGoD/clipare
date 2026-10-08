@@ -43,7 +43,7 @@ func Export(c config.Config) Membership {
 	return v
 }
 func (m Member) Validate() error {
-	if m.ID == "" || len(m.ID) > 128 || len(m.Name) > 256 || strings.ContainsAny(m.ID, "\n\r/") || !discovery.NetBirdAddress(m.IP) || m.Port < 1 || m.Port > 65535 {
+	if m.ID == "" || len(m.ID) > 128 || len(m.Name) > 256 || strings.ContainsAny(m.Name, "\n\r\x00") || strings.ContainsAny(m.ID, "\n\r/") || !discovery.NetBirdAddress(m.IP) || m.Port < 1 || m.Port > 65535 {
 		return errors.New("invalid group member")
 	}
 	if m.FQDN != "" && (len(m.FQDN) > 253 || strings.ContainsAny(m.FQDN, "/\\?#@ :\t\r\n")) {
@@ -101,6 +101,9 @@ func Merge(c config.Config, v Membership) (config.Config, error) {
 			c.Peers[j].Name = m.Name
 			c.Peers[j].LastKnownIP = m.IP
 			c.Peers[j].Address = m.IP
+			if !discovery.NetBirdAddress(p.Address) {
+				c.Peers[j].Address = p.Address
+			}
 			if m.FQDN != "" {
 				c.Peers[j].Address = m.FQDN
 			}

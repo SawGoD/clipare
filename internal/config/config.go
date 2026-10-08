@@ -135,6 +135,9 @@ func (c Config) Validate() error {
 	ids := map[string]bool{c.Device.ID: true}
 	keys := map[string]bool{c.Identity.PublicKey: true}
 	for i, p := range c.Peers {
+		if len(p.Name) > 256 || strings.ContainsAny(p.Name, "\n\r\x00") {
+			return fmt.Errorf("peer %d: invalid name", i)
+		}
 		if p.ID == "" || len(p.ID) > 128 || ids[p.ID] {
 			return fmt.Errorf("peer %d: invalid or duplicate id", i)
 		}

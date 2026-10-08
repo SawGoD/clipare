@@ -153,6 +153,7 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 	pairDone := make(chan error, 1)
 	sasUpdates := make(chan string, 1)
 	var shownIncoming string
+	var outgoingName string
 	var nextScan time.Time
 	var controlDone chan struct{}
 	var controlWG sync.WaitGroup
@@ -341,7 +342,7 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			}
 			renderDiscovery(message)
 		case sas := <-sasUpdates:
-			pd.Pair("Проверьте код на другом компьютере", sas, false)
+			pd.Pair("Проверьте код на "+outgoingName, sas, false)
 		case err := <-pairDone:
 			outgoing = false
 			pairCancel = nil
@@ -473,6 +474,10 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				pairCtx, stop := context.WithCancel(ctx)
 				pairCancel = stop
 				target := discovered[index]
+				outgoingName = target.DeviceName
+				if outgoingName == "" {
+					outgoingName = target.Name
+				}
 				controlWG.Add(1)
 				go func() {
 					defer controlWG.Done()

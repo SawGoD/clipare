@@ -5,7 +5,7 @@ import (
 	"clipare/internal/app"
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
-	"clipare/internal/security"
+	"clipare/internal/pairing"
 	"clipare/internal/transport"
 	"clipare/internal/ui"
 	"context"
@@ -70,7 +70,7 @@ func run(args []string) error {
 		return e
 	}
 	if status {
-		client := transport.NewClient(security.StaticSecret(c.Security.Secret))
+		client := transport.NewPeerClient(c)
 		defer client.Close()
 		return printStatus(ctx, client, c)
 	}
@@ -78,15 +78,30 @@ func run(args []string) error {
 	if e != nil {
 		return e
 	}
-	s, e := app.Start(ctx, c, b, log, nil)
+	control := pairing.NewService(*path, c)
+	control.DisablePairing()
+	controlDone := make(chan struct{})
+	go func() { defer close(controlDone); control.Propagate(ctx) }()
+	defer func() { cancel(); <-controlDone }()
+	s, e := app.StartWithControl(ctx, c, b, log, nil, control)
 	if e != nil {
 		return e
 	}
-	select {
-	case <-ctx.Done():
-		return s.Stop()
-	case <-s.Done():
-		return s.Err()
+	for {
+		select {
+		case <-ctx.Done():
+			return s.Stop()
+		case <-s.Done():
+			return s.Err()
+		case next := <-control.Updates:
+			if e = s.Stop(); e != nil {
+				return e
+			}
+			s, e = app.StartWithControl(ctx, next, b, log, nil, control)
+			if e != nil {
+				return e
+			}
+		}
 	}
 }
 func printStatus(ctx context.Context, client *transport.Client, c config.Config) error {
@@ -97,7 +112,7 @@ func printStatus(ctx context.Context, client *transport.Client, c config.Config)
 	}
 	fmt.Printf("%s: %s (mode=%s)\n", h.Device, h.Status, h.Mode)
 	for _, p := range c.Peers {
-		h, e := client.Health(ctx, p.URL())
+		h, e := client.HealthPeer(ctx, p.ID, p.URL())
 		state := "offline"
 		if e == nil && h.Device == p.ID {
 			state = "online"
