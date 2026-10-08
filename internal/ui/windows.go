@@ -62,6 +62,12 @@ type nativeDesktop struct {
 	foundList, foundStatus, pairName, pairCode, pairHelp, pairAllow, pairReject        uintptr
 	pairIncoming                                                                       bool
 	pairFont                                                                           uintptr
+	theme                                                                              winTheme
+	surfaceBrush, backgroundBrush                                                      uintptr
+	windows                                                                            map[uintptr]winWindow
+	controls                                                                           map[uintptr]winControl
+	fonts                                                                              map[[2]int]uintptr
+	rows                                                                               map[uintptr][]deviceRow
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -72,12 +78,25 @@ func wide(s string) *uint16 {
 func call(name string, args ...uintptr) uintptr { r, _, _ := win.NewProc(name).Call(args...); return r }
 func (n *nativeDesktop) px(v int) uintptr       { return uintptr(int(float64(v) * n.scale)) }
 func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, id int) uintptr {
-	handle := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), style|0x50000000, n.px(x), n.px(y), n.px(w), n.px(h), n.window, uintptr(id), n.instance, 0)
-	font, _, _ := syscall.NewLazyDLL("gdi32.dll").NewProc("GetStockObject").Call(17)
-	call("SendMessageW", handle, 0x30, font, 1)
+	kind := 0
+	if class == "BUTTON" && style&15 == 0 {
+		style = style&^15 | 11
+		switch id {
+		case 1, 8, 13, 14, 18, 20:
+			kind = 1
+		case 9:
+			kind = 2
+		}
+	}
+	r := n.scaledRect(n.window, logicalRect{x, y, w, h})
+	handle := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), style|0x50000000, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), n.window, uintptr(id), n.instance, 0)
+	n.controls[handle] = winControl{parent: n.window, class: class, bounds: logicalRect{x, y, w, h}, kind: kind}
+	call("SendMessageW", handle, 0x30, n.fontFor(n.window, 0), 1)
 	return handle
 }
-func (n *nativeDesktop) label(text string, x, y, w int) { n.control("STATIC", text, 0, x, y, w, 22, 0) }
+func (n *nativeDesktop) label(text string, x, y, w int) {
+	n.control("STATIC", text, 0x4000, x, y, w, 22, 0)
+}
 func (n *nativeDesktop) input(i, x, y, w int, secure bool) {
 	style := uintptr(0x00810080)
 	if secure {
@@ -89,11 +108,16 @@ func (n *nativeDesktop) button(text string, x, y, w, tag int) {
 	n.control("BUTTON", text, 0x10000, x, y, w, 30, tag)
 }
 func (n *nativeDesktop) Init() error {
-	call("SetProcessDPIAware")
+	call("SetProcessDpiAwarenessContext", ^uintptr(3)) // per-monitor v2
 	if dpi := call("GetDpiForSystem"); dpi > 0 {
 		n.scale = float64(dpi) / 96
 	}
 	n.instance, _, _ = k32.NewProc("GetModuleHandleW").Call(0)
+	n.windows = make(map[uintptr]winWindow)
+	n.controls = make(map[uintptr]winControl)
+	n.fonts = make(map[[2]int]uintptr)
+	n.rows = make(map[uintptr][]deviceRow)
+	n.applyTheme()
 	n.icon = call("LoadIconW", 0, 32516)
 	n.taskbar = uint32(call("RegisterWindowMessageW", uintptr(unsafe.Pointer(wide("TaskbarCreated")))))
 	n.callback = syscall.NewCallback(func(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
@@ -101,7 +125,13 @@ func (n *nativeDesktop) Init() error {
 			n.addTray()
 			return 0
 		}
+		if r, ok := n.themeMessage(hwnd, msg, w, l); ok {
+			return r
+		}
 		switch msg {
+		case 0x2e0:
+			n.dpiChanged(hwnd, w, l)
+			return 0
 		case 0x10:
 			if hwnd == n.found {
 				n.events = append(n.events, 17)
@@ -149,12 +179,12 @@ func (n *nativeDesktop) Init() error {
 		return call("DefWindowProcW", hwnd, uintptr(msg), w, l)
 	})
 	class := wide("ClipareSettingsWindow")
-	wc := windowClass{Proc: n.callback, Instance: n.instance, Icon: n.icon, Cursor: call("LoadCursorW", 0, 32512), Background: 6, Name: class}
+	wc := windowClass{Proc: n.callback, Instance: n.instance, Icon: n.icon, Cursor: call("LoadCursorW", 0, 32512), Name: class}
 	wc.Size = uint32(unsafe.Sizeof(wc))
 	if call("RegisterClassExW", uintptr(unsafe.Pointer(&wc))) == 0 {
 		return errors.New("Не удалось зарегистрировать окно Clipare")
 	}
-	n.window = call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide("Настройки Clipare"))), 0x00CA0000, 0x80000000, 0x80000000, n.px(780), n.px(660), 0, 0, n.instance, 0)
+	n.window = n.panel(class, "Настройки Clipare", 764, 620)
 	if n.window == 0 {
 		return errors.New("Не удалось создать окно Clipare")
 	}
@@ -194,6 +224,7 @@ func (n *nativeDesktop) Init() error {
 	n.button("Сохранить настройки", 500, 590, 230, 1)
 	n.state = "Настройте подключение"
 	n.installHome(class)
+	n.applyTheme()
 	n.addTray()
 	return nil
 }
@@ -209,7 +240,7 @@ func windowText(h uintptr) string {
 func (n *nativeDesktop) installHome(class *uint16) {
 	advanced := n.window
 	panel := func(title string, h int) uintptr {
-		return call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), 0x00CA0000, 0x80000000, 0x80000000, n.px(500), n.px(h), 0, 0, n.instance, 0)
+		return n.panel(class, title, 480, h-40)
 	}
 	n.home = panel("Clipare", 644)
 	n.window = n.home
@@ -421,6 +452,14 @@ func (n *nativeDesktop) Close() {
 	call("DestroyWindow", n.updateWindow)
 	if n.pairFont != 0 {
 		syscall.NewLazyDLL("gdi32.dll").NewProc("DeleteObject").Call(n.pairFont)
+	}
+	for _, font := range n.fonts {
+		gcall("DeleteObject", font)
+	}
+	for _, brush := range []uintptr{n.surfaceBrush, n.backgroundBrush} {
+		if brush != 0 {
+			gcall("DeleteObject", brush)
+		}
 	}
 	call("UnregisterClassW", uintptr(unsafe.Pointer(wide("ClipareSettingsWindow"))), n.instance)
 }
