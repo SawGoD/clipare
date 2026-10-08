@@ -331,6 +331,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		status = "Применение настроек…"
 		states = map[string]bool{}
 		d.Update(status, false, c.Peers, states)
+		renderStatus(d, status, next.Mode() != "disabled", false, next.Listen.Address == "127.0.0.1", true)
 		old := session
 		previousConfig := c
 		previousAutostart := c.Autostart
@@ -401,6 +402,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	refresh := time.NewTicker(timing.refresh)
 	defer refresh.Stop()
 	d.Update(status, false, c.Peers, states)
+	renderStatus(d, status, c.Mode() != "disabled", false, c.Listen.Address == "127.0.0.1", busy)
 	for {
 		select {
 		case <-ctx.Done():
@@ -572,6 +574,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 			}
 			d.Update(status, session != nil && c.Mode() != "disabled", c.Peers, states)
+			renderStatus(d, status, c.Mode() != "disabled", session != nil, c.Listen.Address == "127.0.0.1", busy)
 		case st := <-statusUpdates:
 			states[st.id] = st.online
 		case <-refresh.C:
@@ -605,6 +608,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				apply(c, false)
 			}
 			d.Update(status, session != nil && c.Mode() != "disabled", c.Peers, states)
+			renderStatus(d, status, c.Mode() != "disabled", session != nil, c.Listen.Address == "127.0.0.1", busy)
 		case <-tick.C:
 			action := d.Poll()
 			if action == eventQuit {
