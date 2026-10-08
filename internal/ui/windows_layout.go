@@ -2,7 +2,10 @@
 
 package ui
 
-import "unsafe"
+import (
+	"syscall"
+	"unsafe"
+)
 
 type winRect struct{ Left, Top, Right, Bottom int32 }
 type logicalRect struct{ x, y, w, h int }
@@ -83,9 +86,33 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	}
 	px := func(v int) int32 { return int32(v * dpi / 96) }
 	t := n.theme
+	if d.Type == 3 {
+		fill, fg := t.surface, t.text
+		if d.State&1 != 0 {
+			fill = blendColor(t.surface, t.accent, .14)
+		}
+		if t.contrast && d.State&1 != 0 {
+			fill, fg = t.accent, t.onAccent
+		}
+		brush := gcall("CreateSolidBrush", uintptr(fill))
+		call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
+		gcall("DeleteObject", brush)
+		if d.Item != ^uint32(0) {
+			length := call("SendMessageW", d.Window, 0x149, uintptr(d.Item), 0)
+			if length < 8192 {
+				text := make([]uint16, length+1)
+				call("SendMessageW", d.Window, 0x148, uintptr(d.Item), uintptr(unsafe.Pointer(&text[0])))
+				r := d.Rect
+				r.Left += px(10)
+				r.Right -= px(10)
+				n.drawText(d.DC, n.fontFor(c.parent, 0), syscall.UTF16ToString(text), r, fg, 0x8024)
+			}
+		}
+		return
+	}
 	if d.Type == 4 { // native owner-drawn button
 		fill, border, fg := t.surface, t.border, t.text
-		if c.kind == 1 {
+		if c.kind == 1 || c.kind == 3 {
 			fill, border, fg = t.accent, t.accent, t.onAccent
 		}
 		if c.kind == 2 {
@@ -102,8 +129,30 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		r.Top++
 		r.Right--
 		r.Bottom--
-		n.roundRect(d.DC, r, fill, border, int(px(6)))
-		n.drawText(d.DC, n.fontFor(c.parent, 0), windowText(d.Window), r, fg, 0x25|0x8000)
+		radius, role := int(px(6)), 0
+		if c.kind == 3 {
+			radius, role = int(px(40)), 3
+		}
+		n.roundRect(d.DC, r, fill, border, radius)
+		label := windowText(d.Window)
+		if c.kind == 3 {
+			label = "+"
+		}
+		if c.kind == 4 {
+			labelRect := r
+			labelRect.Left += px(12)
+			labelRect.Right -= px(32)
+			n.drawText(d.DC, n.fontFor(c.parent, role), label, labelRect, fg, 0x8024)
+			arrow := "›"
+			if n.preferencesExpanded {
+				arrow = "˅"
+			}
+			arrowRect := r
+			arrowRect.Left = arrowRect.Right - px(32)
+			n.drawText(d.DC, n.fontFor(c.parent, 2), arrow, arrowRect, fg, 0x25)
+		} else {
+			n.drawText(d.DC, n.fontFor(c.parent, role), label, r, fg, 0x25|0x8000)
+		}
 		if d.State&0x10 != 0 {
 			r.Left += px(4)
 			r.Top += px(4)

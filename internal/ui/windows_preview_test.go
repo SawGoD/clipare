@@ -41,6 +41,17 @@ func TestWindowsFluentPreview(t *testing.T) {
 	n.Show(f, peers, []string{"100.64.0.1"})
 	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
 	n.UpdateSettings("0.5.0", true)
+	if call("IsWindowVisible", n.homeAuto) != 0 || call("IsWindowVisible", n.updateCheck) != 0 {
+		t.Fatal("preferences must be collapsed initially")
+	}
+	n.preferencesExpanded = true
+	n.layoutPreferences()
+	if call("IsWindowVisible", n.homeAuto) == 0 || call("IsWindowVisible", n.updateCheck) == 0 {
+		t.Fatal("expanded preferences are hidden")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "home-expanded.png"))
+	n.preferencesExpanded = false
+	n.layoutPreferences()
 	// Painting must not replace the native automatic-checkbox state machine.
 	before := call("SendMessageW", n.homeAuto, 0xf0, 0, 0)
 	call("SendMessageW", n.homeAuto, 0xf5, 0, 0) // BM_CLICK
@@ -96,7 +107,14 @@ func TestWindowsFluentPreview(t *testing.T) {
 	if call("IsWindowVisible", n.emptyDevices) == 0 {
 		t.Fatal("empty device state hidden")
 	}
+	if call("IsWindowVisible", n.emptyAdd) == 0 || call("IsWindowVisible", n.removePeer) != 0 || call("IsWindowVisible", n.compactAdd) != 0 || call("IsWindowVisible", n.homeList) != 0 {
+		t.Fatal("empty devices expose list actions")
+	}
 	captureWindow(t, n.home, filepath.Join(dir, "home-empty.png"))
+	n.Update("Синхронизация включена", true, peers, nil)
+	if call("IsWindowVisible", n.emptyAdd) != 0 || call("IsWindowVisible", n.removePeer) == 0 {
+		t.Fatal("peer arrival did not restore list actions")
+	}
 	n.Discovered("Desktop-PC — 100.64.0.2\nLaptop — laptop.netbird.cloud", "Выберите устройство и нажмите «Подключить»")
 	if len(n.rows[n.foundList]) != 2 {
 		t.Fatal("discovery rows missing")
@@ -143,6 +161,21 @@ func TestWindowsFluentPreview(t *testing.T) {
 	}
 	call("ShowWindow", n.window, 5)
 	captureWindow(t, n.window, filepath.Join(dir, "advanced.png"))
+	call("SendMessageW", n.fields[2], 0x143, 0, uintptr(unsafe.Pointer(wide("100.64.0.2"))))
+	var combo comboInfo
+	combo.Size = uint32(unsafe.Sizeof(combo))
+	call("GetComboBoxInfo", n.fields[2], uintptr(unsafe.Pointer(&combo)))
+	for _, v := range variants[:2] {
+		n.setTheme(v.theme)
+		call("SendMessageW", n.fields[2], 0x14f, 1, 0)
+		n.Poll()
+		if !n.comboOpen() {
+			t.Fatal("native dropdown did not open")
+		}
+		captureWindow(t, n.window, filepath.Join(dir, "advanced-"+v.name+".png"))
+		captureWindow(t, combo.List, filepath.Join(dir, "netbird-dropdown-"+v.name+".png"))
+		call("SendMessageW", n.fields[2], 0x14f, 0, 0)
+	}
 }
 
 func captureWindow(t *testing.T, hwnd uintptr, path string) {

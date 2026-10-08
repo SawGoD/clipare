@@ -164,6 +164,17 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 
 func (n *nativeDesktop) themeMessage(hwnd uintptr, msg uint32, w, l uintptr) (uintptr, bool) {
 	switch msg {
+	case 0x2c: // WM_MEASUREITEM can arrive before the combo HWND is registered.
+		var item struct {
+			Type, ID, Item, Width, Height uint32
+			Data                          uintptr
+		}
+		k32.NewProc("RtlMoveMemory").Call(uintptr(unsafe.Pointer(&item)), l, unsafe.Sizeof(item))
+		if item.Type == 3 {
+			item.Height = uint32(n.scaledRect(hwnd, logicalRect{h: 30}).Bottom)
+			k32.NewProc("RtlMoveMemory").Call(l, uintptr(unsafe.Pointer(&item)), unsafe.Sizeof(item))
+			return 1, true
+		}
 	case 0x1a, 0x31a, 0x320: // settings, theme, DWM accent changed
 		n.applyTheme()
 		return 0, true

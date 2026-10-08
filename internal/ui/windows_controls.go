@@ -16,6 +16,11 @@ func (n *nativeDesktop) styleControl(h uintptr) {
 		n.controlCallback = syscall.NewCallback(func(h uintptr, msg uint32, w, l, id, ref uintptr) uintptr {
 			c := n.controls[h]
 			check := c.class == "BUTTON"
+			if c.class == "COMBOBOX" && (msg == 0x133 || msg == 0x134) {
+				gcall("SetTextColor", w, uintptr(n.theme.text))
+				gcall("SetBkColor", w, uintptr(n.theme.surface))
+				return n.surfaceBrush
+			}
 			if check && (msg == 0xf || msg == 0x318) {
 				if msg == 0x318 {
 					n.paintCheckbox(h, w)
@@ -125,6 +130,10 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 	}
 	// Cover the native rectangular frame, then draw a restrained rounded outline.
 	call("FrameRect", dc, uintptr(unsafe.Pointer(&r)), n.surfaceBrush)
+	if combo {
+		inner := winRect{1, 1, r.Right - 1, r.Bottom - 1}
+		call("FrameRect", dc, uintptr(unsafe.Pointer(&inner)), n.surfaceBrush)
+	}
 	pen := gcall("CreatePen", 0, 1, uintptr(border))
 	oldPen := gcall("SelectObject", dc, pen)
 	oldBrush := gcall("SelectObject", dc, gcall("GetStockObject", 5)) // hollow brush
