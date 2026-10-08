@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"sort"
@@ -20,6 +21,14 @@ type Identity struct {
 
 func (Identity) String() string   { return "[redacted identity]" }
 func (Identity) GoString() string { return "[redacted identity]" }
+func (i Identity) Fingerprint() string {
+	b, err := base64.StdEncoding.DecodeString(i.PublicKey)
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:16])
+}
 
 type Provider interface {
 	Private() (*ecdh.PrivateKey, error)

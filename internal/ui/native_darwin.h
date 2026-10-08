@@ -11,3 +11,7 @@ int clipare_selected(void);
 void clipare_status(const char *status,int enabled,const char *peers);
 void clipare_alert(const char *text);
 void clipare_close(void);
+void clipare_discovered(const char *lines,const char *status);
+int clipare_discovered_selected(void);
+void clipare_pair(const char *name,const char *sas,int incoming);
+void clipare_pair_close(void);

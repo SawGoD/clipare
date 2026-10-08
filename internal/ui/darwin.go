@@ -64,3 +64,15 @@ func (*nativeDesktop) Update(status string, enabled bool, peers []config.Peer, s
 }
 func (*nativeDesktop) Alert(s string) { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
 func (*nativeDesktop) Close()         { C.clipare_close() }
+func (*nativeDesktop) Discovered(lines, status string) {
+	cstr(lines, func(l *C.char) { cstr(status, func(s *C.char) { C.clipare_discovered(l, s) }) })
+}
+func (*nativeDesktop) DiscoveredSelected() int { return int(C.clipare_discovered_selected()) }
+func (*nativeDesktop) Pair(name, sas string, incoming bool) {
+	n := 0
+	if incoming {
+		n = 1
+	}
+	cstr(name, func(a *C.char) { cstr(sas, func(b *C.char) { C.clipare_pair(a, b, C.int(n)) }) })
+}
+func (*nativeDesktop) PairClose() { C.clipare_pair_close() }

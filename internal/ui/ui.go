@@ -5,13 +5,18 @@ import (
 	"clipare/internal/autostart"
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
+	"clipare/internal/discovery"
+	"clipare/internal/pairing"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,7 +32,25 @@ const (
 	eventUpsert
 	eventRemove
 	eventSelect
+	eventAdd
+	eventRefresh
+	eventConnect
+	eventApprove
+	eventReject
+	eventCancelPair
+	eventCloseDiscovery
 )
+
+type pairingDesktop interface {
+	Discovered(string, string)
+	DiscoveredSelected() int
+	Pair(string, string, bool)
+	PairClose()
+}
+type scanResult struct {
+	devices []discovery.Device
+	err     error
+}
 
 type form struct {
 	Values    [11]string
@@ -46,7 +69,7 @@ type desktop interface {
 }
 
 func toForm(c config.Config) form {
-	return form{Values: [11]string{c.Device.Name, c.Device.ID, c.Listen.Address, strconv.Itoa(c.Listen.Port), c.Security.Secret, "", "", "", "", "45873", ""}, Autostart: c.Autostart}
+	return form{Values: [11]string{c.Device.Name, c.Device.ID, c.Listen.Address, strconv.Itoa(c.Listen.Port), c.Security.Secret, "Протокол 1 · Public key SHA-256: " + c.Identity.Fingerprint(), "", "", "", "45873", ""}, Autostart: c.Autostart}
 }
 func fromForm(f form, c config.Config) (config.Config, error) {
 	c.Device.Name = f.Values[0]
@@ -56,6 +79,15 @@ func fromForm(f form, c config.Config) (config.Config, error) {
 		return c, errors.New("Порт должен быть числом от 1 до 65535")
 	}
 	c.Listen.Port = p
+	if c.Security.Secret != f.Values[4] {
+		old := c.Security.Secret
+		c.Peers = append([]config.Peer(nil), c.Peers...)
+		for j := range c.Peers {
+			if c.Peers[j].Legacy && (c.Peers[j].LegacySecret == old || c.Peers[j].LegacySecret == "") {
+				c.Peers[j].LegacySecret = f.Values[4]
+			}
+		}
+	}
 	c.Security.Secret = f.Values[4]
 	c.Autostart = f.Autostart
 	return c, nil
@@ -86,7 +118,7 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 	if e != nil {
 		return e
 	}
-	return runDesktop(parent, path, log, d, b, app.Start, loopTiming{30 * time.Millisecond, 2 * time.Second, 5 * time.Second})
+	return runDesktop(parent, path, log, d, b, nil, loopTiming{30 * time.Millisecond, 2 * time.Second, 5 * time.Second})
 }
 
 // The GUI loop is also exercised with a synthetic desktop and clipboard, so
@@ -111,6 +143,80 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		}
 	}
 	draft := c
+	pd, hasPairUI := d.(pairingDesktop)
+	var service *pairing.Service
+	var memberUpdates <-chan config.Config
+	var scanCancel, pairCancel context.CancelFunc
+	var discovered []discovery.Device
+	scanning, discoverOpen, outgoing := false, false, false
+	scanDone := make(chan scanResult, 1)
+	pairDone := make(chan error, 1)
+	sasUpdates := make(chan string, 1)
+	var shownIncoming string
+	var nextScan time.Time
+	var controlDone chan struct{}
+	var controlWG sync.WaitGroup
+	if hasPairUI {
+		service = pairing.NewService(path, c)
+		memberUpdates = service.Updates
+		controlDone = make(chan struct{})
+		go func() { defer close(controlDone); service.Propagate(ctx) }()
+	}
+	if start == nil {
+		start = func(ctx context.Context, next config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool)) (*app.Session, error) {
+			if service == nil {
+				return app.Start(ctx, next, b, log, health)
+			}
+			return app.StartWithControl(ctx, next, b, log, health, service)
+		}
+	}
+	defer func() {
+		if scanCancel != nil {
+			scanCancel()
+		}
+		if pairCancel != nil {
+			pairCancel()
+		}
+		if controlDone != nil {
+			cancel()
+			<-controlDone
+		}
+		controlWG.Wait()
+	}()
+	renderDiscovery := func(message string) {
+		if !hasPairUI {
+			return
+		}
+		var lines []string
+		for _, v := range discovered {
+			lines = append(lines, v.DeviceName+" — "+v.IP)
+		}
+		pd.Discovered(strings.Join(lines, "\n"), message)
+	}
+	scan := func() {
+		if scanning || !hasPairUI {
+			return
+		}
+		scanning = true
+		renderDiscovery("Поиск устройств…")
+		scanCtx, stop := context.WithCancel(ctx)
+		scanCancel = stop
+		known := map[string]bool{c.Device.ID: true}
+		for _, p := range c.Peers {
+			known[p.ID] = true
+		}
+		controlWG.Add(1)
+		go func() {
+			defer controlWG.Done()
+			p := discovery.NewProber()
+			defer p.Close()
+			v, e := discovery.Scan(scanCtx, discovery.CLI{}, p, known)
+			select {
+			case scanDone <- scanResult{v, e}:
+			case <-ctx.Done():
+			}
+		}()
+	}
 	states := map[string]bool{}
 	statusUpdates := make(chan peerStatus, 128)
 	health := func(id string, online bool) {
@@ -143,11 +249,21 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			if old != nil {
 				old.Stop()
 			}
+			startedConfig := next
 			s, err := start(ctx, next, b, log, health)
 			if (err == nil || errors.Is(err, app.ErrAddressUnavailable)) && persist {
-				storageErr := config.Save(path, next)
+				var storageErr error
+				if service != nil {
+					next, storageErr = service.SaveSettings(next)
+				} else {
+					storageErr = config.Save(path, next)
+				}
 				if storageErr == nil && (next.Autostart || previousAutostart) {
 					storageErr = autostart.Set(next.Autostart, exe, path)
+				}
+				if storageErr == nil && s != nil && !reflect.DeepEqual(startedConfig, next) {
+					s.Stop()
+					s, err = start(ctx, next, b, log, health)
 				}
 				if storageErr != nil {
 					err = storageErr
@@ -156,7 +272,11 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 					}
 					s = nil
 					if old != nil {
-						_ = config.Save(path, previousConfig)
+						if service != nil {
+							_, _ = service.SaveSettings(previousConfig)
+						} else {
+							_ = config.Save(path, previousConfig)
+						}
 					}
 				}
 			}
@@ -166,7 +286,10 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			done <- result{next, s, err, persist}
 		}()
 	}
-	if needsSetup {
+	if needsSetup && hasPairUI && discovery.NetBirdAddress(c.Listen.Address) {
+		d.Show(toForm(draft), draft.Peers, config.Addresses())
+		apply(c, true)
+	} else if needsSetup {
 		d.Show(toForm(draft), draft.Peers, config.Addresses())
 	} else {
 		apply(c, false)
@@ -192,6 +315,42 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		select {
 		case <-ctx.Done():
 			return nil
+		case update := <-memberUpdates:
+			if reflect.DeepEqual(update, c) {
+				continue
+			}
+			if busy {
+				continue
+			}
+			c = update
+			draft = c
+			d.Show(toForm(draft), draft.Peers, config.Addresses())
+			apply(c, false)
+		case sr := <-scanDone:
+			scanning = false
+			nextScan = time.Now().Add(20 * time.Second)
+			if !discoverOpen {
+				continue
+			}
+			discovered = sr.devices
+			message := "Выберите устройство и нажмите «Подключить»"
+			if sr.err != nil {
+				message = discovery.ErrUnavailable.Error()
+			} else if len(discovered) == 0 {
+				message = "Устройства не найдены. Запустите Clipare на другом компьютере или добавьте его по коду"
+			}
+			renderDiscovery(message)
+		case sas := <-sasUpdates:
+			pd.Pair("Проверьте код на другом компьютере", sas, false)
+		case err := <-pairDone:
+			outgoing = false
+			pairCancel = nil
+			pd.PairClose()
+			if err != nil && !errors.Is(err, context.Canceled) {
+				d.Alert(err.Error())
+			} else if err == nil {
+				d.Alert("Устройство подключено")
+			}
 		case r := <-done:
 			busy = false
 			session = r.s
@@ -221,10 +380,30 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 					status = "Только локальный доступ — выберите NetBird IP"
 				}
 			}
+			if service != nil {
+				latest := service.Config()
+				if r.err == nil && !reflect.DeepEqual(latest, c) {
+					c = latest
+					draft = c
+					apply(c, false)
+				}
+			}
 			d.Update(status, session != nil && c.Mode() != "disabled", c.Peers, states)
 		case st := <-statusUpdates:
 			states[st.id] = st.online
 		case <-refresh.C:
+			if service != nil {
+				if snap, ok := service.Snapshot(); ok && snap.State == pairing.Pending && snap.Session != shownIncoming && !outgoing {
+					shownIncoming = snap.Session
+					pd.Pair(snap.Name+" хочет подключиться", snap.SAS, true)
+				} else if shownIncoming != "" && (!ok || snap.State != pairing.Pending) {
+					shownIncoming = ""
+					pd.PairClose()
+				}
+			}
+			if discoverOpen && !outgoing && !scanning && !time.Now().Before(nextScan) {
+				scan()
+			}
 			if session != nil {
 				select {
 				case <-session.Done():
@@ -253,6 +432,77 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				}
 			}
 			switch action {
+			case eventAdd, eventRefresh:
+				if !hasPairUI {
+					continue
+				}
+				discoverOpen = true
+				if !discovery.NetBirdAddress(c.Listen.Address) {
+					address := ""
+					for _, v := range config.Addresses() {
+						if discovery.NetBirdAddress(v) {
+							address = v
+							break
+						}
+					}
+					if address == "" {
+						pd.Discovered("", "NetBird не запущен. Подключите NetBird и нажмите «Обновить»")
+						continue
+					}
+					next := c
+					next.Listen.Address = address
+					draft = next
+					apply(next, true)
+				}
+				scan()
+			case eventCloseDiscovery:
+				discoverOpen = false
+				if scanCancel != nil {
+					scanCancel()
+				}
+			case eventConnect:
+				if !hasPairUI || service == nil || outgoing || shownIncoming != "" {
+					continue
+				}
+				index := pd.DiscoveredSelected()
+				if index < 0 || index >= len(discovered) {
+					d.Alert("Выберите устройство из списка")
+					continue
+				}
+				outgoing = true
+				pairCtx, stop := context.WithCancel(ctx)
+				pairCancel = stop
+				target := discovered[index]
+				controlWG.Add(1)
+				go func() {
+					defer controlWG.Done()
+					err := service.Connect(pairCtx, target, func(sas string) {
+						select {
+						case sasUpdates <- sas:
+						case <-pairCtx.Done():
+						}
+					})
+					select {
+					case pairDone <- err:
+					case <-ctx.Done():
+					}
+				}()
+			case eventApprove, eventReject:
+				if service == nil || shownIncoming == "" {
+					continue
+				}
+				if err := service.Decide(shownIncoming, action == eventApprove); err != nil {
+					d.Alert(err.Error())
+				}
+				shownIncoming = ""
+				pd.PairClose()
+			case eventCancelPair:
+				if pairCancel != nil {
+					pairCancel()
+				}
+				if hasPairUI {
+					pd.PairClose()
+				}
 			case eventSettings:
 				draft = c
 				d.Show(toForm(draft), draft.Peers, config.Addresses())
@@ -338,6 +588,10 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				next.Peers = append([]config.Peer(nil), draft.Peers...)
 				index := d.Selected()
 				if index >= 0 && index < len(next.Peers) {
+					if !next.Peers[index].Legacy {
+						d.Alert("Это устройство подключено безопасным pairing. Для изменения identity удалите его и подключите заново")
+						continue
+					}
 					next.Peers[index] = peer
 				} else {
 					next.Peers = append(next.Peers, peer)
@@ -357,8 +611,14 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 						continue
 					}
 					next.Peers = append(append([]config.Peer(nil), draft.Peers[:index]...), draft.Peers[index+1:]...)
+					if !draft.Peers[index].Legacy {
+						next.Removed = append(append([]string(nil), next.Removed...), draft.Peers[index].ID)
+					}
 					draft = next
 					d.Show(toForm(draft), draft.Peers, config.Addresses())
+					if hasPairUI {
+						apply(next, true)
+					}
 				}
 			case eventSelect:
 				index := d.Selected()

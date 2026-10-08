@@ -46,16 +46,21 @@ type notifyIcon struct {
 	BalloonIcon         uintptr
 }
 type nativeDesktop struct {
-	window, instance, callback, icon uintptr
-	fields                           [11]uintptr
-	auto, list                       uintptr
-	statusLabel                      uintptr
-	events                           []int
-	state                            string
-	enabled                          bool
-	peerLines                        string
-	scale                            float64
-	taskbar                          uint32
+	window, instance, callback, icon                                            uintptr
+	fields                                                                      [11]uintptr
+	auto, list                                                                  uintptr
+	statusLabel                                                                 uintptr
+	events                                                                      []int
+	state                                                                       string
+	enabled                                                                     bool
+	peerLines                                                                   string
+	scale                                                                       float64
+	taskbar                                                                     uint32
+	home, found, pair                                                           uintptr
+	homeName, homeAuto, homeList, homeStatus                                    uintptr
+	foundList, foundStatus, pairName, pairCode, pairHelp, pairAllow, pairReject uintptr
+	pairIncoming                                                                bool
+	pairFont                                                                    uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -97,6 +102,16 @@ func (n *nativeDesktop) Init() error {
 		}
 		switch msg {
 		case 0x10:
+			if hwnd == n.found {
+				n.events = append(n.events, 17)
+			}
+			if hwnd == n.pair {
+				if n.pairIncoming {
+					n.events = append(n.events, 15)
+				} else {
+					n.events = append(n.events, 16)
+				}
+			}
 			call("ShowWindow", hwnd, 0)
 			return 0
 		case 0x16:
@@ -106,9 +121,19 @@ func (n *nativeDesktop) Init() error {
 			return 0
 		case 0x111:
 			id := int(w & 0xffff)
+			if id == 30 {
+				call("ShowWindow", n.home, 0)
+				call("ShowWindow", n.window, 5)
+				call("SetForegroundWindow", n.window)
+				return 0
+			}
+			if id == 1 && hwnd == n.home {
+				n.set(0, windowText(n.homeName))
+				call("SendMessageW", n.auto, 0xF1, call("SendMessageW", n.homeAuto, 0xF0, 0, 0), 0)
+			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= 9 {
+			} else if id >= 1 && id <= 17 {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -163,12 +188,59 @@ func (n *nativeDesktop) Init() error {
 	n.label("Код подключения другого компьютера", 390, 434, 340)
 	n.input(10, 390, 458, 340, true)
 	n.button("Добавить по коду", 390, 498, 220, 7)
-	n.label("Добавьте коды друг на друге, затем сохраните настройки.", 24, 542, 710)
+	n.fields[5] = n.control("STATIC", "", 0, 24, 542, 710, 22, 0)
 	n.label("Код содержит общий ключ. Передавайте его приватно.", 24, 565, 710)
 	n.button("Сохранить настройки", 500, 590, 230, 1)
 	n.state = "Настройте подключение"
+	n.installHome(class)
 	n.addTray()
 	return nil
+}
+func windowText(h uintptr) string {
+	size := call("GetWindowTextLengthW", h)
+	if size > 8192 {
+		size = 8192
+	}
+	b := make([]uint16, size+1)
+	call("GetWindowTextW", h, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)))
+	return syscall.UTF16ToString(b)
+}
+func (n *nativeDesktop) installHome(class *uint16) {
+	advanced := n.window
+	panel := func(title string, h int) uintptr {
+		return call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), 0x00CA0000, 0x80000000, 0x80000000, n.px(500), n.px(h), 0, 0, n.instance, 0)
+	}
+	n.home = panel("Clipare", 500)
+	n.window = n.home
+	n.label("Этот компьютер", 24, 20, 430)
+	n.homeName = n.control("EDIT", "", 0x00810080, 24, 50, 432, 28, 130)
+	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0, 24, 92, 432, 42, 0)
+	n.label("Устройства", 24, 144, 432)
+	n.homeList = n.control("LISTBOX", "", 0x00A10001, 24, 174, 432, 136, 120)
+	n.button("+ Добавить устройство", 24, 324, 254, 11)
+	n.button("Удалить", 334, 324, 122, 9)
+	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 24, 368, 432, 28, 131)
+	n.button("Дополнительно…", 24, 416, 190, 30)
+	n.button("Сохранить", 320, 416, 136, 1)
+	n.found = panel("Добавить устройство", 420)
+	n.window = n.found
+	n.label("Найденные устройства", 24, 20, 432)
+	n.foundList = n.control("LISTBOX", "", 0x00A10001, 24, 50, 432, 180, 132)
+	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 24, 240, 432, 44, 0)
+	n.button("Обновить", 24, 294, 126, 12)
+	n.button("Подключить", 302, 294, 154, 13)
+	n.button("Не нашли? Добавить по коду…", 24, 340, 310, 30)
+	n.pair = panel("Подключение устройства", 340)
+	n.window = n.pair
+	n.pairName = n.control("STATIC", "", 0, 24, 20, 432, 36, 0)
+	n.pairCode = n.control("STATIC", "", 1, 24, 74, 432, 56, 0)
+	font, _, _ := syscall.NewLazyDLL("gdi32.dll").NewProc("CreateFontW").Call(n.px(38), 0, 0, 0, 500, 0, 0, 0, 1, 0, 0, 0, 0, uintptr(unsafe.Pointer(wide("Segoe UI"))))
+	n.pairFont = font
+	call("SendMessageW", n.pairCode, 0x30, font, 1)
+	n.pairHelp = n.control("STATIC", "", 0, 24, 150, 432, 70, 0)
+	n.pairAllow = n.control("BUTTON", "Разрешить", 0x10000, 292, 244, 164, 32, 14)
+	n.pairReject = n.control("BUTTON", "Отклонить", 0x10000, 24, 244, 164, 32, 15)
+	n.window = advanced
 }
 func (n *nativeDesktop) addTray() {
 	data := notifyIcon{Window: n.window, ID: 1, Flags: 7, Callback: 0x8001, Icon: n.icon}
@@ -246,8 +318,19 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 		auto = 1
 	}
 	call("SendMessageW", n.auto, 0xF1, auto, 0)
-	call("ShowWindow", n.window, 5)
-	call("SetForegroundWindow", n.window)
+	call("SetWindowTextW", n.homeName, uintptr(unsafe.Pointer(wide(f.Values[0]))))
+	call("SendMessageW", n.homeAuto, 0xF1, auto, 0)
+	call("SendMessageW", n.homeList, 0x184, 0, 0)
+	for _, p := range peers {
+		call("SendMessageW", n.homeList, 0x180, 0, uintptr(unsafe.Pointer(wide(peerLabel(p)))))
+	}
+	target := n.home
+	if call("IsWindowVisible", n.window) != 0 {
+		target = n.window
+	}
+	call("ShowWindow", target, 5)
+	call("SetForegroundWindow", target)
+	n.peerLines = ""
 }
 func (n *nativeDesktop) Read() form {
 	var f form
@@ -263,7 +346,13 @@ func (n *nativeDesktop) Read() form {
 	f.Autostart = call("SendMessageW", n.auto, 0xF0, 0, 0) == 1
 	return f
 }
-func (n *nativeDesktop) Selected() int { return int(int32(call("SendMessageW", n.list, 0x188, 0, 0))) }
+func (n *nativeDesktop) Selected() int {
+	list := n.homeList
+	if call("IsWindowVisible", n.window) != 0 {
+		list = n.list
+	}
+	return int(int32(call("SendMessageW", list, 0x188, 0, 0)))
+}
 func (n *nativeDesktop) SetPeer(p config.Peer) {
 	for i, s := range []string{p.Name, p.ID, p.Address, strconv.Itoa(p.Port)} {
 		n.set(i+6, s)
@@ -273,7 +362,19 @@ func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer,
 	call("SetWindowTextW", n.statusLabel, uintptr(unsafe.Pointer(wide(status))))
 	n.state = status
 	n.enabled = enabled
-	n.peerLines = peerStatuses(peers, states)
+	lines := peerStatuses(peers, states)
+	if lines != n.peerLines {
+		selection := call("SendMessageW", n.homeList, 0x188, 0, 0)
+		call("SendMessageW", n.homeList, 0x184, 0, 0)
+		for _, s := range strings.Split(lines, "\n") {
+			if s != "" {
+				call("SendMessageW", n.homeList, 0x180, 0, uintptr(unsafe.Pointer(wide(s))))
+			}
+		}
+		call("SendMessageW", n.homeList, 0x186, selection, 0)
+	}
+	n.peerLines = lines
+	call("SetWindowTextW", n.homeStatus, uintptr(unsafe.Pointer(wide(status))))
 }
 func (n *nativeDesktop) Alert(s string) {
 	call("MessageBoxW", n.window, uintptr(unsafe.Pointer(wide(s))), uintptr(unsafe.Pointer(wide("Clipare"))), 0x40)
@@ -283,5 +384,47 @@ func (n *nativeDesktop) Close() {
 	data.Size = uint32(unsafe.Sizeof(data))
 	shell.NewProc("Shell_NotifyIconW").Call(2, uintptr(unsafe.Pointer(&data)))
 	call("DestroyWindow", n.window)
+	call("DestroyWindow", n.home)
+	call("DestroyWindow", n.found)
+	call("DestroyWindow", n.pair)
+	if n.pairFont != 0 {
+		syscall.NewLazyDLL("gdi32.dll").NewProc("DeleteObject").Call(n.pairFont)
+	}
 	call("UnregisterClassW", uintptr(unsafe.Pointer(wide("ClipareSettingsWindow"))), n.instance)
 }
+func (n *nativeDesktop) Discovered(lines, status string) {
+	call("SendMessageW", n.foundList, 0x184, 0, 0)
+	for _, s := range strings.Split(lines, "\n") {
+		if s != "" {
+			call("SendMessageW", n.foundList, 0x180, 0, uintptr(unsafe.Pointer(wide(s))))
+		}
+	}
+	call("SetWindowTextW", n.foundStatus, uintptr(unsafe.Pointer(wide(status))))
+	call("ShowWindow", n.found, 5)
+	call("SetForegroundWindow", n.found)
+}
+func (n *nativeDesktop) DiscoveredSelected() int {
+	return int(int32(call("SendMessageW", n.foundList, 0x188, 0, 0)))
+}
+func (n *nativeDesktop) Pair(name, sas string, incoming bool) {
+	n.pairIncoming = incoming
+	call("SetWindowTextW", n.pairName, uintptr(unsafe.Pointer(wide(name))))
+	call("SetWindowTextW", n.pairCode, uintptr(unsafe.Pointer(wide(sas))))
+	text := "Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…"
+	show := uintptr(0)
+	tag := uintptr(16)
+	title := "Отменить"
+	if incoming {
+		text = "Это устройство хочет подключиться. Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение."
+		show = 5
+		tag = 15
+		title = "Отклонить"
+	}
+	call("ShowWindow", n.pairAllow, show)
+	call("SetWindowLongPtrW", n.pairReject, ^uintptr(11), tag)
+	call("SetWindowTextW", n.pairReject, uintptr(unsafe.Pointer(wide(title))))
+	call("SetWindowTextW", n.pairHelp, uintptr(unsafe.Pointer(wide(text))))
+	call("ShowWindow", n.pair, 5)
+	call("SetForegroundWindow", n.pair)
+}
+func (n *nativeDesktop) PairClose() { call("ShowWindow", n.pair, 0) }

@@ -34,3 +34,5 @@ test-macos-ui:
 	mkdir -p dist
 	clang -fblocks -framework AppKit -o dist/edit-menu-test tests/macos/edit_menu_test.m
 	./dist/edit-menu-test
+	clang -fblocks -framework AppKit -o dist/pairing-ui-test tests/macos/pairing_ui_test.m
+	./dist/pairing-ui-test verify
