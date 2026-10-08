@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+- Discover connected Clipare devices through the local NetBird CLI, without tokens or a cloud service.
+- Add committed X25519 pairing with matching six-digit SAS, explicit approval, expiration and replay protection.
+- Persist device identities and derive peer-specific HMAC keys without transmitting a group master secret.
+- Reconcile authenticated group membership automatically, including third-device onboarding and removal tombstones.
+- Simplify native settings with discovered devices and pairing dialogs; move technical fields and legacy codes to Advanced.
+- Migrate existing configuration atomically with a private backup and preserve legacy clipboard compatibility.
+- Require existing-group confirmation regardless of which device starts pairing; reject conflicting established groups.
+- Limit automatic discovery/pairing to the standard NetBird IPv4 range and port; identity re-addition and group merging are not supported yet.
+
 ## 0.2.3
 
 - Recognize real Winsock WSAEADDRNOTAVAIL errors during NetBird startup on Windows.
