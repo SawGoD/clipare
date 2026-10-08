@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Add optional daily and manual GitHub Releases checks in native settings and tray menus.
+- Download platform updates after explicit confirmation, verify SHA256SUMS, safely extract and validate package/version metadata.
+- Apply complete macOS bundles and Windows packages with a temporary helper, graceful shutdown, startup acknowledgement and rollback.
+- Preserve installation paths, autostart and device/pairing configuration; suspend new pairing during updates.
+- Add bounded HTTPS/redirect policy, streaming downloads and marked staging cleanup. Release-manifest signing remains a documented follow-up; SHA256SUMS alone is not independent publisher authentication.
+
 ## 0.3.0
 
 - Discover connected Clipare devices through the local NetBird CLI, without tokens or a cloud service.

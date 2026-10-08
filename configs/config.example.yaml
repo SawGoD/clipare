@@ -10,6 +10,8 @@ security:
 sync:
   enabled: true
   mode: bidirectional
+updates:
+  enabled: true
 peers:
   - id: desktop
     name: Desktop
