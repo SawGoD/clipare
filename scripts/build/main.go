@@ -4,8 +4,10 @@ package main
 import (
 	"archive/zip"
 	"clipare"
+	"clipare/internal/update"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -97,6 +99,33 @@ func run() error {
 		}
 	}
 	if e = copyFile("README.md", filepath.Join(stage, "README.md")); e != nil {
+		return e
+	}
+	// Version/platform metadata is covered by the archive's release checksum.
+	pkg := update.Package{Version: version, OS: *targetOS, Arch: *arch}
+	if e = filepath.Walk(stage, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(stage, path)
+		if err != nil {
+			return err
+		}
+		if filepath.ToSlash(rel) != update.PackageFile {
+			pkg.Files = append(pkg.Files, filepath.ToSlash(rel))
+		}
+		return nil
+	}); e != nil {
+		return e
+	}
+	metadata, e := json.Marshal(pkg)
+	if e != nil {
+		return e
+	}
+	if e = os.WriteFile(filepath.Join(stage, update.PackageFile), metadata, 0644); e != nil {
 		return e
 	}
 	archive := filepath.Join(*out, name+".zip")
