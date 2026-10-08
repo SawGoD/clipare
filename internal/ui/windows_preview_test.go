@@ -46,6 +46,12 @@ func TestWindowsFluentPreview(t *testing.T) {
 	n.Show(f, peers, []string{"100.64.0.1"})
 	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
 	n.UpdateSettings("0.5.0", true)
+	for _, state := range []SyncState{SyncActive, SyncDisabled, SyncDegraded, SyncActive} {
+		n.SyncStatus(SyncStatus{State: state, Message: "Тест статуса", Reason: "Синтетический preview"})
+		if n.statusIcons[state] == 0 {
+			t.Fatal("status icon creation failed")
+		}
+	}
 	if call("IsWindowVisible", n.homeAuto) != 0 || call("IsWindowVisible", n.updateCheck) != 0 {
 		t.Fatal("preferences must be collapsed initially")
 	}
@@ -131,6 +137,9 @@ func TestWindowsFluentPreview(t *testing.T) {
 	}
 	captureWindow(t, n.found, filepath.Join(dir, "discovery-empty.png"))
 	n.Pair("MacBook хочет подключиться к Clipare", "482 731", 1)
+	if n.navigation.View != ViewPairing {
+		t.Fatal("pairing did not navigate inline")
+	}
 	if windowText(n.pairCode) != "482 731" || call("GetDlgCtrlID", n.pairReject) != eventReject {
 		t.Fatal("incoming pairing controls")
 	}

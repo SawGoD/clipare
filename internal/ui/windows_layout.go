@@ -92,6 +92,21 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	}
 	px := func(v int) int32 { return int32(v * dpi / 96) }
 	t := n.theme
+	if d.Window == n.statusDot {
+		r := d.Rect
+		r.Top += px(6)
+		r.Bottom = r.Top + px(10)
+		r.Right = r.Left + px(10)
+		fg := color(n.utilityStatus.Color())
+		if t.dark && n.utilityStatus.State == SyncActive {
+			fg = t.online
+		}
+		if t.contrast {
+			fg = t.text
+		}
+		n.roundRect(d.DC, r, fg, fg, int(px(5)))
+		return
+	}
 	if d.Type == 3 {
 		fill, fg := t.surface, t.text
 		if d.State&1 != 0 {

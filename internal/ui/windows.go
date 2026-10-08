@@ -82,6 +82,7 @@ type nativeDesktop struct {
 	icons                                                                              map[uintptr]string
 	tooltip                                                                            uintptr
 	tooltipText                                                                        []*uint16
+	statusIcons                                                                        [3]uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -138,7 +139,12 @@ func (n *nativeDesktop) Init() error {
 	n.rows = make(map[uintptr][]deviceRow)
 	n.icons = make(map[uintptr]string)
 	n.applyTheme()
-	n.icon = call("LoadIconW", 0, 32516)
+	n.icon = statusIcon(SyncStatus{State: SyncDegraded})
+	if n.icon == 0 {
+		n.icon = call("LoadIconW", 0, 32512)
+	} else {
+		n.statusIcons[SyncDegraded] = n.icon
+	}
 	n.taskbar = uint32(call("RegisterWindowMessageW", uintptr(unsafe.Pointer(wide("TaskbarCreated")))))
 	n.callback = syscall.NewCallback(func(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 		if msg == n.taskbar && n.taskbar != 0 {
@@ -195,6 +201,10 @@ func (n *nativeDesktop) Init() error {
 			}
 			return 0
 		case 0x8001:
+			if l == 0x405 {
+				n.events = append(n.events, eventSettings)
+				return 0
+			}
 			if l == 0x205 || l == 0x202 {
 				n.menu()
 			} else if l == 0x203 {
@@ -314,7 +324,10 @@ func (n *nativeDesktop) menu() {
 		call("AppendMenuW", menu, flags, uintptr(id), uintptr(unsafe.Pointer(wide(title))))
 	}
 	add("Clipare", 0, true)
-	add(n.state, 0, true)
+	add(n.state, 0, false)
+	if bitmap := n.menuStatusIcon(menu); bitmap != 0 {
+		defer gcall("DeleteObject", bitmap)
+	}
 	call("AppendMenuW", menu, 0x800, 0, 0)
 	for _, p := range strings.Split(n.peerLines, "\n") {
 		if p != "" {
@@ -328,7 +341,7 @@ func (n *nativeDesktop) menu() {
 	}
 	add(text, eventPause, false)
 	add("Добавить устройство", eventAdd, false)
-	add("Настройки…", eventSettings, false)
+	add("Открыть Clipare", eventSettings, false)
 	add("Проверить обновления", eventCheckUpdate, false)
 	add("Выйти", eventQuit, false)
 	var pos struct{ X, Y int32 }
@@ -482,6 +495,11 @@ func (n *nativeDesktop) Close() {
 	data.Size = uint32(unsafe.Sizeof(data))
 	shell.NewProc("Shell_NotifyIconW").Call(2, uintptr(unsafe.Pointer(&data)))
 	call("DestroyWindow", n.main)
+	for _, icon := range n.statusIcons {
+		if icon != 0 {
+			call("DestroyIcon", icon)
+		}
+	}
 	for _, font := range n.fonts {
 		gcall("DeleteObject", font)
 	}
@@ -516,6 +534,9 @@ func (n *nativeDesktop) DiscoveredSelected() int {
 }
 func (n *nativeDesktop) Pair(name, sas string, mode int) {
 	incoming := mode == 1
+	if incoming && n.navigation.View != ViewPairing {
+		n.notifyPair(name)
+	}
 	n.pairIncoming = incoming
 	call("SetWindowTextW", n.pairName, uintptr(unsafe.Pointer(wide(name))))
 	call("SetWindowTextW", n.pairCode, uintptr(unsafe.Pointer(wide(sas))))
