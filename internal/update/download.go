@@ -2,6 +2,7 @@ package update
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -63,6 +64,13 @@ func (d Downloader) Stage(ctx context.Context, r Release, cache string) (*Staged
 	}
 	work, e := os.MkdirTemp(cache, "stage-")
 	if e != nil {
+		return nil, e
+	}
+	mark, _ := json.Marshal(struct {
+		Created time.Time `json:"created"`
+	}{time.Now().UTC()})
+	if e = os.WriteFile(filepath.Join(work, ".clipare-stage"), mark, 0600); e != nil {
+		os.RemoveAll(work)
 		return nil, e
 	}
 	ok := false
