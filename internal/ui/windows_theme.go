@@ -67,7 +67,11 @@ func systemTheme() winTheme {
 }
 
 func (n *nativeDesktop) applyTheme() {
-	n.theme = systemTheme()
+	n.setTheme(systemTheme())
+}
+
+func (n *nativeDesktop) setTheme(t winTheme) {
+	n.theme = t
 	for _, b := range []uintptr{n.surfaceBrush, n.backgroundBrush} {
 		if b != 0 {
 			gcall("DeleteObject", b)
@@ -143,13 +147,22 @@ func (n *nativeDesktop) themeMessage(hwnd uintptr, msg uint32, w, l uintptr) (ui
 		call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&r)))
 		call("FillRect", w, uintptr(unsafe.Pointer(&r)), n.backgroundBrush)
 		for _, card := range n.windows[hwnd].cards {
-			n.roundRect(w, n.scaledRect(hwnd, card), n.theme.surface, n.theme.border, int(n.scaledRect(hwnd, logicalRect{w: 8}).Right))
+			r := n.scaledRect(hwnd, card)
+			v := n.windows[hwnd]
+			r.Left -= v.scrollX
+			r.Right -= v.scrollX
+			r.Top -= v.scrollY
+			r.Bottom -= v.scrollY
+			n.roundRect(w, r, n.theme.surface, n.theme.border, int(n.scaledRect(hwnd, logicalRect{w: 8}).Right))
 		}
 		return 1, true
 	case 0x133, 0x134, 0x135, 0x138: // edit/list/button/static colors
 		gcall("SetTextColor", w, uintptr(n.theme.text))
 		brush, bg := n.backgroundBrush, n.theme.background
 		c := n.controls[l]
+		if c.role == 4 {
+			gcall("SetTextColor", w, uintptr(n.theme.muted))
+		}
 		for _, r := range n.windows[c.parent].cards {
 			if c.bounds.x >= r.x && c.bounds.y >= r.y && c.bounds.x < r.x+r.w && c.bounds.y < r.y+r.h {
 				brush, bg = n.surfaceBrush, n.theme.surface

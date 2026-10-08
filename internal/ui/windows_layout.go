@@ -13,8 +13,9 @@ type winControl struct {
 	role, kind int
 }
 type winWindow struct {
-	width, height int
-	cards         []logicalRect
+	width, height    int
+	cards            []logicalRect
+	scrollX, scrollY int32
 }
 type drawItem struct {
 	Type, ID, Item, Action, State uint32
@@ -33,11 +34,12 @@ func (n *nativeDesktop) scaledRect(hwnd uintptr, r logicalRect) winRect {
 
 func (n *nativeDesktop) panel(class *uint16, title string, width, height int, cards ...logicalRect) uintptr {
 	r := winRect{Right: int32(n.px(width)), Bottom: int32(n.px(height))}
-	style := uintptr(0x00CA0000) // fixed client layout; DPI-aware sizing, native caption
+	style := uintptr(0x02CA0000) // native caption, clip children during background painting
 	call("AdjustWindowRectEx", uintptr(unsafe.Pointer(&r)), style, 0, 0)
 	h := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), style,
 		0x80000000, 0x80000000, uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0, 0, n.instance, 0)
-	n.windows[h] = winWindow{width, height, cards}
+	n.windows[h] = winWindow{width: width, height: height, cards: cards}
+	n.fitWindow(h)
 	return h
 }
 
@@ -196,11 +198,21 @@ func (n *nativeDesktop) dpiChanged(hwnd uintptr, w, l uintptr) {
 	var r winRect
 	k32.NewProc("RtlMoveMemory").Call(uintptr(unsafe.Pointer(&r)), l, unsafe.Sizeof(r))
 	call("SetWindowPos", hwnd, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x14)
+	n.fitWindow(hwnd)
+	n.layoutControls(hwnd)
+}
+
+func (n *nativeDesktop) layoutControls(hwnd uintptr) {
+	window := n.windows[hwnd]
 	for h, c := range n.controls {
 		if c.parent != hwnd {
 			continue
 		}
 		r := n.scaledRect(hwnd, c.bounds)
+		r.Left -= window.scrollX
+		r.Right -= window.scrollX
+		r.Top -= window.scrollY
+		r.Bottom -= window.scrollY
 		call("SetWindowPos", h, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x14)
 		call("SendMessageW", h, 0x30, n.fontFor(hwnd, c.role), 1)
 		if h == n.homeList || h == n.foundList {

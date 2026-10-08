@@ -61,7 +61,6 @@ type nativeDesktop struct {
 	homeName, homeAuto, homeList, homeStatus                                           uintptr
 	foundList, foundStatus, pairName, pairCode, pairHelp, pairAllow, pairReject        uintptr
 	pairIncoming                                                                       bool
-	pairFont                                                                           uintptr
 	theme                                                                              winTheme
 	surfaceBrush, backgroundBrush                                                      uintptr
 	windows                                                                            map[uintptr]winWindow
@@ -69,6 +68,8 @@ type nativeDesktop struct {
 	fonts                                                                              map[[2]int]uintptr
 	rows                                                                               map[uintptr][]deviceRow
 	pauseButton, emptyDevices, emptyDiscovery                                          uintptr
+	layingOut                                                                          bool
+	lastFocus                                                                          uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -128,6 +129,9 @@ func (n *nativeDesktop) Init() error {
 		}
 		if r, ok := n.themeMessage(hwnd, msg, w, l); ok {
 			return r
+		}
+		if n.scrollMessage(hwnd, msg, w, l) {
+			return 0
 		}
 		switch msg {
 		case 0x2e0:
@@ -260,6 +264,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.heading("Обновления", 40, 552, 360, 2)
 	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 588, 488, 28, 22)
 	n.updateVersion = n.control("STATIC", "", 0x4000, 40, 638, 232, 24, 0)
+	n.setRole(n.updateVersion, 4)
 	n.button("Проверить обновления", 292, 632, 236, 19)
 	n.updateWindow = n.panel(class, "Обновление Clipare", 520, 320, logicalRect{24, 24, 472, 216})
 	n.window = n.updateWindow
@@ -338,13 +343,34 @@ func (n *nativeDesktop) Poll() int {
 		if root == 0 {
 			root = n.window
 		}
-		if root == n.updateWindow && m.ID == 0x100 && (m.WParam == 13 || m.WParam == 27) {
-			button := n.updateDismiss
-			if m.WParam == 13 && call("IsWindowVisible", n.updateInstall) != 0 {
-				button = n.updateInstall
+		if m.ID == 0x100 && m.WParam == 27 {
+			if root == n.updateWindow {
+				if call("IsWindowVisible", n.updateDismiss) != 0 {
+					call("SendMessageW", n.updateDismiss, 0xf5, 0, 0)
+				}
+			} else {
+				call("SendMessageW", root, 0x10, 0, 0)
 			}
-			if call("IsWindowVisible", button) != 0 {
-				call("SendMessageW", button, 0xF5, 0, 0)
+			continue
+		}
+		if m.ID == 0x100 && m.WParam == 13 {
+			button := call("GetFocus")
+			if c, ok := n.controls[button]; !ok || c.class != "BUTTON" || call("GetWindowLongPtrW", button, ^uintptr(15))&15 == 3 {
+				button = call("GetDlgItem", root, 1)
+				switch root {
+				case n.updateWindow:
+					button = n.updateInstall
+					if call("IsWindowVisible", button) == 0 {
+						button = n.updateDismiss
+					}
+				case n.pair:
+					button = n.pairAllow
+				case n.found:
+					button = call("GetDlgItem", root, 13)
+				}
+			}
+			if call("IsWindowVisible", button) != 0 && call("IsWindowEnabled", button) != 0 {
+				call("SendMessageW", button, 0xf5, 0, 0)
 			}
 			continue
 		}
@@ -352,6 +378,7 @@ func (n *nativeDesktop) Poll() int {
 			call("TranslateMessage", uintptr(unsafe.Pointer(&m)))
 			call("DispatchMessageW", uintptr(unsafe.Pointer(&m)))
 		}
+		n.revealFocus()
 	}
 	if len(n.events) == 0 {
 		return 0
@@ -384,10 +411,13 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	call("SendMessageW", n.homeAuto, 0xF1, auto, 0)
 	n.setRows(n.homeList, pairedRows(peers, nil))
 	showEmpty := uintptr(0)
+	showList := uintptr(5)
 	if len(peers) == 0 {
 		showEmpty = 5
+		showList = 0
 	}
 	call("ShowWindow", n.emptyDevices, showEmpty)
+	call("ShowWindow", n.homeList, showList)
 	target := n.home
 	if call("IsWindowVisible", n.window) != 0 {
 		target = n.window
@@ -456,9 +486,6 @@ func (n *nativeDesktop) Close() {
 	call("DestroyWindow", n.found)
 	call("DestroyWindow", n.pair)
 	call("DestroyWindow", n.updateWindow)
-	if n.pairFont != 0 {
-		syscall.NewLazyDLL("gdi32.dll").NewProc("DeleteObject").Call(n.pairFont)
-	}
 	for _, font := range n.fonts {
 		gcall("DeleteObject", font)
 	}
@@ -473,10 +500,18 @@ func (n *nativeDesktop) Discovered(lines, status string) {
 	rows := discoveredRows(lines)
 	n.setRows(n.foundList, rows)
 	show := uintptr(0)
+	showList := uintptr(5)
 	if len(rows) == 0 {
 		show = 5
+		showList = 0
 	}
 	call("ShowWindow", n.emptyDiscovery, show)
+	call("ShowWindow", n.foundList, showList)
+	enabled := uintptr(0)
+	if len(rows) > 0 {
+		enabled = 1
+	}
+	call("EnableWindow", call("GetDlgItem", n.found, 13), enabled)
 	call("SetWindowTextW", n.foundStatus, uintptr(unsafe.Pointer(wide(status))))
 	call("ShowWindow", n.found, 5)
 	call("SetForegroundWindow", n.found)
