@@ -116,3 +116,14 @@ func TestPlatformAndHosts(t *testing.T) {
 		t.Fatal("redirect")
 	}
 }
+func TestMetadataCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	g := GitHub{Client: httpFunc(func(req *http.Request) (*http.Response, error) {
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+	if _, e := g.Latest(ctx); e == nil {
+		t.Fatal("cancellation ignored")
+	}
+}

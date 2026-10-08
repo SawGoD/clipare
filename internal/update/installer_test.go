@@ -1,9 +1,11 @@
 package update
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -122,5 +124,38 @@ func TestCleanup(t *testing.T) {
 		if _, e := os.Stat(filepath.Join(cache, name)); e != nil {
 			t.Fatal(name)
 		}
+	}
+}
+func TestSleepingUpdateChild(t *testing.T) {
+	if os.Getenv("CLIPARE_UPDATE_TEST_CHILD") == "1" {
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+func TestExitWaiter(t *testing.T) {
+	exe, e := os.Executable()
+	if e != nil {
+		t.Fatal(e)
+	}
+	cmd := exec.Command(exe, "-test.run=^TestSleepingUpdateChild$")
+	cmd.Env = append(os.Environ(), "CLIPARE_UPDATE_TEST_CHILD=1")
+	if e = cmd.Start(); e != nil {
+		t.Fatal(e)
+	}
+	wait, close, e := exitWaiter(cmd.Process.Pid)
+	if e != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
+		t.Fatal(e)
+	}
+	defer close()
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if e = wait(ctx); e != nil {
+		t.Fatal(e)
+	}
+	if e = <-done; e != nil {
+		t.Fatal(e)
 	}
 }

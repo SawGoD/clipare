@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -276,8 +277,12 @@ func replaceTransaction(root, target string, items []string, rename func(string,
 		}
 	}()
 	fresh, backup := filepath.Join(tx, "new"), filepath.Join(tx, "backup")
-	os.Mkdir(fresh, 0700)
-	os.Mkdir(backup, 0700)
+	if e = os.Mkdir(fresh, 0700); e != nil {
+		return e
+	}
+	if e = os.Mkdir(backup, 0700); e != nil {
+		return e
+	}
 	for _, name := range items {
 		if !safeRelative(name) || strings.Contains(name, "/") {
 			return ErrPackage
@@ -321,16 +326,22 @@ func replaceTransaction(root, target string, items []string, rename func(string,
 		dest := filepath.Join(target, name)
 		if info, e := os.Lstat(dest); e == nil {
 			if info.Mode()&os.ModeSymlink != 0 {
-				rollback()
+				if r := rollback(); r != nil {
+					return r
+				}
 				return ErrInstall
 			}
 			if e = rename(dest, filepath.Join(backup, name)); e != nil {
-				rollback()
+				if r := rollback(); r != nil {
+					return r
+				}
 				return e
 			}
 			old = append(old, name)
 		} else if !os.IsNotExist(e) {
-			rollback()
+			if r := rollback(); r != nil {
+				return r
+			}
 			return e
 		}
 		if e = rename(filepath.Join(fresh, name), dest); e != nil {
@@ -360,6 +371,13 @@ func Apply(ctx context.Context, planPath string) error {
 	if e = p.validate(); e != nil {
 		return e
 	}
+	logFile, e := os.OpenFile(filepath.Join(p.Work, "helper.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if e != nil {
+		return e
+	}
+	defer logFile.Close()
+	log := slog.New(slog.NewJSONHandler(logFile, nil))
+	log.Info("update helper started", "version", p.Version)
 	// Revalidate package immediately before replacement; no partial files accepted.
 	root := filepath.Join(p.Work, "package")
 	pkg, e := ValidatePackage(root, p.Version, runtime.GOOS, runtime.GOARCH)
@@ -398,6 +416,7 @@ func Apply(ctx context.Context, planPath string) error {
 	}
 	e = replaceTransaction(root, target, packageItems(pkg), os.Rename, func() error { return p.startNew(ctx) })
 	if e != nil {
+		log.Warn("update failed", "rollback_available", !errors.Is(e, ErrRollback))
 		if errors.Is(e, ErrRollback) {
 			return e
 		}
@@ -410,6 +429,7 @@ func Apply(ctx context.Context, planPath string) error {
 		return e
 	}
 	os.WriteFile(filepath.Join(p.Work, "completed"), []byte(p.Token), 0600)
+	log.Info("update applied", "version", p.Version)
 	return nil
 }
 func (p Plan) startNew(ctx context.Context) error {

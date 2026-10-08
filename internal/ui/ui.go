@@ -657,6 +657,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					s, err := (update.Downloader{}).Stage(ctx, r, cache)
 					result := updateResult{err: err}
 					if err == nil {
+						log.Info("download completed", "version", r.Version)
 						log.Info("checksum verified", "version", r.Version)
 						result.work = s.Work
 						p, err := s.Prepare(ctx, exe, path)
