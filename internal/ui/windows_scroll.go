@@ -27,7 +27,16 @@ func (n *nativeDesktop) fitWindow(hwnd uintptr) {
 	}
 	var r winRect
 	call("GetWindowRect", hwnd, uintptr(unsafe.Pointer(&r)))
-	w, hgt := r.Right-r.Left, r.Bottom-r.Top
+	v := n.windows[hwnd]
+	desired := n.scaledRect(hwnd, logicalRect{w: v.width, h: v.height})
+	style := call("GetWindowLongPtrW", hwnd, ^uintptr(15)) &^ uintptr(0x00300000)
+	dpi := call("GetDpiForWindow", hwnd)
+	call("AdjustWindowRectExForDpi", uintptr(unsafe.Pointer(&desired)), style, 0, 0, dpi)
+	w, hgt := desired.Right-desired.Left, desired.Bottom-desired.Top
+	if hgt > monitor.Work.Bottom-monitor.Work.Top-32 {
+		// Reserve vertical scrollbar width instead of introducing a horizontal bar.
+		w += int32(call("GetSystemMetricsForDpi", 2, dpi))
+	}
 	if max := monitor.Work.Right - monitor.Work.Left - 32; w > max {
 		w = max
 	}

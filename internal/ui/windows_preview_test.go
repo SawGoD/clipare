@@ -57,6 +57,8 @@ func TestWindowsFluentPreview(t *testing.T) {
 	variants[1].theme.text = color(0xf5f5f5)
 	variants[1].theme.muted = color(0xbcbcbc)
 	variants[1].theme.border = color(0x494949)
+	variants[1].theme.danger = color(0xffa7ab)
+	variants[1].theme.online = color(0x8abf9b)
 	variants[2].theme = variants[0].theme
 	variants[2].theme.accent = color(0x744da9)
 	variants[2].theme.onAccent = color(0xffffff)
@@ -65,6 +67,9 @@ func TestWindowsFluentPreview(t *testing.T) {
 		n.Poll()
 		captureWindow(t, n.home, filepath.Join(dir, "home-"+v.name+".png"))
 	}
+	n.scrollWindow(n.home, 1, 10000, true)
+	captureWindow(t, n.home, filepath.Join(dir, "home-scrolled.png"))
+	n.scrollWindow(n.home, 1, 0, true)
 	n.setTheme(variants[0].theme)
 	n.Show(f, nil, nil)
 	if call("IsWindowVisible", n.emptyDevices) == 0 {
