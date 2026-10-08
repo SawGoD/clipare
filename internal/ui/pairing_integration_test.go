@@ -16,7 +16,7 @@ type testPairDesktop struct{ *testDesktop }
 
 func (*testPairDesktop) Discovered(string, string) {}
 func (*testPairDesktop) DiscoveredSelected() int   { return -1 }
-func (*testPairDesktop) Pair(string, string, bool) {}
+func (*testPairDesktop) Pair(string, string, int)  {}
 func (*testPairDesktop) PairClose()                {}
 func TestPairingDesktopJoinsShutdown(t *testing.T) {
 	c, _ := config.Default()

@@ -28,7 +28,7 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 	res, e := client.Do(r)
 	if e != nil {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return contextError(ctx)
 		}
 		return ErrPeerUnavailable
 	}
@@ -36,11 +36,14 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 	if res.StatusCode == 410 {
 		return ErrExpired
 	}
+	if res.StatusCode == 412 {
+		return ErrGroupMerge
+	}
 	if res.StatusCode != 200 {
 		return errors.New("Не удалось подключиться. Попробуйте ещё раз")
 	}
-	b, e = io.ReadAll(io.LimitReader(res.Body, (32<<10)+1))
-	if e != nil || len(b) > 32<<10 {
+	b, e = io.ReadAll(io.LimitReader(res.Body, (128<<10)+1))
+	if e != nil || len(b) > 128<<10 {
 		return ErrInvalid
 	}
 	return decode(b, out)
@@ -48,7 +51,7 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 
 // Connect reports SAS only after commitment and key confirmation succeeded.
 // It persists trusted metadata only after the remote user's explicit approval.
-func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(string)) error {
+func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(string), verify ...func(context.Context) error) error {
 	if !s.sessions.Available() || !s.outgoing.CompareAndSwap(false, true) {
 		return errors.New("Другое подключение уже выполняется")
 	}
@@ -57,6 +60,9 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		return ErrInvalid
 	}
 	c := s.Config()
+	if len(c.Peers) > 0 && len(verify) == 0 {
+		return errors.New("Подтвердите совпадение кода на существующем устройстве")
+	}
 	for _, p := range c.Peers {
 		if p.ID == d.DeviceID {
 			return errors.New("Это устройство уже добавлено")
@@ -77,12 +83,17 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 	defer client.CloseIdleConnections()
 	url := "http://" + net.JoinHostPort(d.IP, strconv.Itoa(discovery.Port))
 	var ch Challenge
-	if e = post(ctx, client, url, "/api/v1/pair/request", Request{Session: id, Commitment: Commitment(h.Hello), Expires: h.Hello.Expires}, &ch); e != nil {
+	if e = post(ctx, client, url, "/api/v1/pair/request", Request{ExistingGroup: h.Hello.ExistingGroup, Session: id, Commitment: Commitment(h.Hello), Expires: h.Hello.Expires}, &ch); e != nil {
 		return e
 	}
 	if ch.Session != id || ch.Hello.ID != d.DeviceID || ch.Hello.PublicKey != d.PublicKey || ch.Hello.IP != d.IP || ch.Expires <= time.Now().Unix() || ch.Expires > time.Now().Add(180*time.Second).Unix() {
 		return ErrInvalid
 	}
+	if len(c.Peers) > 0 && ch.Group != c.Group.ID {
+		return ErrGroupMerge
+	}
+	ctx, stop := context.WithDeadline(ctx, time.Unix(ch.Expires, 0))
+	defer stop()
 	key, sas, e := h.Keys(ch.Hello, id, ch.Group, ch.Expires, true)
 	if e != nil {
 		return e
@@ -112,6 +123,24 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		}
 		_ = post(cleanup, client, url, "/api/v1/pair/cancel", Confirmation{id, proof(key, id, "cancel")}, &out)
 	}()
+	if len(c.Peers) > 0 {
+		if e = verify[0](ctx); e != nil {
+			if errors.Is(e, context.DeadlineExceeded) {
+				return ErrExpired
+			}
+			return e
+		}
+	}
+	if e = wait(ctx, time.Second); e != nil {
+		return e
+	}
+	var confirmed Confirmation
+	if e = post(ctx, client, url, "/api/v1/pair/confirm", Confirmation{id, proof(key, id, "confirm")}, &confirmed); e != nil {
+		return e
+	}
+	if confirmed.Session != id || !verifyProof(key, id, "confirm-response", confirmed.Proof) {
+		return ErrInvalid
+	}
 	failures := 0
 	for time.Now().Unix() < ch.Expires {
 		if e = wait(ctx, 1500*time.Millisecond); e != nil {
@@ -164,6 +193,12 @@ func wait(ctx context.Context, d time.Duration) error {
 	case <-t.C:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return contextError(ctx)
 	}
+}
+func contextError(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return ErrExpired
+	}
+	return ctx.Err()
 }

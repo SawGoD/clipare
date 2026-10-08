@@ -7,7 +7,10 @@ import (
 	"errors"
 	"io"
 	"net/netip"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -34,7 +37,14 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 func (CLI) Status(ctx context.Context) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "netbird", "status", "--json")
+	binary, err := findBinary(exec.LookPath, func(path string) bool {
+		st, err := os.Stat(path)
+		return err == nil && st.Mode().IsRegular() && (runtime.GOOS == "windows" || st.Mode().Perm()&0111 != 0)
+	}, standardPaths())
+	if err != nil {
+		return nil, ErrUnavailable
+	}
+	cmd := exec.CommandContext(ctx, binary, "status", "--json")
 	var b limitedBuffer
 	cmd.Stdout = &b
 	cmd.Stderr = io.Discard
@@ -42,6 +52,26 @@ func (CLI) Status(ctx context.Context) ([]byte, error) {
 		return nil, ErrUnavailable
 	}
 	return b.Bytes(), nil
+}
+func standardPaths() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"/usr/local/bin/netbird", "/opt/homebrew/bin/netbird"}
+	case "windows":
+		return []string{filepath.Join(os.Getenv("ProgramFiles"), "Netbird", "netbird.exe")}
+	}
+	return nil
+}
+func findBinary(lookup func(string) (string, error), exists func(string) bool, candidates []string) (string, error) {
+	if p, err := lookup("netbird"); err == nil {
+		return p, nil
+	}
+	for _, p := range candidates {
+		if filepath.IsAbs(p) && exists(p) {
+			return p, nil
+		}
+	}
+	return "", ErrUnavailable
 }
 
 // NetBirdAddress deliberately excludes public, LAN and routed subnet addresses.
@@ -88,4 +118,23 @@ func Parse(b []byte) ([]Peer, error) {
 		peers = append(peers, Peer{name, p.IP, p.FQDN})
 	}
 	return peers, nil
+}
+
+// LocalAddress accepts the CLI's CIDR-form local address without confusing it
+// with another CGNAT VPN interface. It is never inferred from a public IP.
+func LocalAddress(b []byte) string {
+	if _, err := Parse(b); err != nil {
+		return ""
+	}
+	var v struct {
+		IP string `json:"netbirdIp"`
+	}
+	if json.Unmarshal(b, &v) != nil {
+		return ""
+	}
+	address := strings.Split(v.IP, "/")[0]
+	if NetBirdAddress(address) {
+		return address
+	}
+	return ""
 }

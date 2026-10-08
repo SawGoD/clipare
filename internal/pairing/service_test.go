@@ -34,6 +34,12 @@ func TestServiceApprovalAndUnknownMembership(t *testing.T) {
 	if e = s.Decide(id, true); e != nil {
 		t.Fatal(e)
 	}
+	if len(s.Config().Peers) != 0 {
+		t.Fatal("saved before initiator confirmed")
+	}
+	if e = s.sessions.confirmWith(Confirmation{id, proof(key, id, "confirm")}, s.persistPair); e != nil {
+		t.Fatal(e)
+	}
 	if len(s.Config().Peers) != 1 {
 		t.Fatal("approved peer not saved")
 	}

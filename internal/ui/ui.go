@@ -39,12 +39,13 @@ const (
 	eventReject
 	eventCancelPair
 	eventCloseDiscovery
+	eventConfirmLocal
 )
 
 type pairingDesktop interface {
 	Discovered(string, string)
 	DiscoveredSelected() int
-	Pair(string, string, bool)
+	Pair(string, string, int)
 	PairClose()
 }
 type scanResult struct {
@@ -141,6 +142,18 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		if e != nil {
 			return e
 		}
+		if start == nil {
+			if status, err := (discovery.CLI{}).Status(ctx); err == nil {
+				if address := discovery.LocalAddress(status); address != "" {
+					for _, local := range config.Addresses() {
+						if local == address {
+							c.Listen.Address = address
+							break
+						}
+					}
+				}
+			}
+		}
 	}
 	draft := c
 	pd, hasPairUI := d.(pairingDesktop)
@@ -154,6 +167,9 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 	sasUpdates := make(chan string, 1)
 	var shownIncoming string
 	var outgoingName string
+	var needsLocalConfirm bool
+	var localVerifyReady bool
+	localConfirmation := make(chan struct{}, 1)
 	var nextScan time.Time
 	var controlDone chan struct{}
 	var controlWG sync.WaitGroup
@@ -323,9 +339,12 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			if busy {
 				continue
 			}
+			f := d.Read()
 			c = update
-			draft = c
-			d.Show(toForm(draft), draft.Peers, config.Addresses())
+			draft.Peers = c.Peers
+			draft.Group = c.Group
+			draft.Removed = c.Removed
+			d.Show(f, draft.Peers, config.Addresses())
 			apply(c, false)
 		case sr := <-scanDone:
 			scanning = false
@@ -342,7 +361,12 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			}
 			renderDiscovery(message)
 		case sas := <-sasUpdates:
-			pd.Pair("Проверьте код на "+outgoingName, sas, false)
+			localVerifyReady = true
+			mode := 0
+			if needsLocalConfirm {
+				mode = 2
+			}
+			pd.Pair("Проверьте код на "+outgoingName, sas, mode)
 		case err := <-pairDone:
 			outgoing = false
 			pairCancel = nil
@@ -396,7 +420,7 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			if service != nil {
 				if snap, ok := service.Snapshot(); ok && snap.State == pairing.Pending && snap.Session != shownIncoming && !outgoing {
 					shownIncoming = snap.Session
-					pd.Pair(snap.Name+" хочет подключиться", snap.SAS, true)
+					pd.Pair(snap.Name+" хочет подключиться", snap.SAS, 1)
 				} else if shownIncoming != "" && (!ok || snap.State != pairing.Pending) {
 					shownIncoming = ""
 					pd.PairClose()
@@ -431,6 +455,10 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				if action != eventSettings {
 					continue
 				}
+			}
+			if (outgoing || shownIncoming != "") && (action == eventSave || action == eventPause || action == eventGenerate || action == eventImport || action == eventUpsert || action == eventRemove) {
+				d.Alert("Завершите или отмените подключение, прежде чем изменять настройки")
+				continue
 			}
 			switch action {
 			case eventAdd, eventRefresh:
@@ -478,6 +506,12 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				if outgoingName == "" {
 					outgoingName = target.Name
 				}
+				needsLocalConfirm = len(c.Peers) > 0
+				localVerifyReady = false
+				select {
+				case <-localConfirmation:
+				default:
+				}
 				controlWG.Add(1)
 				go func() {
 					defer controlWG.Done()
@@ -485,6 +519,13 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 						select {
 						case sasUpdates <- sas:
 						case <-pairCtx.Done():
+						}
+					}, func(ctx context.Context) error {
+						select {
+						case <-localConfirmation:
+							return nil
+						case <-ctx.Done():
+							return ctx.Err()
 						}
 					})
 					select {
@@ -501,6 +542,13 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				}
 				shownIncoming = ""
 				pd.PairClose()
+			case eventConfirmLocal:
+				if outgoing && needsLocalConfirm && localVerifyReady {
+					select {
+					case localConfirmation <- struct{}{}:
+					default:
+					}
+				}
 			case eventCancelPair:
 				if pairCancel != nil {
 					pairCancel()

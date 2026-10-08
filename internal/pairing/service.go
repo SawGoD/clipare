@@ -99,36 +99,30 @@ func (s *Service) saveLocked(c config.Config) error {
 }
 func (s *Service) Snapshot() (Snapshot, bool) { return s.sessions.Snapshot() }
 func (s *Service) Decide(id string, allow bool) error {
-	if !allow {
-		return s.sessions.Decide(id, false)
-	}
-	s.sessions.mu.Lock()
-	defer s.sessions.mu.Unlock()
-	s.sessions.cleanup()
-	a := s.sessions.active
-	if a == nil || a.challenge.Session != id {
-		return ErrExpired
-	}
-	if a.state != Pending {
-		return ErrInvalid
-	}
+	return s.sessions.decideWith(id, allow, s.persistPair)
+}
+func (s *Service) persistPair(remote Hello, group string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, removed := range s.c.Removed {
-		if removed == a.remote.ID {
+		if removed == remote.ID {
 			return errors.New("Это устройство удалено из группы. Повторное добавление этой identity пока не поддерживается")
 		}
 	}
-	v := peers.Export(s.c)
-	v.Members = append(v.Members, member(a.remote))
-	next, err := peers.Merge(s.c, v)
+	c := s.c
+	if c.Group.ID != group && len(c.Peers) > 0 {
+		return ErrGroupMerge
+	}
+	c.Group.ID = group
+	v := peers.Export(c)
+	v.Members = append(v.Members, member(remote))
+	next, err := peers.Merge(c, v)
 	if err != nil {
 		return ErrInvalid
 	}
 	if err = s.saveLocked(next); err != nil {
 		return err
 	}
-	a.state = Approved
 	return nil
 }
 func member(h Hello) peers.Member {
@@ -183,7 +177,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "NetBird source required", 403)
 		return
 	}
-	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<10))
+	limit := int64(32 << 10)
+	if r.URL.Path == "/api/v1/group/membership" {
+		limit = 128 << 10
+	}
+	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
 		http.Error(w, "request too large", 413)
 		return
@@ -195,6 +193,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, ErrApproval) {
 			code = 409
+		}
+		if errors.Is(err, ErrGroupMerge) {
+			code = 412
 		}
 		http.Error(w, "pairing unavailable", code)
 	}
@@ -257,6 +258,27 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.sessions.mu.Unlock()
 		writeJSON(w, out)
+	case "/api/v1/pair/confirm":
+		var v Confirmation
+		if decode(b, &v) != nil {
+			fail(ErrInvalid)
+			return
+		}
+		remote, _, e := s.sessions.Auth(v, "confirm")
+		if e != nil || remote.IP != ip {
+			fail(ErrInvalid)
+			return
+		}
+		if e = s.sessions.confirmWith(v, s.persistPair); e != nil {
+			fail(e)
+			return
+		}
+		out, e := s.sessions.Response(v.Session, "confirm-response")
+		if e != nil {
+			fail(e)
+			return
+		}
+		writeJSON(w, out)
 	case "/api/v1/pair/finish":
 		var v Confirmation
 		if decode(b, &v) != nil {
@@ -309,6 +331,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		next, e := peers.Merge(s.c, v)
 		if e == nil {
+			for j := range next.Peers {
+				if next.Peers[j].ID == source {
+					next.Peers[j].LegacySecret = ""
+				}
+			}
 			e = s.saveLocked(next)
 		}
 		s.mu.Unlock()

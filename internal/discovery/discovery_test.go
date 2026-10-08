@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 )
 
@@ -50,5 +51,27 @@ func TestParseAndScan(t *testing.T) {
 	cancel()
 	if _, err = Scan(ctx, r, fakeProbe{}, nil); err == nil {
 		t.Fatal("cancellation")
+	}
+}
+func TestCLILocationFallback(t *testing.T) {
+	missing := func(string) (string, error) { return "", errors.New("not in PATH") }
+	path := "/usr/local/bin/netbird"
+	if runtime.GOOS == "windows" {
+		path = `C:\Program Files\Netbird\netbird.exe`
+	}
+	got, err := findBinary(missing, func(p string) bool { return p == path }, []string{path})
+	if err != nil || got != path {
+		t.Fatal("standard CLI location")
+	}
+	if _, err = findBinary(missing, func(string) bool { return false }, nil); err == nil {
+		t.Fatal("missing CLI")
+	}
+}
+func TestLocalAddress(t *testing.T) {
+	if LocalAddress([]byte(`{"netbirdIp":"100.64.0.2/16","peers":{"details":[]}}`)) != "100.64.0.2" {
+		t.Fatal("CIDR local IP")
+	}
+	if LocalAddress([]byte(`{"netbirdIp":"8.8.8.8","peers":{"details":[]}}`)) != "" {
+		t.Fatal("public local IP")
 	}
 }

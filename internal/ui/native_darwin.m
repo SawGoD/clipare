@@ -103,7 +103,7 @@ void clipare_init(void) { @autoreleasepool {
  label(root,@"NetBird IP для подключения",24,430,320);
  NSComboBox *addresses=[[NSComboBox alloc] initWithFrame:NSMakeRect(24,401,320,26)];fields[2]=addresses;[root addSubview:addresses];[addresses release];
  label(root,@"Порт",24,371,320);input(root,3,24,342,320,NO);
- label(root,@"Общий ключ",24,312,320);input(root,4,24,283,320,YES);
+ label(root,@"Legacy общий ключ",24,312,320);input(root,4,24,283,320,YES);
  button(root,@"Создать новый ключ",24,242,190,5);
  button(root,@"Скопировать код подключения",24,198,320,6);
  autostart=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:nil action:nil];autostart.frame=NSMakeRect(24,154,320,26);[root addSubview:autostart];
@@ -131,9 +131,9 @@ int clipare_poll(void) { @autoreleasepool {
 } }
 void clipare_show(void) { @autoreleasepool {homeName.stringValue=[fields[0] stringValue];homeAuto.state=autostart.state;[homeTable reloadData];if(window.visible)[window makeKeyAndOrderFront:nil];else [homeWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES]; } }
 void clipare_set(int i,const char *text) { @autoreleasepool {if(i>=0&&i<11&&fields[i]) [fields[i] setStringValue:str(text)];} }
-char *clipare_get(int i) { @autoreleasepool {if(i<0||i>=11||!fields[i])return strdup("");return strdup([[fields[i] stringValue] UTF8String]);} }
+char *clipare_get(int i) { @autoreleasepool {if(i<0||i>=11||!fields[i])return strdup("");if(i==0&&homeWindow.visible&&!window.visible)return strdup([homeName.stringValue UTF8String]);return strdup([[fields[i] stringValue] UTF8String]);} }
 void clipare_auto(int enabled) { autostart.state=enabled?NSControlStateValueOn:NSControlStateValueOff; }
-int clipare_is_auto(void) { return autostart.state==NSControlStateValueOn; }
+int clipare_is_auto(void) { return (homeWindow.visible&&!window.visible?homeAuto.state:autostart.state)==NSControlStateValueOn; }
 void clipare_addresses(const char *lines) { @autoreleasepool {NSComboBox *box=fields[2];[box removeAllItems];for(NSString *s in [str(lines) componentsSeparatedByString:@"\n"]){if(s.length)[box addItemWithObjectValue:s];}} }
 void clipare_peers(const char *lines) { @autoreleasepool {[rows removeAllObjects];for(NSString *s in [str(lines) componentsSeparatedByString:@"\n"]){if(s.length)[rows addObject:s];}[table reloadData];[homeTable reloadData];[table deselectAll:nil];} }
 int clipare_selected(void) { return (int)(window.visible?table.selectedRow:homeTable.selectedRow); }
@@ -155,5 +155,5 @@ void clipare_alert(const char *text) { @autoreleasepool {NSAlert *a=[NSAlert new
 void clipare_close(void) { @autoreleasepool {if(window.attachedSheet)[window endSheet:window.attachedSheet];[[NSStatusBar systemStatusBar] removeStatusItem:tray];[window orderOut:nil];[homeWindow orderOut:nil];[discoveryWindow orderOut:nil];[pairWindow orderOut:nil];} }
 void clipare_discovered(const char *lines,const char *status){@autoreleasepool{[foundRows removeAllObjects];for(NSString *s in [str(lines) componentsSeparatedByString:@"\n"]){if(s.length)[foundRows addObject:s];}[foundTable reloadData];discoveryStatus.stringValue=str(status);[discoveryWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
 int clipare_discovered_selected(void){return (int)foundTable.selectedRow;}
-void clipare_pair(const char *name,const char *sas,int incoming){@autoreleasepool{pairIncoming=incoming!=0;pairName.stringValue=str(name);pairCode.stringValue=str(sas);pairHelp.stringValue=pairIncoming?@"Это устройство хочет подключиться. Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение.":@"Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…";approveButton.hidden=!pairIncoming;rejectButton.title=pairIncoming?@"Отклонить":@"Отменить";rejectButton.tag=pairIncoming?15:16;[pairWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
+void clipare_pair(const char *name,const char *sas,int mode){@autoreleasepool{pairIncoming=mode==1;pairName.stringValue=str(name);pairCode.stringValue=str(sas);pairHelp.stringValue=mode==2?@"Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение.":pairIncoming?@"Это устройство хочет подключиться. Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение.":@"Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…";approveButton.hidden=mode==0;approveButton.title=mode==2?@"Код совпадает":@"Разрешить";approveButton.tag=mode==2?18:14;rejectButton.title=pairIncoming?@"Отклонить":@"Отменить";rejectButton.tag=pairIncoming?15:16;[pairWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
 void clipare_pair_close(void){[pairWindow orderOut:nil];}

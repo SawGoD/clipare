@@ -22,16 +22,18 @@ import (
 var ErrInvalid = errors.New("Не удалось проверить подключение. Попробуйте ещё раз")
 var ErrExpired = errors.New("Pairing истёк, попробуйте ещё раз")
 var ErrApproval = errors.New("Подключение ещё не подтверждено")
+var ErrGroupMerge = errors.New("Объединение двух существующих групп пока не поддерживается")
 
 type Hello struct {
-	Expires   int64  `json:"expires"`
-	ID        string `json:"device_id"`
-	Name      string `json:"device_name"`
-	PublicKey string `json:"public_key"`
-	IP        string `json:"ip"`
-	Port      int    `json:"port"`
-	Ephemeral string `json:"ephemeral"`
-	Nonce     string `json:"nonce"`
+	ExistingGroup string `json:"existing_group,omitempty"`
+	Expires       int64  `json:"expires"`
+	ID            string `json:"device_id"`
+	Name          string `json:"device_name"`
+	PublicKey     string `json:"public_key"`
+	IP            string `json:"ip"`
+	Port          int    `json:"port"`
+	Ephemeral     string `json:"ephemeral"`
+	Nonce         string `json:"nonce"`
 }
 type Handshake struct {
 	Hello     Hello
@@ -50,7 +52,11 @@ func NewHandshake(c config.Config) (*Handshake, error) {
 	if _, e = rand.Read(nonce); e != nil {
 		return nil, e
 	}
-	return &Handshake{Hello{Expires: time.Now().Add(120 * time.Second).Unix(), ID: c.Device.ID, Name: c.Device.Name, PublicKey: c.Identity.PublicKey, IP: c.Listen.Address, Port: c.Listen.Port, Ephemeral: base64.StdEncoding.EncodeToString(k.PublicKey().Bytes()), Nonce: base64.StdEncoding.EncodeToString(nonce)}, k, c.Identity}, nil
+	existing := ""
+	if len(c.Peers) > 0 {
+		existing = c.Group.ID
+	}
+	return &Handshake{Hello{ExistingGroup: existing, Expires: time.Now().Add(120 * time.Second).Unix(), ID: c.Device.ID, Name: c.Device.Name, PublicKey: c.Identity.PublicKey, IP: c.Listen.Address, Port: c.Listen.Port, Ephemeral: base64.StdEncoding.EncodeToString(k.PublicKey().Bytes()), Nonce: base64.StdEncoding.EncodeToString(nonce)}, k, c.Identity}, nil
 }
 func Commitment(h Hello) string {
 	b, _ := json.Marshal(h)

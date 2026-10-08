@@ -43,6 +43,12 @@ func TestCommittedHandshake(t *testing.T) {
 	if e = sessions.Decide(id, true); e != nil {
 		t.Fatal(e)
 	}
+	if _, e = sessions.Finish(finish); e == nil {
+		t.Fatal("initiator confirmation bypass")
+	}
+	if e = sessions.Confirm(Confirmation{id, proof(ka, id, "confirm")}); e != nil {
+		t.Fatal(e)
+	}
 	if _, e = sessions.Finish(finish); e != nil {
 		t.Fatal(e)
 	}

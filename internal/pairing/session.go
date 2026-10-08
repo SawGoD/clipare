@@ -9,9 +9,10 @@ import (
 )
 
 type Request struct {
-	Session    string `json:"session"`
-	Commitment string `json:"commitment"`
-	Expires    int64  `json:"expires"`
+	ExistingGroup string `json:"existing_group,omitempty"`
+	Session       string `json:"session"`
+	Commitment    string `json:"commitment"`
+	Expires       int64  `json:"expires"`
 }
 type Challenge struct {
 	Session string `json:"session"`
@@ -33,6 +34,7 @@ type State string
 const (
 	Waiting  State = "waiting"
 	Pending  State = "pending"
+	Accepted State = "accepted"
 	Approved State = "approved"
 	Rejected State = "rejected"
 	Complete State = "complete"
@@ -46,6 +48,8 @@ type Snapshot struct {
 	Expires int64
 }
 type record struct {
+	requestGroup   string
+	confirmed      bool
 	requestExpires int64
 	challenge      Challenge
 	commitment     string
@@ -96,6 +100,16 @@ func (s *Sessions) Begin(c config.Config, r Request) (Challenge, error) {
 	if r.Expires <= s.now().Unix() || r.Expires > s.now().Add(180*time.Second).Unix() {
 		return Challenge{}, ErrExpired
 	}
+	group := c.Group.ID
+	if len(r.ExistingGroup) > 128 {
+		return Challenge{}, ErrInvalid
+	}
+	if r.ExistingGroup != "" {
+		if len(c.Peers) > 0 && r.ExistingGroup != c.Group.ID {
+			return Challenge{}, ErrGroupMerge
+		}
+		group = r.ExistingGroup
+	}
 	id, e := hex.DecodeString(r.Session)
 	if e != nil || len(id) != 32 {
 		return Challenge{}, ErrInvalid
@@ -118,9 +132,9 @@ func (s *Sessions) Begin(c config.Config, r Request) (Challenge, error) {
 	if r.Expires < expires {
 		expires = r.Expires
 	}
-	ch := Challenge{r.Session, h.Hello, c.Group.ID, expires}
+	ch := Challenge{r.Session, h.Hello, group, expires}
 	s.used[r.Session] = s.now().Add(5 * time.Minute)
-	s.active = &record{challenge: ch, commitment: r.Commitment, handshake: h, state: Waiting, requestExpires: r.Expires}
+	s.active = &record{challenge: ch, commitment: r.Commitment, handshake: h, state: Waiting, requestExpires: r.Expires, requestGroup: r.ExistingGroup}
 	return ch, nil
 }
 func (s *Sessions) Reveal(r Exchange) (Confirmation, error) {
@@ -131,7 +145,7 @@ func (s *Sessions) Reveal(r Exchange) (Confirmation, error) {
 	if a == nil || a.challenge.Session != r.Session {
 		return Confirmation{}, ErrExpired
 	}
-	if a.state != Waiting || r.Hello.Expires != a.requestExpires || Commitment(r.Hello) != a.commitment {
+	if a.state != Waiting || r.Hello.ExistingGroup != a.requestGroup || r.Hello.Expires != a.requestExpires || Commitment(r.Hello) != a.commitment {
 		return Confirmation{}, ErrInvalid
 	}
 	k, sas, e := a.handshake.Keys(r.Hello, r.Session, a.challenge.Group, a.challenge.Expires, false)
@@ -158,6 +172,9 @@ func (s *Sessions) Snapshot() (Snapshot, bool) {
 	return Snapshot{a.challenge.Session, a.remote.Name, a.sas, a.state, a.challenge.Expires}, true
 }
 func (s *Sessions) Decide(id string, allow bool) error {
+	return s.decideWith(id, allow, nil)
+}
+func (s *Sessions) decideWith(id string, allow bool, persist func(Hello, string) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleanup()
@@ -169,11 +186,59 @@ func (s *Sessions) Decide(id string, allow bool) error {
 		return ErrInvalid
 	}
 	if allow {
-		a.state = Approved
+		if a.confirmed {
+			if persist != nil {
+				if err := persist(a.remote, a.challenge.Group); err != nil {
+					return err
+				}
+			}
+			a.state = Approved
+		} else {
+			a.state = Accepted
+		}
 	} else {
 		a.state = Rejected
 	}
 	return nil
+}
+func (s *Sessions) Confirm(r Confirmation) error { return s.confirmWith(r, nil) }
+func (s *Sessions) confirmWith(r Confirmation, persist func(Hello, string) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanup()
+	a := s.active
+	if a == nil || a.challenge.Session != r.Session {
+		return ErrExpired
+	}
+	if !verifyProof(a.key, r.Session, "confirm", r.Proof) {
+		return ErrInvalid
+	}
+	if a.state == Rejected {
+		return nil
+	}
+	if a.state != Pending && a.state != Accepted {
+		return ErrInvalid
+	}
+	if a.state == Accepted {
+		if persist != nil {
+			if err := persist(a.remote, a.challenge.Group); err != nil {
+				return err
+			}
+		}
+		a.state = Approved
+	}
+	a.confirmed = true
+	return nil
+}
+func (s *Sessions) Response(id, action string) (Confirmation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanup()
+	a := s.active
+	if a == nil || a.challenge.Session != id {
+		return Confirmation{}, ErrExpired
+	}
+	return Confirmation{id, proof(a.key, id, action)}, nil
 }
 func (s *Sessions) Auth(r Confirmation, action string) (Hello, State, error) {
 	s.mu.Lock()

@@ -53,6 +53,9 @@ func (s *Service) upgradePeer(v upgrade, source string) error {
 		if !p.Legacy && p.PublicKey != v.Member.PublicKey {
 			return ErrInvalid
 		}
+		if !p.Legacy {
+			return nil
+		} // A legacy retry must not alter pinned paired metadata.
 		c.Peers[j].Legacy = false
 		c.Peers[j].PublicKey = v.Member.PublicKey
 		c.Peers[j].LastKnownIP = v.Member.IP

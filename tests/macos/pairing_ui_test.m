@@ -12,5 +12,5 @@ int main(int argc,const char **argv){@autoreleasepool{
  NSBitmapImageRep *bitmap=[target.contentView bitmapImageRepForCachingDisplayInRect:target.contentView.bounds];[target.contentView cacheDisplayInRect:target.contentView.bounds toBitmapImageRep:bitmap];
  [[bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:@"/private/tmp/clipare-pairing-ui.png" atomically:YES];
  NSDate *until=[NSDate dateWithTimeIntervalSinceNow:argc>1&&!strcmp(argv[1],"verify")?0.1:40];while([until timeIntervalSinceNow]>0){int action=clipare_poll();if(action==11||action==12)clipare_discovered("Desktop-PC — 100.64.0.2\nLaptop — 100.64.0.3","Выберите устройство и нажмите «Подключить»");if(action==13)clipare_pair("Проверьте код на Desktop-PC","482 731",0);if(action==14||action==15||action==16)clipare_pair_close();if(action==2)clipare_show();if(action==4)break;[NSThread sleepForTimeInterval:0.02];}
- clipare_pair("Desktop-PC","482 731",0);assert(approveButton.hidden);assert(rejectButton.tag==16);clipare_pair_close();clipare_close();return 0;
+ clipare_pair("Desktop-PC","482 731",0);assert(approveButton.hidden);assert(rejectButton.tag==16);clipare_pair("Laptop","482 731",2);assert(!approveButton.hidden);assert(approveButton.tag==18);assert([approveButton.title isEqualToString:@"Код совпадает"]);clipare_pair_close();clipare_close();return 0;
 }}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"clipare/internal/config"
 	"clipare/internal/discovery"
+	"clipare/internal/identity"
 	"clipare/internal/peers"
 	"clipare/internal/security"
 	"encoding/json"
@@ -60,8 +61,28 @@ func TestAuthenticatedLegacyUpgrade(t *testing.T) {
 		t.Fatal("upgrade lost credentials")
 	}
 	call(true, 200) // retry after lost response cannot change the pinned key
+	a.Listen.Address = "100.64.0.9"
+	v.Member.IP = a.Listen.Address
+	body, _ = json.Marshal(v)
+	call(true, 200)
+	if s.Config().Peers[0].LastKnownIP != "100.64.0.1" {
+		t.Fatal("legacy retry redirected pinned metadata")
+	}
 	c, _ := config.Default()
 	v.Member.PublicKey = c.Identity.PublicKey
 	body, _ = json.Marshal(v)
 	call(true, 400)
+	metadata, _ := json.Marshal(peers.Export(s.Config()))
+	pairKey, _ := identity.PairKey(a.Identity, b.Identity.PublicKey, b.Group.ID, a.Device.ID, b.Device.ID)
+	r := httptest.NewRequest("POST", "/api/v1/group/membership", bytes.NewReader(metadata))
+	r.RemoteAddr = a.Listen.Address + ":1234"
+	r.Header.Set(security.SourceHeader, a.Device.ID)
+	r.Header.Set(security.TimestampHeader, ts)
+	r.Header.Set(security.SignatureHeader, security.Sign(pairKey, ts, security.AuthenticatedData(r.Method, r.URL.Path, a.Device.ID, metadata)))
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != 200 || s.Config().Peers[0].LegacySecret != "" {
+		t.Fatal("legacy credential not retired after pairwise confirmation")
+	}
+	call(true, 401)
 }

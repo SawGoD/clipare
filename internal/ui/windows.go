@@ -133,7 +133,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= 17 {
+			} else if id >= 1 && id <= 18 {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -167,7 +167,7 @@ func (n *nativeDesktop) Init() error {
 	n.fields[2] = n.control("COMBOBOX", "", 0x00210042, 24, 198, 320, 200, 102)
 	n.label("Порт", 24, 236, 320)
 	n.input(3, 24, 260, 320, false)
-	n.label("Общий ключ", 24, 298, 320)
+	n.label("Legacy общий ключ", 24, 298, 320)
 	n.input(4, 24, 322, 320, true)
 	n.button("Создать новый ключ", 24, 363, 200, 5)
 	n.button("Скопировать код подключения", 24, 407, 320, 6)
@@ -286,7 +286,11 @@ func (n *nativeDesktop) menu() {
 func (n *nativeDesktop) Poll() int {
 	var m message
 	for call("PeekMessageW", uintptr(unsafe.Pointer(&m)), 0, 0, 0, 1) != 0 {
-		if call("IsDialogMessageW", n.window, uintptr(unsafe.Pointer(&m))) == 0 {
+		root := call("GetAncestor", m.Window, 2)
+		if root == 0 {
+			root = n.window
+		}
+		if call("IsDialogMessageW", root, uintptr(unsafe.Pointer(&m))) == 0 {
 			call("TranslateMessage", uintptr(unsafe.Pointer(&m)))
 			call("DispatchMessageW", uintptr(unsafe.Pointer(&m)))
 		}
@@ -335,6 +339,9 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 func (n *nativeDesktop) Read() form {
 	var f form
 	for i, h := range n.fields {
+		if i == 0 && call("IsWindowVisible", n.home) != 0 && call("IsWindowVisible", n.window) == 0 {
+			h = n.homeName
+		}
 		size := call("GetWindowTextLengthW", h)
 		if size > 8192 {
 			size = 8192
@@ -344,6 +351,9 @@ func (n *nativeDesktop) Read() form {
 		f.Values[i] = syscall.UTF16ToString(b)
 	}
 	f.Autostart = call("SendMessageW", n.auto, 0xF0, 0, 0) == 1
+	if call("IsWindowVisible", n.home) != 0 && call("IsWindowVisible", n.window) == 0 {
+		f.Autostart = call("SendMessageW", n.homeAuto, 0xF0, 0, 0) == 1
+	}
 	return f
 }
 func (n *nativeDesktop) Selected() int {
@@ -406,7 +416,8 @@ func (n *nativeDesktop) Discovered(lines, status string) {
 func (n *nativeDesktop) DiscoveredSelected() int {
 	return int(int32(call("SendMessageW", n.foundList, 0x188, 0, 0)))
 }
-func (n *nativeDesktop) Pair(name, sas string, incoming bool) {
+func (n *nativeDesktop) Pair(name, sas string, mode int) {
+	incoming := mode == 1
 	n.pairIncoming = incoming
 	call("SetWindowTextW", n.pairName, uintptr(unsafe.Pointer(wide(name))))
 	call("SetWindowTextW", n.pairCode, uintptr(unsafe.Pointer(wide(sas))))
@@ -420,6 +431,16 @@ func (n *nativeDesktop) Pair(name, sas string, incoming bool) {
 		tag = 15
 		title = "Отклонить"
 	}
+	allowTag := uintptr(14)
+	allowTitle := "Разрешить"
+	if mode == 2 {
+		show = 5
+		allowTag = 18
+		allowTitle = "Код совпадает"
+		text = "Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение."
+	}
+	call("SetWindowLongPtrW", n.pairAllow, ^uintptr(11), allowTag)
+	call("SetWindowTextW", n.pairAllow, uintptr(unsafe.Pointer(wide(allowTitle))))
 	call("ShowWindow", n.pairAllow, show)
 	call("SetWindowLongPtrW", n.pairReject, ^uintptr(11), tag)
 	call("SetWindowTextW", n.pairReject, uintptr(unsafe.Pointer(wide(title))))
