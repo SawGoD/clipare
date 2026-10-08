@@ -1,6 +1,7 @@
 /clipare
 /clipare.exe
 /dist/
+Clipare.app/
 /config.yaml
 *.v1.backup
 *.test
