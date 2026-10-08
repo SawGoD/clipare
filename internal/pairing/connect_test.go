@@ -44,7 +44,7 @@ func TestConnectAndThreeDeviceMetadata(t *testing.T) {
 	}
 	sa := NewService(filepath.Join(t.TempDir(), "a.yaml"), a)
 	sb := NewService(filepath.Join(t.TempDir(), "b.yaml"), b)
-	sb.limiter.Interval = time.Nanosecond
+	sb.limiter.Interval = 0
 	sa.client = &http.Client{Transport: directTransport{sb, a.Listen.Address}}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

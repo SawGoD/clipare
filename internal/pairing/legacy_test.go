@@ -26,7 +26,9 @@ func TestAuthenticatedLegacyUpgrade(t *testing.T) {
 		t.Fatal("legacy groups diverged")
 	}
 	s := NewService(filepath.Join(t.TempDir(), "b.yaml"), b)
-	s.limiter = &discovery.Limiter{Interval: time.Nanosecond}
+	// Disable throttling in this authentication test: Windows timestamps may
+	// remain equal across consecutive requests. Rate limiting is tested separately.
+	s.limiter = &discovery.Limiter{}
 	nonce, _ := NewID()
 	v := upgrade{Group: a.Group.ID, Member: peers.Local(a), Nonce: nonce}
 	body, _ := json.Marshal(v)

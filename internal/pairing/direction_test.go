@@ -23,7 +23,7 @@ func TestExistingMemberInitiatesToNewDevice(t *testing.T) {
 	a, _ = peers.Merge(a, peers.Membership{Group: a.Group.ID, Members: []peers.Member{peers.Local(a), peers.Local(old)}})
 	sa := NewService(filepath.Join(t.TempDir(), "a.yaml"), a)
 	sb := NewService(filepath.Join(t.TempDir(), "fresh.yaml"), fresh)
-	sb.limiter.Interval = time.Nanosecond
+	sb.limiter.Interval = 0
 	sa.client = &http.Client{Transport: directTransport{sb, a.Listen.Address}}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
@@ -81,7 +81,7 @@ func TestRejectAndDifferentEstablishedGroups(t *testing.T) {
 			}
 			sa := NewService(filepath.Join(t.TempDir(), "a.yaml"), a)
 			sb := NewService(filepath.Join(t.TempDir(), "b.yaml"), b)
-			sb.limiter.Interval = time.Nanosecond
+			sb.limiter.Interval = 0
 			sa.client = &http.Client{Transport: directTransport{sb, a.Listen.Address}}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
