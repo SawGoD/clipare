@@ -155,7 +155,7 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		gcall("GetTextFaceW", dc, uintptr(len(face)), uintptr(unsafe.Pointer(&face[0])))
 		gcall("SelectObject", dc, old)
 		gcall("DeleteDC", dc)
-		if !strings.HasPrefix(syscall.UTF16ToString(face[:]), "Segoe UI") {
+		if !strings.HasPrefix(syscall.UTF16ToString(face[:]), "Segoe UI Variable") {
 			gcall("DeleteObject", font)
 			font = create("Segoe UI")
 		}
