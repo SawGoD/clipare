@@ -68,6 +68,7 @@ type nativeDesktop struct {
 	controls                                                                           map[uintptr]winControl
 	fonts                                                                              map[[2]int]uintptr
 	rows                                                                               map[uintptr][]deviceRow
+	pauseButton, emptyDevices, emptyDiscovery                                          uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -184,44 +185,46 @@ func (n *nativeDesktop) Init() error {
 	if call("RegisterClassExW", uintptr(unsafe.Pointer(&wc))) == 0 {
 		return errors.New("Не удалось зарегистрировать окно Clipare")
 	}
-	n.window = n.panel(class, "Настройки Clipare", 764, 620)
+	n.window = n.panel(class, "Дополнительно — Clipare", 848, 690, logicalRect{24, 64, 376, 526}, logicalRect{416, 64, 408, 526})
 	if n.window == 0 {
 		return errors.New("Не удалось создать окно Clipare")
 	}
-	n.label("Этот компьютер", 24, 18, 320)
-	n.label("Имя устройства", 24, 50, 320)
-	n.input(0, 24, 74, 320, false)
-	n.label("ID устройства (создан автоматически)", 24, 112, 320)
-	n.input(1, 24, 136, 320, false)
+	n.heading("Дополнительно", 24, 16, 600, 1)
+	n.heading("Этот компьютер", 40, 80, 344, 2)
+	n.label("Имя устройства", 40, 122, 344)
+	n.input(0, 40, 150, 344, false)
+	n.label("Device ID", 40, 194, 344)
+	n.input(1, 40, 222, 344, false)
 	call("SendMessageW", n.fields[1], 0xCF, 1, 0)
-	n.label("NetBird IP для подключения", 24, 174, 320)
-	n.fields[2] = n.control("COMBOBOX", "", 0x00210042, 24, 198, 320, 200, 102)
-	n.label("Порт", 24, 236, 320)
-	n.input(3, 24, 260, 320, false)
-	n.label("Legacy общий ключ", 24, 298, 320)
-	n.input(4, 24, 322, 320, true)
-	n.button("Создать новый ключ", 24, 363, 200, 5)
-	n.button("Скопировать код подключения", 24, 407, 320, 6)
-	n.auto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 24, 453, 330, 28, 121)
-	n.statusLabel = n.control("STATIC", "Настройте подключение", 0, 24, 493, 330, 44, 0)
-	n.label("Другие компьютеры", 390, 18, 340)
-	n.list = n.control("LISTBOX", "", 0x00A10001, 390, 50, 340, 136, 120)
-	n.label("Имя", 390, 198, 340)
-	n.input(6, 390, 222, 340, false)
-	n.label("ID другого устройства", 390, 260, 340)
-	n.input(7, 390, 284, 340, false)
-	n.label("IP или имя NetBird", 390, 322, 230)
-	n.input(8, 390, 346, 235, false)
-	n.label("Порт", 635, 322, 95)
-	n.input(9, 635, 346, 95, false)
-	n.button("Добавить / изменить", 390, 389, 220, 8)
-	n.button("Удалить", 618, 389, 112, 9)
-	n.label("Код подключения другого компьютера", 390, 434, 340)
-	n.input(10, 390, 458, 340, true)
-	n.button("Добавить по коду", 390, 498, 220, 7)
-	n.fields[5] = n.control("STATIC", "", 0, 24, 542, 710, 22, 0)
-	n.label("Код содержит общий ключ. Передавайте его приватно.", 24, 565, 710)
-	n.button("Сохранить настройки", 500, 590, 230, 1)
+	n.label("NetBird IP", 40, 266, 236)
+	n.fields[2] = n.control("COMBOBOX", "", 0x00210042, 40, 294, 236, 200, 102)
+	n.label("Порт", 288, 266, 96)
+	n.input(3, 288, 294, 96, false)
+	n.label("Legacy общий ключ", 40, 338, 344)
+	n.input(4, 40, 366, 344, true)
+	n.button("Создать новый ключ", 40, 410, 240, 5)
+	n.button("Скопировать код подключения", 40, 454, 344, 6)
+	n.auto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 508, 344, 28, 121)
+	n.statusLabel = n.control("STATIC", "Настройте подключение", 0, 40, 548, 344, 30, 0)
+	n.heading("Ручное подключение", 432, 80, 376, 2)
+	n.list = n.control("LISTBOX", "", 0x00210001, 432, 122, 376, 100, 120)
+	n.label("Имя устройства", 432, 238, 376)
+	n.input(6, 432, 266, 376, false)
+	n.label("Device ID", 432, 310, 376)
+	n.input(7, 432, 338, 376, false)
+	n.label("IP или имя NetBird", 432, 382, 264)
+	n.input(8, 432, 410, 264, false)
+	n.label("Порт", 708, 382, 100)
+	n.input(9, 708, 410, 100, false)
+	n.button("Добавить / изменить", 432, 454, 236, 8)
+	n.button("Удалить", 684, 454, 124, 9)
+	n.label("Legacy код подключения", 432, 498, 376)
+	n.input(10, 432, 526, 216, true)
+	n.button("Добавить по коду", 660, 526, 148, 7)
+	n.fields[5] = n.control("STATIC", "", 0x4000, 24, 606, 800, 22, 0)
+	n.setRole(n.fields[5], 4)
+	n.label("Код содержит общий ключ. Передавайте его приватно.", 24, 642, 544)
+	n.button("Сохранить настройки", 584, 638, 240, 1)
 	n.state = "Настройте подключение"
 	n.installHome(class)
 	n.applyTheme()
@@ -239,48 +242,50 @@ func windowText(h uintptr) string {
 }
 func (n *nativeDesktop) installHome(class *uint16) {
 	advanced := n.window
-	panel := func(title string, h int) uintptr {
-		return n.panel(class, title, 480, h-40)
-	}
-	n.home = panel("Clipare", 644)
+	n.home = n.panel(class, "Clipare", 568, 688, logicalRect{24, 64, 520, 128}, logicalRect{24, 208, 520, 228}, logicalRect{24, 452, 520, 68}, logicalRect{24, 536, 520, 136})
 	n.window = n.home
-	n.label("Этот компьютер", 24, 20, 430)
-	n.homeName = n.control("EDIT", "", 0x00810080, 24, 50, 432, 28, 130)
-	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0, 24, 92, 432, 42, 0)
-	n.label("Устройства", 24, 144, 432)
-	n.homeList = n.control("LISTBOX", "", 0x00A10001, 24, 174, 432, 136, 120)
-	n.button("+ Добавить устройство", 24, 324, 254, 11)
-	n.button("Удалить", 334, 324, 122, 9)
-	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 24, 368, 432, 28, 131)
-	n.button("Дополнительно…", 24, 416, 190, 30)
-	n.button("Сохранить", 320, 416, 136, 1)
-	n.label("Обновления", 24, 464, 432)
-	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 24, 494, 432, 28, 22)
-	n.updateVersion = n.control("STATIC", "", 0, 24, 548, 200, 24, 0)
-	n.button("Проверить обновления", 254, 540, 202, 19)
-	n.updateWindow = panel("Обновление Clipare", 320)
+	n.heading("Clipare", 24, 16, 300, 1)
+	n.button("Дополнительно…", 360, 16, 184, 30)
+	n.heading("Этот компьютер", 40, 80, 280, 2)
+	n.homeName = n.control("EDIT", "", 0x00810080, 40, 116, 332, 30, 130)
+	n.button("Сохранить", 384, 116, 144, 1)
+	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 40, 158, 312, 22, 0)
+	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 144, 32, eventPause)
+	n.heading("Устройства", 40, 224, 360, 2)
+	n.homeList = n.deviceList(40, 264, 488, 120, 120)
+	n.emptyDevices = n.control("STATIC", "Пока нет подключённых устройств", 0x4000, 56, 290, 456, 24, 0)
+	n.button("+ Добавить устройство", 40, 392, 268, 11)
+	n.button("Удалить", 400, 392, 128, 9)
+	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 472, 488, 28, 131)
+	n.heading("Обновления", 40, 552, 360, 2)
+	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 588, 488, 28, 22)
+	n.updateVersion = n.control("STATIC", "", 0x4000, 40, 638, 232, 24, 0)
+	n.button("Проверить обновления", 292, 632, 236, 19)
+	n.updateWindow = n.panel(class, "Обновление Clipare", 520, 320, logicalRect{24, 24, 472, 216})
 	n.window = n.updateWindow
-	n.updateText = n.control("STATIC", "", 0, 24, 24, 432, 170, 0)
-	n.updateInstall = n.control("BUTTON", "Обновить", 0x10000, 292, 220, 164, 32, 20)
-	n.updateDismiss = n.control("BUTTON", "Понятно", 0x10000, 24, 220, 164, 32, 21)
-	n.found = panel("Добавить устройство", 420)
+	n.updateText = n.control("STATIC", "", 0, 40, 40, 440, 184, 0)
+	n.updateInstall = n.control("BUTTON", "Обновить", 0x10000, 332, 264, 164, 36, 20)
+	n.updateDismiss = n.control("BUTTON", "Понятно", 0x10000, 24, 264, 164, 36, 21)
+	n.found = n.panel(class, "Добавить устройство", 568, 420, logicalRect{24, 64, 520, 248})
 	n.window = n.found
-	n.label("Найденные устройства", 24, 20, 432)
-	n.foundList = n.control("LISTBOX", "", 0x00A10001, 24, 50, 432, 180, 132)
-	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 24, 240, 432, 44, 0)
-	n.button("Обновить", 24, 294, 126, 12)
-	n.button("Подключить", 302, 294, 154, 13)
-	n.button("Не нашли? Добавить по коду…", 24, 340, 310, 30)
-	n.pair = panel("Подключение устройства", 340)
+	n.heading("Найденные устройства", 24, 16, 520, 1)
+	n.foundList = n.deviceList(40, 80, 488, 180, 132)
+	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 40, 268, 488, 38, 0)
+	n.setRole(n.foundStatus, 4)
+	n.emptyDiscovery = n.control("STATIC", "Устройства Clipare не найдены\r\n\r\nУбедитесь, что NetBird запущен\r\nна обоих компьютерах.", 1, 64, 126, 440, 96, 0)
+	n.button("Обновить список", 24, 332, 220, 12)
+	n.button("Подключить", 324, 332, 220, 13)
+	n.button("Не нашли? Добавить по коду…", 24, 376, 340, 30)
+	n.pair = n.panel(class, "Подключение устройства", 520, 380, logicalRect{24, 112, 472, 96})
 	n.window = n.pair
-	n.pairName = n.control("STATIC", "", 0, 24, 20, 432, 36, 0)
-	n.pairCode = n.control("STATIC", "", 1, 24, 74, 432, 56, 0)
-	font, _, _ := syscall.NewLazyDLL("gdi32.dll").NewProc("CreateFontW").Call(n.px(38), 0, 0, 0, 500, 0, 0, 0, 1, 0, 0, 0, 0, uintptr(unsafe.Pointer(wide("Segoe UI"))))
-	n.pairFont = font
-	call("SendMessageW", n.pairCode, 0x30, font, 1)
-	n.pairHelp = n.control("STATIC", "", 0, 24, 150, 432, 70, 0)
-	n.pairAllow = n.control("BUTTON", "Разрешить", 0x10000, 292, 244, 164, 32, 14)
-	n.pairReject = n.control("BUTTON", "Отклонить", 0x10000, 24, 244, 164, 32, 15)
+	n.heading("Подключение устройства", 24, 16, 472, 1)
+	n.pairName = n.control("STATIC", "", 0x4000, 24, 60, 472, 28, 0)
+	n.heading("Код проверки", 40, 122, 440, 2)
+	n.pairCode = n.control("STATIC", "", 1, 40, 156, 440, 48, 0)
+	n.setRole(n.pairCode, 3)
+	n.pairHelp = n.control("STATIC", "", 0, 24, 232, 472, 80, 0)
+	n.pairAllow = n.control("BUTTON", "Разрешить", 0x10000, 316, 328, 180, 36, 14)
+	n.pairReject = n.control("BUTTON", "Отклонить", 0x10000, 24, 328, 164, 36, 15)
 	n.window = advanced
 }
 func (n *nativeDesktop) addTray() {
@@ -313,6 +318,7 @@ func (n *nativeDesktop) menu() {
 		text = "Приостановить синхронизацию"
 	}
 	add(text, eventPause, false)
+	add("Добавить устройство", eventAdd, false)
 	add("Настройки…", eventSettings, false)
 	add("Проверить обновления", eventCheckUpdate, false)
 	add("Выйти", eventQuit, false)
@@ -376,10 +382,12 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	call("SendMessageW", n.auto, 0xF1, auto, 0)
 	call("SetWindowTextW", n.homeName, uintptr(unsafe.Pointer(wide(f.Values[0]))))
 	call("SendMessageW", n.homeAuto, 0xF1, auto, 0)
-	call("SendMessageW", n.homeList, 0x184, 0, 0)
-	for _, p := range peers {
-		call("SendMessageW", n.homeList, 0x180, 0, uintptr(unsafe.Pointer(wide(peerLabel(p)))))
+	n.setRows(n.homeList, pairedRows(peers, nil))
+	showEmpty := uintptr(0)
+	if len(peers) == 0 {
+		showEmpty = 5
 	}
+	call("ShowWindow", n.emptyDevices, showEmpty)
 	target := n.home
 	if call("IsWindowVisible", n.window) != 0 {
 		target = n.window
@@ -426,17 +434,15 @@ func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer,
 	n.enabled = enabled
 	lines := peerStatuses(peers, states)
 	if lines != n.peerLines {
-		selection := call("SendMessageW", n.homeList, 0x188, 0, 0)
-		call("SendMessageW", n.homeList, 0x184, 0, 0)
-		for _, s := range strings.Split(lines, "\n") {
-			if s != "" {
-				call("SendMessageW", n.homeList, 0x180, 0, uintptr(unsafe.Pointer(wide(s))))
-			}
-		}
-		call("SendMessageW", n.homeList, 0x186, selection, 0)
+		n.setRows(n.homeList, pairedRows(peers, states))
 	}
 	n.peerLines = lines
 	call("SetWindowTextW", n.homeStatus, uintptr(unsafe.Pointer(wide(status))))
+	text := "Возобновить"
+	if enabled {
+		text = "Пауза"
+	}
+	call("SetWindowTextW", n.pauseButton, uintptr(unsafe.Pointer(wide(text))))
 }
 func (n *nativeDesktop) Alert(s string) {
 	call("MessageBoxW", n.window, uintptr(unsafe.Pointer(wide(s))), uintptr(unsafe.Pointer(wide("Clipare"))), 0x40)
@@ -464,12 +470,13 @@ func (n *nativeDesktop) Close() {
 	call("UnregisterClassW", uintptr(unsafe.Pointer(wide("ClipareSettingsWindow"))), n.instance)
 }
 func (n *nativeDesktop) Discovered(lines, status string) {
-	call("SendMessageW", n.foundList, 0x184, 0, 0)
-	for _, s := range strings.Split(lines, "\n") {
-		if s != "" {
-			call("SendMessageW", n.foundList, 0x180, 0, uintptr(unsafe.Pointer(wide(s))))
-		}
+	rows := discoveredRows(lines)
+	n.setRows(n.foundList, rows)
+	show := uintptr(0)
+	if len(rows) == 0 {
+		show = 5
 	}
+	call("ShowWindow", n.emptyDiscovery, show)
 	call("SetWindowTextW", n.foundStatus, uintptr(unsafe.Pointer(wide(status))))
 	call("ShowWindow", n.found, 5)
 	call("SetForegroundWindow", n.found)

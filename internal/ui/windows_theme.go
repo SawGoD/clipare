@@ -93,6 +93,14 @@ func (n *nativeDesktop) applyTheme() {
 			}
 			themes.NewProc("SetWindowTheme").Call(hwnd, uintptr(unsafe.Pointer(wide(name))), 0)
 		}
+		if c.class == "BUTTON" && call("GetWindowLongPtrW", hwnd, ^uintptr(15))&15 == 3 {
+			// Classic native checkbox drawing honors WM_CTLCOLOR in Dark/contrast mode.
+			name := "Explorer"
+			if n.theme.dark || n.theme.contrast {
+				name = ""
+			}
+			themes.NewProc("SetWindowTheme").Call(hwnd, uintptr(unsafe.Pointer(wide(name))), 0)
+		}
 	}
 }
 
@@ -135,13 +143,24 @@ func (n *nativeDesktop) themeMessage(hwnd uintptr, msg uint32, w, l uintptr) (ui
 		call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&r)))
 		call("FillRect", w, uintptr(unsafe.Pointer(&r)), n.backgroundBrush)
 		for _, card := range n.windows[hwnd].cards {
-			n.roundRect(w, n.scaledRect(hwnd, card), n.theme.surface, n.theme.border, 8)
+			n.roundRect(w, n.scaledRect(hwnd, card), n.theme.surface, n.theme.border, int(n.scaledRect(hwnd, logicalRect{w: 8}).Right))
 		}
 		return 1, true
 	case 0x133, 0x134, 0x135, 0x138: // edit/list/button/static colors
 		gcall("SetTextColor", w, uintptr(n.theme.text))
-		gcall("SetBkColor", w, uintptr(n.theme.surface))
-		return n.surfaceBrush, true
+		brush, bg := n.backgroundBrush, n.theme.background
+		c := n.controls[l]
+		for _, r := range n.windows[c.parent].cards {
+			if c.bounds.x >= r.x && c.bounds.y >= r.y && c.bounds.x < r.x+r.w && c.bounds.y < r.y+r.h {
+				brush, bg = n.surfaceBrush, n.theme.surface
+				break
+			}
+		}
+		if c.class == "EDIT" || c.class == "COMBOBOX" || c.class == "LISTBOX" {
+			brush, bg = n.surfaceBrush, n.theme.surface
+		}
+		gcall("SetBkColor", w, uintptr(bg))
+		return brush, true
 	case 0x2b:
 		var item drawItem
 		k32.NewProc("RtlMoveMemory").Call(uintptr(unsafe.Pointer(&item)), l, unsafe.Sizeof(item))
