@@ -89,6 +89,12 @@ jobs:
       contents: write
       actions: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: clipare-*
@@ -102,9 +108,11 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          previous=$(gh release view --json tagName --jq .tagName)
+          go run ./scripts/release-notes "${RELEASE_TAG#v}" "${previous#v}" > release-notes.md
           cd release-assets
           cat *.zip.sha256 > SHA256SUMS
           test "$(find . -maxdepth 1 -name '*.zip' | wc -l)" -eq 4
           sha256sum --check SHA256SUMS
           gh release create "$RELEASE_TAG" ./*.zip SHA256SUMS \
-            --verify-tag --generate-notes --title "Clipare $RELEASE_TAG"
+            --verify-tag --notes-file ../release-notes.md --title "Clipare $RELEASE_TAG"
