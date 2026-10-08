@@ -92,7 +92,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			fg = t.danger
 		}
 		if d.State&4 != 0 {
-			fg = t.muted
+			fill, border, fg = t.surface, t.border, t.muted
 		}
 		if d.State&1 != 0 {
 			fill = blendColor(fill, t.text, .1)

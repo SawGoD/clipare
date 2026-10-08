@@ -21,7 +21,7 @@ jobs:
         env:
           CGO_ENABLED: '0'
           CLIPARE_UI_SCREENSHOTS_DIR: screenshots
-        run: go test ./internal/ui -run TestWindowsFluentPreview -count=1
+        run: go test ./internal/ui -run TestWindowsFluentPreview -count=1 -v
       - run: go vet ./...
         env:
           CGO_ENABLED: '0'

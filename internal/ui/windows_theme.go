@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"runtime"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -129,7 +130,22 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 	case 4:
 		size = 12
 	}
-	font := gcall("CreateFontW", uintptr(-int32(size*dpi/96)), 0, 0, 0, uintptr(weight), 0, 0, 0, 1, 0, 0, 5, 0, uintptr(unsafe.Pointer(wide("Segoe UI Variable"))))
+	create := func(face string) uintptr {
+		var lf struct {
+			Height, Width, Escapement, Orientation, Weight int32
+			Flags                                          [8]byte
+			Face                                           [32]uint16
+		}
+		lf.Height = -int32(size * dpi / 96)
+		lf.Weight = int32(weight)
+		lf.Flags[3] = 1
+		lf.Flags[6] = 5
+		copy(lf.Face[:], syscall.StringToUTF16(face))
+		font, _, _ := gdi.NewProc("CreateFontIndirectW").Call(uintptr(unsafe.Pointer(&lf)))
+		runtime.KeepAlive(lf)
+		return font
+	}
+	font := create("Segoe UI Variable")
 	// GDI can silently substitute Times New Roman on systems without Variable.
 	// Check the realized face, not just the nonzero logical HFONT handle.
 	if font != 0 {
@@ -141,7 +157,7 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		gcall("DeleteDC", dc)
 		if !strings.HasPrefix(syscall.UTF16ToString(face[:]), "Segoe UI") {
 			gcall("DeleteObject", font)
-			font = gcall("CreateFontW", uintptr(-int32(size*dpi/96)), 0, 0, 0, uintptr(weight), 0, 0, 0, 1, 0, 0, 5, 0, uintptr(unsafe.Pointer(wide("Segoe UI"))))
+			font = create("Segoe UI")
 		}
 	}
 	if font == 0 {

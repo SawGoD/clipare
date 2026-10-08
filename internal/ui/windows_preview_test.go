@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
 	"unsafe"
 )
@@ -71,6 +72,15 @@ func TestWindowsFluentPreview(t *testing.T) {
 	captureWindow(t, n.home, filepath.Join(dir, "home-scrolled.png"))
 	n.scrollWindow(n.home, 1, 0, true)
 	n.setTheme(variants[0].theme)
+	for key, font := range n.fonts {
+		dc := gcall("CreateCompatibleDC", 0)
+		old := gcall("SelectObject", dc, font)
+		var face [128]uint16
+		gcall("GetTextFaceW", dc, 128, uintptr(unsafe.Pointer(&face[0])))
+		gcall("SelectObject", dc, old)
+		gcall("DeleteDC", dc)
+		t.Logf("font dpi=%d role=%d: %s", key[0], key[1], syscall.UTF16ToString(face[:]))
+	}
 	n.Show(f, nil, nil)
 	if call("IsWindowVisible", n.emptyDevices) == 0 {
 		t.Fatal("empty device state hidden")
@@ -144,6 +154,9 @@ func captureWindow(t *testing.T, hwnd uintptr, path string) {
 		gcall("SelectObject", mem, old)
 		t.Fatal("PrintWindow failed")
 	}
+	// DefWindowProc's WM_PRINT path explicitly asks for background + children;
+	// it avoids a DWM first-frame black client area in headless runners.
+	call("SendMessageW", hwnd, 0x317, mem, 0x1e)
 	gcall("SelectObject", mem, old)
 	var header struct {
 		Size                   uint32
