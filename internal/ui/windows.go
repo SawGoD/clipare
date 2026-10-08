@@ -158,9 +158,19 @@ func (n *nativeDesktop) Init() error {
 		case 0x111:
 			id := int(w & 0xffff)
 			if id == 30 {
+				n.set(0, windowText(n.homeName))
+				call("SendMessageW", n.auto, 0xf1, call("SendMessageW", n.homeAuto, 0xf0, 0, 0), 0)
 				call("ShowWindow", n.home, 0)
 				call("ShowWindow", n.window, 5)
 				call("SetForegroundWindow", n.window)
+				return 0
+			}
+			if id == 31 {
+				call("SetWindowTextW", n.homeName, uintptr(unsafe.Pointer(wide(windowText(n.fields[0])))))
+				call("SendMessageW", n.homeAuto, 0xf1, call("SendMessageW", n.auto, 0xf0, 0, 0), 0)
+				call("ShowWindow", n.window, 0)
+				call("ShowWindow", n.home, 5)
+				call("SetForegroundWindow", n.home)
 				return 0
 			}
 			if id == 1 && hwnd == n.home {
@@ -194,6 +204,7 @@ func (n *nativeDesktop) Init() error {
 		return errors.New("Не удалось создать окно Clipare")
 	}
 	n.heading("Дополнительно", 24, 16, 600, 1)
+	n.button("Назад", 688, 16, 136, 31)
 	n.heading("Этот компьютер", 40, 80, 344, 2)
 	n.label("Имя устройства", 40, 122, 344)
 	n.input(0, 40, 150, 344, false)

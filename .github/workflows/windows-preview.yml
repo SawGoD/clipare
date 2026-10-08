@@ -1,0 +1,40 @@
+name: Windows UI preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+      - name: Native synthetic preview and state checks
+        env:
+          CGO_ENABLED: '0'
+          CLIPARE_UI_SCREENSHOTS_DIR: screenshots
+        run: go test ./internal/ui -run TestWindowsFluentPreview -count=1
+      - run: go vet ./...
+        env:
+          CGO_ENABLED: '0'
+      - name: Build Windows x64 and ARM64 preview packages
+        run: |
+          go run ./scripts/build -os windows -arch amd64
+          go run ./scripts/build -os windows -arch arm64
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-fluent-preview
+          path: |
+            internal/ui/screenshots/*.png
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 14

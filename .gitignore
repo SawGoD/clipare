@@ -1,6 +1,7 @@
 /clipare
 /clipare.exe
 /dist/
+/internal/ui/screenshots/
 Clipare.app/
 /config.yaml
 *.v1.backup
