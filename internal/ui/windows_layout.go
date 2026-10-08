@@ -36,6 +36,12 @@ func (n *nativeDesktop) scaledRect(hwnd uintptr, r logicalRect) winRect {
 }
 
 func (n *nativeDesktop) panel(class *uint16, title string, width, height int, cards ...logicalRect) uintptr {
+	if n.main != 0 {
+		h := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), 0x42000000,
+			0, 0, n.px(width), n.px(height), n.main, 0, n.instance, 0)
+		n.windows[h] = winWindow{width: width, height: height, cards: cards}
+		return h
+	}
 	r := winRect{Right: int32(n.px(width)), Bottom: int32(n.px(height))}
 	style := uintptr(0x02CA0000) // native caption, clip children during background painting
 	call("AdjustWindowRectEx", uintptr(unsafe.Pointer(&r)), style, 0, 0)
@@ -135,16 +141,24 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		}
 		n.roundRect(d.DC, r, fill, border, radius)
 		label := windowText(d.Window)
-		if c.kind == 3 {
-			label = "+"
+		if icon := n.icons[d.Window]; icon != "" {
+			label, role = icon, 5
 		}
-		if c.kind == 4 {
+		if c.kind == 3 {
+			n.drawPlus(d.DC, r, fg, px(2))
+			label = ""
+		}
+		if c.kind == 4 || d.Window == n.advancedButton {
 			labelRect := r
 			labelRect.Left += px(12)
 			labelRect.Right -= px(32)
 			n.drawText(d.DC, n.fontFor(c.parent, role), label, labelRect, fg, 0x8024)
 			arrow := "›"
-			if n.preferencesExpanded {
+			expanded := n.preferencesExpanded
+			if d.Window == n.advancedButton {
+				expanded = n.navigation.AdvancedExpanded
+			}
+			if expanded {
 				arrow = "˅"
 			}
 			arrowRect := r

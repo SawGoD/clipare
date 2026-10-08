@@ -123,6 +123,8 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		size, faceName = 36, "Segoe UI Semibold"
 	case 4:
 		size = 12
+	case 5:
+		size, faceName = 20, "Segoe Fluent Icons"
 	}
 	create := func(face string) uintptr {
 		var lf struct {
@@ -149,7 +151,11 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		gcall("GetTextFaceW", dc, uintptr(len(face)), uintptr(unsafe.Pointer(&face[0])))
 		gcall("SelectObject", dc, old)
 		gcall("DeleteDC", dc)
-		if !strings.HasPrefix(syscall.UTF16ToString(face[:]), "Segoe UI") {
+		actual := syscall.UTF16ToString(face[:])
+		if role == 5 && actual != faceName {
+			gcall("DeleteObject", font)
+			font = create("Segoe MDL2 Assets")
+		} else if role != 5 && !strings.HasPrefix(actual, "Segoe UI") {
 			gcall("DeleteObject", font)
 			font = create("Segoe UI")
 		}

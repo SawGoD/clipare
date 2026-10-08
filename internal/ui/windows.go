@@ -73,6 +73,15 @@ type nativeDesktop struct {
 	controlCallback                                                                    uintptr
 	emptyAdd, compactAdd, removePeer, preferencesToggle, advancedButton                uintptr
 	preferencesExpanded                                                                bool
+	main, notice, noticeText                                                           uintptr
+	navigation                                                                         Navigation
+	advancedControls                                                                   []uintptr
+	advancedBase                                                                       map[uintptr]int
+	utilityStatus                                                                      SyncStatus
+	statusDot                                                                          uintptr
+	icons                                                                              map[uintptr]string
+	tooltip                                                                            uintptr
+	tooltipText                                                                        []*uint16
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -116,6 +125,8 @@ func (n *nativeDesktop) button(text string, x, y, w, tag int) {
 	n.control("BUTTON", text, 0x10000, x, y, w, 30, tag)
 }
 func (n *nativeDesktop) Init() error {
+	common := struct{ Size, Classes uint32 }{8, 0x40ff}
+	comctl.NewProc("InitCommonControlsEx").Call(uintptr(unsafe.Pointer(&common)))
 	call("SetProcessDpiAwarenessContext", ^uintptr(3)) // per-monitor v2
 	if dpi := call("GetDpiForSystem"); dpi > 0 {
 		n.scale = float64(dpi) / 96
@@ -125,6 +136,7 @@ func (n *nativeDesktop) Init() error {
 	n.controls = make(map[uintptr]winControl)
 	n.fonts = make(map[[2]int]uintptr)
 	n.rows = make(map[uintptr][]deviceRow)
+	n.icons = make(map[uintptr]string)
 	n.applyTheme()
 	n.icon = call("LoadIconW", 0, 32516)
 	n.taskbar = uint32(call("RegisterWindowMessageW", uintptr(unsafe.Pointer(wide("TaskbarCreated")))))
@@ -144,17 +156,7 @@ func (n *nativeDesktop) Init() error {
 			n.dpiChanged(hwnd, w, l)
 			return 0
 		case 0x10:
-			if hwnd == n.found {
-				n.events = append(n.events, 17)
-			}
-			if hwnd == n.pair {
-				if n.pairIncoming {
-					n.events = append(n.events, 15)
-				} else {
-					n.events = append(n.events, 16)
-				}
-			}
-			call("ShowWindow", hwnd, 0)
+			n.back(hwnd == n.main)
 			return 0
 		case 0x16:
 			if w != 0 {
@@ -169,19 +171,17 @@ func (n *nativeDesktop) Init() error {
 				return 0
 			}
 			if id == 30 {
-				n.set(0, windowText(n.homeName))
-				call("SendMessageW", n.auto, 0xf1, call("SendMessageW", n.homeAuto, 0xf0, 0, 0), 0)
-				call("ShowWindow", n.home, 0)
-				call("ShowWindow", n.window, 5)
-				call("SetForegroundWindow", n.window)
+				if n.navigation.View != ViewHome {
+					n.navigate(ViewHome)
+					n.navigation.AdvancedExpanded = true
+				} else {
+					n.navigation.AdvancedExpanded = !n.navigation.AdvancedExpanded
+				}
+				n.layoutPreferences()
 				return 0
 			}
 			if id == 31 {
-				call("SetWindowTextW", n.homeName, uintptr(unsafe.Pointer(wide(windowText(n.fields[0])))))
-				call("SendMessageW", n.homeAuto, 0xf1, call("SendMessageW", n.auto, 0xf0, 0, 0), 0)
-				call("ShowWindow", n.window, 0)
-				call("ShowWindow", n.home, 5)
-				call("SetForegroundWindow", n.home)
+				n.back(false)
 				return 0
 			}
 			if id == 1 && hwnd == n.home {
@@ -210,50 +210,15 @@ func (n *nativeDesktop) Init() error {
 	if call("RegisterClassExW", uintptr(unsafe.Pointer(&wc))) == 0 {
 		return errors.New("Не удалось зарегистрировать окно Clipare")
 	}
-	n.window = n.panel(class, advancedTitle+" — Clipare", 848, 690, logicalRect{24, 64, 376, 526}, logicalRect{416, 64, 408, 526})
-	if n.window == 0 {
+	n.main = n.panel(class, "Clipare", 568, 688)
+	if n.main == 0 {
 		return errors.New("Не удалось создать окно Clipare")
 	}
-	n.heading(advancedTitle, 24, 16, 600, 1)
-	n.button("Назад", 688, 16, 136, 31)
-	n.heading("Этот компьютер", 40, 80, 344, 2)
-	n.label("Имя устройства", 40, 122, 344)
-	n.input(0, 40, 150, 344, false)
-	n.label("Device ID", 40, 194, 344)
-	n.input(1, 40, 222, 344, false)
-	call("SendMessageW", n.fields[1], 0xCF, 1, 0)
-	n.label("NetBird IP", 40, 266, 236)
-	n.fields[2] = n.control("COMBOBOX", "", 0x00210252, 40, 294, 236, 200, 102)
-	n.styleCombo(n.fields[2])
-	n.label("Порт", 288, 266, 96)
-	n.input(3, 288, 294, 96, false)
-	n.label("Legacy общий ключ", 40, 338, 344)
-	n.input(4, 40, 366, 344, true)
-	n.button("Создать новый ключ", 40, 410, 240, 5)
-	n.button("Скопировать код подключения", 40, 454, 344, 6)
-	n.auto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 508, 344, 28, 121)
-	n.statusLabel = n.control("STATIC", "Настройте подключение", 0, 40, 548, 344, 30, 0)
-	n.heading("Ручное подключение", 432, 80, 376, 2)
-	n.list = n.control("LISTBOX", "", 0x00210001, 432, 122, 376, 100, 120)
-	n.label("Имя устройства", 432, 238, 376)
-	n.input(6, 432, 266, 376, false)
-	n.label("Device ID", 432, 310, 376)
-	n.input(7, 432, 338, 376, false)
-	n.label("IP или имя NetBird", 432, 382, 264)
-	n.input(8, 432, 410, 264, false)
-	n.label("Порт", 708, 382, 100)
-	n.input(9, 708, 410, 100, false)
-	n.button("Добавить / изменить", 432, 454, 236, 8)
-	n.button("Удалить", 684, 454, 124, 9)
-	n.label("Legacy код подключения", 432, 498, 376)
-	n.input(10, 432, 526, 216, true)
-	n.button("Добавить по коду", 660, 526, 148, 7)
-	n.fields[5] = n.control("STATIC", "", 0x4000, 24, 606, 800, 22, 0)
-	n.setRole(n.fields[5], 4)
-	n.label("Код содержит общий ключ. Передавайте его приватно.", 24, 642, 544)
-	n.button("Сохранить настройки", 584, 638, 240, 1)
 	n.state = "Настройте подключение"
 	n.installHome(class)
+	n.installAdvanced()
+	n.layoutPreferences()
+	n.showDevicePresentation(0)
 	n.applyTheme()
 	n.addTray()
 	return nil
@@ -268,7 +233,6 @@ func windowText(h uintptr) string {
 	return syscall.UTF16ToString(b)
 }
 func (n *nativeDesktop) installHome(class *uint16) {
-	advanced := n.window
 	n.home = n.panel(class, "Clipare", 568, 688, logicalRect{24, 64, 520, 128}, logicalRect{24, 208, 520, 228}, logicalRect{24, 452, 520, 88}, logicalRect{24, 556, 520, 48})
 	n.window = n.home
 	n.heading("Clipare", 24, 16, 300, 1)
@@ -276,6 +240,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.homeName = n.control("EDIT", "", 0x00810080, 40, 116, 332, 30, 130)
 	n.button("Сохранить", 384, 116, 144, 1)
 	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 40, 158, 312, 22, 0)
+	n.statusDot = n.control("STATIC", "", 13, 24, 158, 12, 22, 0)
 	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 144, 32, eventPause)
 	n.heading(devicesTitle, 40, 224, 360, 2)
 	n.homeList = n.deviceList(40, 264, 488, 120, 120)
@@ -297,7 +262,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 612, 488, 28, 131)
 	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 652, 488, 28, 22)
 	n.advancedButton = n.control("BUTTON", advancedTitle, 0x10000, 24, 620, 520, 32, 30)
-	n.layoutPreferences()
+	n.fields[0], n.auto, n.list, n.statusLabel = n.homeName, n.homeAuto, n.homeList, n.homeStatus
 	n.updateWindow = n.panel(class, "Обновление Clipare", 520, 320, logicalRect{24, 24, 472, 216})
 	n.window = n.updateWindow
 	n.updateText = n.control("STATIC", "", 0, 40, 40, 440, 184, 0)
@@ -306,16 +271,18 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.found = n.panel(class, "Добавить устройство", 568, 420, logicalRect{24, 64, 520, 248})
 	n.window = n.found
 	n.heading("Найденные устройства", 24, 16, 520, 1)
+	n.iconButton("Вернуться к устройствам", "\ue72b", 496, 16, 48, 31)
 	n.foundList = n.deviceList(40, 80, 488, 180, 132)
 	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 40, 268, 488, 38, 0)
 	n.setRole(n.foundStatus, 4)
 	n.emptyDiscovery = n.control("STATIC", "Устройства Clipare не найдены\r\n\r\nУбедитесь, что NetBird запущен\r\nна обоих компьютерах.", 1, 64, 126, 440, 96, 0)
-	n.button("Обновить список", 24, 332, 220, 12)
+	n.iconButton("Обновить список устройств", "\ue72c", 24, 332, 48, 12)
 	n.button("Подключить", 324, 332, 220, 13)
 	n.button("Не нашли? Добавить по коду…", 24, 376, 340, 30)
 	n.pair = n.panel(class, "Подключение устройства", 520, 380, logicalRect{24, 112, 472, 96})
 	n.window = n.pair
 	n.heading("Подключение устройства", 24, 16, 472, 1)
+	n.iconButton("Вернуться к устройствам", "\ue72b", 448, 16, 48, 31)
 	n.pairName = n.control("STATIC", "", 0x4000, 24, 60, 472, 28, 0)
 	n.heading("Код проверки", 40, 122, 440, 2)
 	n.pairCode = n.control("STATIC", "", 1, 40, 156, 440, 48, 0)
@@ -323,10 +290,15 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.pairHelp = n.control("STATIC", "", 0, 24, 232, 472, 80, 0)
 	n.pairAllow = n.control("BUTTON", "Разрешить", 0x10000, 316, 328, 180, 36, 14)
 	n.pairReject = n.control("BUTTON", "Отклонить", 0x10000, 24, 328, 164, 36, 15)
-	n.window = advanced
+	n.notice = n.panel(class, "Clipare", 568, 360)
+	n.window = n.notice
+	n.heading("Clipare", 24, 16, 440, 1)
+	n.noticeText = n.control("STATIC", "", 0, 24, 72, 520, 200, 0)
+	n.button("Понятно", 384, 304, 160, 31)
+	n.window = n.home
 }
 func (n *nativeDesktop) addTray() {
-	data := notifyIcon{Window: n.window, ID: 1, Flags: 7, Callback: 0x8001, Icon: n.icon}
+	data := notifyIcon{Window: n.main, ID: 1, Flags: 7, Callback: 0x8001, Icon: n.icon}
 	data.Size = uint32(unsafe.Sizeof(data))
 	copy(data.Tip[:], syscall.StringToUTF16("Clipare"))
 	shell.NewProc("Shell_NotifyIconW").Call(0, uintptr(unsafe.Pointer(&data)))
@@ -361,19 +333,19 @@ func (n *nativeDesktop) menu() {
 	add("Выйти", eventQuit, false)
 	var pos struct{ X, Y int32 }
 	call("GetCursorPos", uintptr(unsafe.Pointer(&pos)))
-	call("SetForegroundWindow", n.window)
+	call("SetForegroundWindow", n.main)
 	id := call("TrackPopupMenu", menu, 0x102, uintptr(pos.X), uintptr(pos.Y), 0, n.window, 0)
 	if id != 0 {
 		n.events = append(n.events, int(id))
 	}
-	call("PostMessageW", n.window, 0, 0, 0)
+	call("PostMessageW", n.main, 0, 0, 0)
 }
 func (n *nativeDesktop) Poll() int {
 	var m message
 	for call("PeekMessageW", uintptr(unsafe.Pointer(&m)), 0, 0, 0, 1) != 0 {
 		root := call("GetAncestor", m.Window, 2)
-		if root == 0 {
-			root = n.window
+		if root == n.main || root == 0 {
+			root = n.activePanel()
 		}
 		if m.ID == 0x100 && m.WParam == 27 {
 			if root == n.window && n.comboOpen() {
@@ -440,10 +412,6 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	for i, v := range f.Values {
 		n.set(i, v)
 	}
-	call("SendMessageW", n.list, 0x184, 0, 0)
-	for _, p := range peers {
-		call("SendMessageW", n.list, 0x180, 0, uintptr(unsafe.Pointer(wide(peerLabel(p)))))
-	}
 	auto := uintptr(0)
 	if f.Autostart {
 		auto = 1
@@ -453,12 +421,7 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	call("SendMessageW", n.homeAuto, 0xF1, auto, 0)
 	n.setRows(n.homeList, pairedRows(peers, nil))
 	n.showDevicePresentation(len(peers))
-	target := n.home
-	if call("IsWindowVisible", n.window) != 0 {
-		target = n.window
-	}
-	call("ShowWindow", target, 5)
-	call("SetForegroundWindow", target)
+	n.navigate(n.navigation.View)
 	n.peerLines = ""
 }
 func (n *nativeDesktop) Read() form {
@@ -511,17 +474,14 @@ func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer,
 	call("SetWindowTextW", n.pauseButton, uintptr(unsafe.Pointer(wide(text))))
 }
 func (n *nativeDesktop) Alert(s string) {
-	call("MessageBoxW", n.window, uintptr(unsafe.Pointer(wide(s))), uintptr(unsafe.Pointer(wide("Clipare"))), 0x40)
+	call("SetWindowTextW", n.noticeText, uintptr(unsafe.Pointer(wide(s))))
+	n.navigate(ViewNotice)
 }
 func (n *nativeDesktop) Close() {
-	data := notifyIcon{Window: n.window, ID: 1}
+	data := notifyIcon{Window: n.main, ID: 1}
 	data.Size = uint32(unsafe.Sizeof(data))
 	shell.NewProc("Shell_NotifyIconW").Call(2, uintptr(unsafe.Pointer(&data)))
-	call("DestroyWindow", n.window)
-	call("DestroyWindow", n.home)
-	call("DestroyWindow", n.found)
-	call("DestroyWindow", n.pair)
-	call("DestroyWindow", n.updateWindow)
+	call("DestroyWindow", n.main)
 	for _, font := range n.fonts {
 		gcall("DeleteObject", font)
 	}
@@ -549,8 +509,7 @@ func (n *nativeDesktop) Discovered(lines, status string) {
 	}
 	call("EnableWindow", call("GetDlgItem", n.found, 13), enabled)
 	call("SetWindowTextW", n.foundStatus, uintptr(unsafe.Pointer(wide(status))))
-	call("ShowWindow", n.found, 5)
-	call("SetForegroundWindow", n.found)
+	n.navigate(ViewDiscovery)
 }
 func (n *nativeDesktop) DiscoveredSelected() int {
 	return int(int32(call("SendMessageW", n.foundList, 0x188, 0, 0)))
@@ -584,10 +543,13 @@ func (n *nativeDesktop) Pair(name, sas string, mode int) {
 	call("SetWindowLongPtrW", n.pairReject, ^uintptr(11), tag)
 	call("SetWindowTextW", n.pairReject, uintptr(unsafe.Pointer(wide(title))))
 	call("SetWindowTextW", n.pairHelp, uintptr(unsafe.Pointer(wide(text))))
-	call("ShowWindow", n.pair, 5)
-	call("SetForegroundWindow", n.pair)
+	n.navigate(ViewPairing)
 }
-func (n *nativeDesktop) PairClose() { call("ShowWindow", n.pair, 0) }
+func (n *nativeDesktop) PairClose() {
+	if n.navigation.View == ViewPairing {
+		n.navigate(ViewHome)
+	}
+}
 func (n *nativeDesktop) UpdateSettings(version string, enabled bool) {
 	v := uintptr(0)
 	if enabled {
@@ -614,7 +576,10 @@ func (n *nativeDesktop) UpdatePrompt(v updatePrompt) {
 		show = 5
 	}
 	call("ShowWindow", n.updateDismiss, show)
-	call("ShowWindow", n.updateWindow, 5)
-	call("SetForegroundWindow", n.updateWindow)
+	n.navigate(ViewUpdate)
 }
-func (n *nativeDesktop) UpdateClose() { call("ShowWindow", n.updateWindow, 0) }
+func (n *nativeDesktop) UpdateClose() {
+	if n.navigation.View == ViewUpdate {
+		n.navigate(ViewHome)
+	}
+}

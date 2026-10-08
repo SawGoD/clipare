@@ -7,6 +7,7 @@ const (
 	ViewDiscovery
 	ViewPairing
 	ViewUpdate
+	ViewNotice
 )
 
 type Navigation struct {

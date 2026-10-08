@@ -30,6 +30,11 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer n.Close()
+	for h := range n.windows {
+		if h != n.main && call("GetWindowLongPtrW", h, ^uintptr(15))&0x40000000 == 0 {
+			t.Fatal("workflow panel is still a top-level window")
+		}
+	}
 	peers := []config.Peer{{ID: "a", Name: "MacBook"}, {ID: "b", Name: "Workstation-Development-Long-Device-Name"}}
 	f := form{}
 	f.Values[0] = "Desktop-PC"
@@ -159,7 +164,10 @@ func TestWindowsFluentPreview(t *testing.T) {
 		}
 		captureWindow(t, n.updateWindow, filepath.Join(dir, "update-"+s.name+".png"))
 	}
-	call("ShowWindow", n.window, 5)
+	n.navigate(ViewHome)
+	n.navigation.AdvancedExpanded = true
+	n.layoutPreferences()
+	n.scrollWindow(n.home, 1, int32(n.controls[n.fields[1]].bounds.y-40), true)
 	captureWindow(t, n.window, filepath.Join(dir, "advanced.png"))
 	call("SendMessageW", n.fields[2], 0x143, 0, uintptr(unsafe.Pointer(wide("100.64.0.2"))))
 	var combo comboInfo
@@ -172,7 +180,7 @@ func TestWindowsFluentPreview(t *testing.T) {
 		if !n.comboOpen() {
 			t.Fatal("native dropdown did not open")
 		}
-		captureWindow(t, n.window, filepath.Join(dir, "advanced-"+v.name+".png"))
+		captureWindow(t, n.home, filepath.Join(dir, "advanced-"+v.name+".png"))
 		captureWindow(t, combo.List, filepath.Join(dir, "netbird-dropdown-"+v.name+".png"))
 		call("SendMessageW", n.fields[2], 0x14f, 0, 0)
 	}

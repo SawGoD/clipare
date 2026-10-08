@@ -15,6 +15,14 @@ func (n *nativeDesktop) fitWindow(hwnd uintptr) {
 	if _, ok := n.windows[hwnd]; !ok {
 		return
 	}
+	if n.main != 0 && hwnd != n.main {
+		v := n.windows[n.main]
+		v.width, v.height = n.windows[hwnd].width, n.windows[hwnd].height
+		n.windows[n.main] = v
+		n.fitWindow(n.main)
+		n.sizePanel(hwnd)
+		return
+	}
 	var monitor struct {
 		Size          uint32
 		Monitor, Work winRect
@@ -57,7 +65,9 @@ func (n *nativeDesktop) fitWindow(hwnd uintptr) {
 		y = monitor.Work.Top + 16
 	}
 	call("SetWindowPos", hwnd, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(hgt), 0x14)
-	n.updateScroll(hwnd)
+	if hwnd != n.main {
+		n.updateScroll(hwnd)
+	}
 }
 
 func (n *nativeDesktop) updateScroll(hwnd uintptr) {
@@ -130,6 +140,12 @@ func (n *nativeDesktop) scrollMessage(hwnd uintptr, msg uint32, w, l uintptr) bo
 	}
 	switch msg {
 	case 5:
+		if hwnd == n.main {
+			if h := n.activePanel(); h != 0 {
+				n.sizePanel(h)
+			}
+			return true
+		}
 		n.updateScroll(hwnd)
 		n.layoutControls(hwnd)
 		return true
@@ -166,6 +182,9 @@ func (n *nativeDesktop) scrollMessage(hwnd uintptr, msg uint32, w, l uintptr) bo
 		n.scrollWindow(hwnd, axis, delta, absolute)
 		return true
 	case 0x20a:
+		if hwnd == n.main {
+			hwnd = n.activePanel()
+		}
 		n.scrollWindow(hwnd, 1, -int32(int16(w>>16))*48/120, false)
 		return true
 	}
