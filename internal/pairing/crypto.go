@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 )
 
 var ErrInvalid = errors.New("Не удалось проверить подключение. Попробуйте ещё раз")
@@ -22,6 +24,7 @@ var ErrExpired = errors.New("Pairing истёк, попробуйте ещё р�
 var ErrApproval = errors.New("Подключение ещё не подтверждено")
 
 type Hello struct {
+	Expires   int64  `json:"expires"`
 	ID        string `json:"device_id"`
 	Name      string `json:"device_name"`
 	PublicKey string `json:"public_key"`
@@ -47,7 +50,7 @@ func NewHandshake(c config.Config) (*Handshake, error) {
 	if _, e = rand.Read(nonce); e != nil {
 		return nil, e
 	}
-	return &Handshake{Hello{c.Device.ID, c.Device.Name, c.Identity.PublicKey, c.Listen.Address, c.Listen.Port, base64.StdEncoding.EncodeToString(k.PublicKey().Bytes()), base64.StdEncoding.EncodeToString(nonce)}, k, c.Identity}, nil
+	return &Handshake{Hello{Expires: time.Now().Add(120 * time.Second).Unix(), ID: c.Device.ID, Name: c.Device.Name, PublicKey: c.Identity.PublicKey, IP: c.Listen.Address, Port: c.Listen.Port, Ephemeral: base64.StdEncoding.EncodeToString(k.PublicKey().Bytes()), Nonce: base64.StdEncoding.EncodeToString(nonce)}, k, c.Identity}, nil
 }
 func Commitment(h Hello) string {
 	b, _ := json.Marshal(h)
@@ -64,7 +67,7 @@ type transcript struct {
 }
 
 func (h *Handshake) Keys(remote Hello, session, group string, expires int64, initiator bool) (key []byte, sas string, err error) {
-	if remote.ID == "" || remote.ID == h.Hello.ID || len(remote.ID) > 128 || len(remote.Name) > 256 || len(session) != 64 || len(group) > 128 || group == "" || remote.Port < 1 || remote.Port > 65535 {
+	if remote.ID == "" || remote.ID == h.Hello.ID || len(remote.ID) > 128 || len(remote.Name) > 256 || strings.ContainsAny(remote.Name, "\r\n\x00") || len(session) != 64 || len(group) > 128 || group == "" || remote.Port < 1 || remote.Port > 65535 {
 		return nil, "", ErrInvalid
 	}
 	n, e := base64.StdEncoding.DecodeString(remote.Nonce)

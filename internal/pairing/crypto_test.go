@@ -13,7 +13,7 @@ func TestCommittedHandshake(t *testing.T) {
 	ha, _ := NewHandshake(a)
 	sessions := NewSessions()
 	id, _ := NewID()
-	request := Request{id, Commitment(ha.Hello)}
+	request := Request{Session: id, Commitment: Commitment(ha.Hello), Expires: ha.Hello.Expires}
 	ch, e := sessions.Begin(b, request)
 	if e != nil {
 		t.Fatal(e)
@@ -25,7 +25,10 @@ func TestCommittedHandshake(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	confirmation, e := sessions.Reveal(Exchange{id, ha.Hello})
+	if _, e = sessions.Reveal(Exchange{Session: id, Hello: ha.Hello}); e == nil {
+		t.Fatal("notification without initiator key proof")
+	}
+	confirmation, e := sessions.Reveal(Exchange{Session: id, Hello: ha.Hello, Proof: proof(ka, id, "reveal")})
 	if e != nil || !verifyProof(ka, id, "exchange", confirmation.Proof) {
 		t.Fatal("key confirmation")
 	}
@@ -63,14 +66,14 @@ func TestExpiryAndCommitment(t *testing.T) {
 	h, _ := NewHandshake(a)
 	s := NewSessions()
 	id, _ := NewID()
-	ch, _ := s.Begin(b, Request{id, Commitment(h.Hello)})
+	ch, _ := s.Begin(b, Request{Session: id, Commitment: Commitment(h.Hello), Expires: h.Hello.Expires})
 	bad := h.Hello
 	bad.Name = "forged"
-	if _, e := s.Reveal(Exchange{id, bad}); e == nil {
+	if _, e := s.Reveal(Exchange{Session: id, Hello: bad}); e == nil {
 		t.Fatal("commitment bypass")
 	}
 	s.now = func() time.Time { return time.Unix(ch.Expires, 0) }
-	if _, e := s.Reveal(Exchange{id, h.Hello}); e == nil {
+	if _, e := s.Reveal(Exchange{Session: id, Hello: h.Hello}); e == nil {
 		t.Fatal("expired session")
 	}
 }

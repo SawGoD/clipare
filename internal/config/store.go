@@ -129,7 +129,16 @@ func AddConnection(c Config, code string) (Config, error) {
 	v.Peer.PublicKey = ""
 	v.Peer.Legacy = true
 	v.Peer.LegacySecret = v.Secret
-	if len(c.Peers) > 0 && c.Security.Secret != v.Secret {
+	hasLegacy := false
+	for _, p := range c.Peers {
+		if p.ID == v.Peer.ID && !p.Legacy {
+			return c, errors.New("Это устройство уже подключено безопасным pairing")
+		}
+		if p.Legacy || c.SchemaVersion == 0 {
+			hasLegacy = true
+		}
+	}
+	if hasLegacy && c.Security.Secret != v.Secret {
 		return c, errors.New("Общий ключ отличается: используйте код из существующей группы устройств")
 	}
 	if v.Peer.ID == c.Device.ID {
@@ -147,6 +156,15 @@ func AddConnection(c Config, code string) (Config, error) {
 	}
 	if !found {
 		c.Peers = append(c.Peers, v.Peer)
+	}
+	allLegacy := true
+	for _, p := range c.Peers {
+		if !p.Legacy {
+			allLegacy = false
+		}
+	}
+	if allLegacy {
+		c.Group.ID = LegacyGroupID(c.Security.Secret)
 	}
 	if c.Validate() != nil {
 		return c, errors.New("Код содержит неверный адрес, порт или ключ")

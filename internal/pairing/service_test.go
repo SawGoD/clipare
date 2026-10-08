@@ -20,12 +20,14 @@ func TestServiceApprovalAndUnknownMembership(t *testing.T) {
 	s := NewService(filepath.Join(t.TempDir(), "config.yaml"), b)
 	h, _ := NewHandshake(a)
 	id, _ := NewID()
-	ch, e := s.sessions.Begin(b, Request{id, Commitment(h.Hello)})
+	ch, e := s.sessions.Begin(b, Request{Session: id, Commitment: Commitment(h.Hello), Expires: h.Hello.Expires})
 	if e != nil {
 		t.Fatal(e)
 	}
 	key, _, _ := h.Keys(ch.Hello, id, ch.Group, ch.Expires, true)
-	s.sessions.Reveal(Exchange{id, h.Hello})
+	if _, err := s.sessions.Reveal(Exchange{Session: id, Hello: h.Hello, Proof: proof(key, id, "reveal")}); err != nil {
+		t.Fatal(err)
+	}
 	if len(s.Config().Peers) != 0 {
 		t.Fatal("peer admitted before approval")
 	}

@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var ErrPeerUnavailable = errors.New("Устройство больше недоступно")
+
 func pairClient() *http.Client {
 	return &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConns: 4, IdleConnTimeout: 15 * time.Second}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
@@ -25,7 +27,7 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 	r.Header.Set("Content-Type", "application/json")
 	res, e := client.Do(r)
 	if e != nil {
-		return errors.New("Устройство больше недоступно")
+		return ErrPeerUnavailable
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 410 {
@@ -62,13 +64,16 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		return e
 	}
 	client := pairClient()
+	if s.client != nil {
+		client = s.client
+	}
 	defer client.CloseIdleConnections()
 	url := "http://" + net.JoinHostPort(d.IP, strconv.Itoa(discovery.Port))
 	var ch Challenge
-	if e = post(ctx, client, url, "/api/v1/pair/request", Request{id, Commitment(h.Hello)}, &ch); e != nil {
+	if e = post(ctx, client, url, "/api/v1/pair/request", Request{Session: id, Commitment: Commitment(h.Hello), Expires: h.Hello.Expires}, &ch); e != nil {
 		return e
 	}
-	if ch.Session != id || ch.Hello.ID != d.DeviceID || ch.Hello.PublicKey != d.PublicKey || ch.Hello.IP != d.IP || ch.Expires <= time.Now().Unix() || ch.Expires > time.Now().Add(120*time.Second).Unix() {
+	if ch.Session != id || ch.Hello.ID != d.DeviceID || ch.Hello.PublicKey != d.PublicKey || ch.Hello.IP != d.IP || ch.Expires <= time.Now().Unix() || ch.Expires > time.Now().Add(180*time.Second).Unix() {
 		return ErrInvalid
 	}
 	key, sas, e := h.Keys(ch.Hello, id, ch.Group, ch.Expires, true)
@@ -80,21 +85,27 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		return e
 	}
 	var confirmation Confirmation
-	if e = post(ctx, client, url, "/api/v1/pair/exchange", Exchange{id, h.Hello}, &confirmation); e != nil {
+	if e = post(ctx, client, url, "/api/v1/pair/exchange", Exchange{Session: id, Hello: h.Hello, Proof: proof(key, id, "reveal")}, &confirmation); e != nil {
 		return e
 	}
 	if confirmation.Session != id || !verifyProof(key, id, "exchange", confirmation.Proof) {
 		return ErrInvalid
 	}
 	show(sas)
+	failures := 0
 	for time.Now().Unix() < ch.Expires {
 		if e = wait(ctx, 1500*time.Millisecond); e != nil {
 			return e
 		}
 		var state Status
 		if e = post(ctx, client, url, "/api/v1/pair/status", Confirmation{id, proof(key, id, "status")}, &state); e != nil {
+			if errors.Is(e, ErrPeerUnavailable) && failures < 3 {
+				failures++
+				continue
+			}
 			return e
 		}
+		failures = 0
 		if !verifyProof(key, id, statusAction(state), state.Proof) {
 			return ErrInvalid
 		}
@@ -104,6 +115,11 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		case Approved:
 			if state.Membership.Group != ch.Group {
 				return ErrInvalid
+			}
+			for _, m := range state.Membership.Members {
+				if m.ID == ch.Hello.ID && m.PublicKey != ch.Hello.PublicKey {
+					return ErrInvalid
+				}
 			}
 			if e = s.Adopt(state.Membership, ch.Hello.ID); e != nil {
 				return e

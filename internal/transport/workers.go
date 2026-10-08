@@ -2,9 +2,12 @@ package transport
 
 import (
 	"clipare/internal/config"
+	"clipare/internal/discovery"
 	clipsync "clipare/internal/sync"
 	"context"
 	"log/slog"
+	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -29,6 +32,9 @@ func StartWorkersWithStatus(ctx context.Context, c *Client, peers []config.Peer,
 			defer tick.Stop()
 			check := func() {
 				h, e := c.HealthPeer(ctx, p.ID, p.URL())
+				if e != nil && ctx.Err() == nil && p.LastKnownIP != p.Address && discovery.NetBirdAddress(p.LastKnownIP) {
+					h, e = c.HealthPeer(ctx, p.ID, "http://"+net.JoinHostPort(p.LastKnownIP, strconv.Itoa(p.Port)))
+				}
 				if ctx.Err() != nil {
 					return
 				}
@@ -47,7 +53,11 @@ func StartWorkersWithStatus(ctx context.Context, c *Client, peers []config.Peer,
 						return
 					}
 					log.Debug("sending clipboard", "peer", p.ID, "id", m.ID)
-					if e := c.SendPeer(ctx, p.ID, p.URL(), m); e != nil && ctx.Err() == nil {
+					e := c.SendPeer(ctx, p.ID, p.URL(), m)
+					if e != nil && ctx.Err() == nil && p.LastKnownIP != p.Address && discovery.NetBirdAddress(p.LastKnownIP) {
+						e = c.SendPeer(ctx, p.ID, "http://"+net.JoinHostPort(p.LastKnownIP, strconv.Itoa(p.Port)), m)
+					}
+					if e != nil && ctx.Err() == nil {
 						log.Warn("peer delivery failed", "peer", p.ID, "id", m.ID)
 						if status != nil {
 							status(p.ID, false)

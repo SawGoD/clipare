@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"sort"
 )
@@ -91,5 +92,6 @@ func PairKey(local Provider, remote, group, localID, remoteID string) ([]byte, e
 	}
 	ids := []string{localID, remoteID}
 	sort.Strings(ids)
-	return Derive(s, []byte(group), "clipboard/"+ids[0]+"/"+ids[1]), nil
+	context, _ := json.Marshal(ids)
+	return Derive(s, []byte(group), "clipboard/"+string(context)), nil
 }

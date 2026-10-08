@@ -3,12 +3,14 @@ package transport
 import (
 	"bytes"
 	"clipare/internal/config"
+	"clipare/internal/discovery"
 	"clipare/internal/security"
 	clipsync "clipare/internal/sync"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -23,6 +25,23 @@ type Client struct {
 func NewPeerClient(c config.Config) *Client {
 	client := NewClient(security.NewPeerKeys(c))
 	client.source = c.Device.ID
+	transport := client.http.Transport.(*http.Transport)
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if discovery.NetBirdAddress(ip.IP.String()) || (net.ParseIP(c.Listen.Address).IsLoopback() && ip.IP.IsLoopback()) {
+				return (&net.Dialer{Timeout: 750 * time.Millisecond}).DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+			}
+		}
+		return nil, errors.New("peer address is outside NetBird")
+	}
 	return client
 }
 

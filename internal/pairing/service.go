@@ -27,6 +27,7 @@ type Service struct {
 	limiter  *discovery.Limiter
 	discover http.Handler
 	Updates  chan config.Config
+	client   *http.Client // injectable transport for protocol integration tests
 }
 
 func NewService(path string, c config.Config) *Service {
@@ -37,7 +38,34 @@ func NewService(path string, c config.Config) *Service {
 	})
 	return s
 }
-func (s *Service) Config() config.Config     { s.mu.Lock(); defer s.mu.Unlock(); return s.c }
+func (s *Service) Config() config.Config {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.c
+	c.Peers = append([]config.Peer(nil), c.Peers...)
+	c.Removed = append([]string(nil), c.Removed...)
+	return c
+}
+
+// SaveSettings preserves authenticated membership received during a user edit.
+func (s *Service) SaveSettings(next config.Config) (config.Config, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if next.Group.ID != s.c.Group.ID {
+		return next, errors.New("Состав группы изменился. Откройте настройки заново")
+	}
+	if discovery.NetBirdAddress(s.c.Listen.Address) {
+		merged, err := peers.Merge(next, peers.Export(s.c))
+		if err != nil {
+			return next, err
+		}
+		next = merged
+	}
+	if err := s.saveLocked(next); err != nil {
+		return next, err
+	}
+	return next, nil
+}
 func (s *Service) SetConfig(c config.Config) { s.mu.Lock(); defer s.mu.Unlock(); s.c = c }
 func (s *Service) saveLocked(c config.Config) error {
 	if reflect.DeepEqual(c, s.c) {
@@ -155,6 +183,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pairing unavailable", code)
 	}
 	switch r.URL.Path {
+	case "/api/v1/group/upgrade":
+		s.serveUpgrade(w, r, b, ip)
 	case "/api/v1/pair/request":
 		var v Request
 		if decode(b, &v) != nil {
@@ -202,6 +232,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.Proof = proof(a.key, v.Session, statusAction(out))
+		if state == Rejected {
+			s.sessions.active = nil
+		}
 		s.sessions.mu.Unlock()
 		writeJSON(w, out)
 	case "/api/v1/pair/finish":
@@ -322,6 +355,7 @@ func (s *Service) Propagate(ctx context.Context) {
 				return
 			}
 			if p.Legacy {
+				s.tryUpgrade(ctx, client, c, p)
 				continue
 			}
 			key, e := keys.KeyForPeer(p.ID)

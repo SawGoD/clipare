@@ -115,7 +115,10 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Device.ID) == "" || len(c.Device.ID) > 128 {
 		return errors.New("device.id must contain 1-128 bytes")
 	}
-	if net.ParseIP(c.Listen.Address) == nil {
+	if len(c.Device.Name) > 256 || strings.ContainsAny(c.Device.Name, "\n\r\x00") {
+		return errors.New("invalid device name")
+	}
+	if ip := net.ParseIP(c.Listen.Address); ip == nil || ip.IsUnspecified() {
 		return errors.New("listen.address must be an explicit IP address")
 	}
 	if c.Listen.Port < 1 || c.Listen.Port > 65535 {
@@ -130,6 +133,7 @@ func (c Config) Validate() error {
 		return errors.New("invalid sync.mode")
 	}
 	ids := map[string]bool{c.Device.ID: true}
+	keys := map[string]bool{c.Identity.PublicKey: true}
 	for i, p := range c.Peers {
 		if p.ID == "" || len(p.ID) > 128 || ids[p.ID] {
 			return fmt.Errorf("peer %d: invalid or duplicate id", i)
@@ -139,6 +143,10 @@ func (c Config) Validate() error {
 			if _, err := identity.Public(p.PublicKey); err != nil {
 				return fmt.Errorf("peer %d: invalid public key", i)
 			}
+			if keys[p.PublicKey] {
+				return errors.New("duplicate device public key")
+			}
+			keys[p.PublicKey] = true
 		}
 		if p.LegacySecret != "" && len(p.LegacySecret) < 32 {
 			return errors.New("invalid legacy peer secret")

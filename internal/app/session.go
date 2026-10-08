@@ -58,7 +58,7 @@ func StartWithControl(parent context.Context, c config.Config, b clipboard.Backe
 	s := &Session{cancel: cancel, done: make(chan struct{})}
 	clipboardHandler := transport.Handler(c, security.NewPeerKeys(c), manager, log)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if control != nil && (r.URL.Path == "/api/v1/discovery" || strings.HasPrefix(r.URL.Path, "/api/v1/pair/") || r.URL.Path == "/api/v1/group/membership") {
+		if control != nil && (r.URL.Path == "/api/v1/discovery" || strings.HasPrefix(r.URL.Path, "/api/v1/pair/") || strings.HasPrefix(r.URL.Path, "/api/v1/group/")) {
 			control.ServeHTTP(w, r)
 			return
 		}

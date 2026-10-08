@@ -11,6 +11,7 @@ import (
 type Request struct {
 	Session    string `json:"session"`
 	Commitment string `json:"commitment"`
+	Expires    int64  `json:"expires"`
 }
 type Challenge struct {
 	Session string `json:"session"`
@@ -21,6 +22,7 @@ type Challenge struct {
 type Exchange struct {
 	Session string `json:"session"`
 	Hello   Hello  `json:"hello"`
+	Proof   string `json:"proof"`
 }
 type Confirmation struct {
 	Session string `json:"session"`
@@ -44,13 +46,14 @@ type Snapshot struct {
 	Expires int64
 }
 type record struct {
-	challenge  Challenge
-	commitment string
-	handshake  *Handshake
-	remote     Hello
-	key        []byte
-	sas        string
-	state      State
+	requestExpires int64
+	challenge      Challenge
+	commitment     string
+	handshake      *Handshake
+	remote         Hello
+	key            []byte
+	sas            string
+	state          State
 }
 type Sessions struct {
 	mu     sync.Mutex
@@ -80,6 +83,9 @@ func (s *Sessions) Begin(c config.Config, r Request) (Challenge, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleanup()
+	if r.Expires <= s.now().Unix() || r.Expires > s.now().Add(180*time.Second).Unix() {
+		return Challenge{}, ErrExpired
+	}
 	id, e := hex.DecodeString(r.Session)
 	if e != nil || len(id) != 32 {
 		return Challenge{}, ErrInvalid
@@ -98,9 +104,13 @@ func (s *Sessions) Begin(c config.Config, r Request) (Challenge, error) {
 	if e != nil {
 		return Challenge{}, e
 	}
-	ch := Challenge{r.Session, h.Hello, c.Group.ID, s.now().Add(120 * time.Second).Unix()}
+	expires := s.now().Add(120 * time.Second).Unix()
+	if r.Expires < expires {
+		expires = r.Expires
+	}
+	ch := Challenge{r.Session, h.Hello, c.Group.ID, expires}
 	s.used[r.Session] = s.now().Add(5 * time.Minute)
-	s.active = &record{challenge: ch, commitment: r.Commitment, handshake: h, state: Waiting}
+	s.active = &record{challenge: ch, commitment: r.Commitment, handshake: h, state: Waiting, requestExpires: r.Expires}
 	return ch, nil
 }
 func (s *Sessions) Reveal(r Exchange) (Confirmation, error) {
@@ -111,12 +121,15 @@ func (s *Sessions) Reveal(r Exchange) (Confirmation, error) {
 	if a == nil || a.challenge.Session != r.Session {
 		return Confirmation{}, ErrExpired
 	}
-	if a.state != Waiting || Commitment(r.Hello) != a.commitment {
+	if a.state != Waiting || r.Hello.Expires != a.requestExpires || Commitment(r.Hello) != a.commitment {
 		return Confirmation{}, ErrInvalid
 	}
 	k, sas, e := a.handshake.Keys(r.Hello, r.Session, a.challenge.Group, a.challenge.Expires, false)
 	if e != nil {
 		return Confirmation{}, e
+	}
+	if !verifyProof(k, r.Session, "reveal", r.Proof) {
+		return Confirmation{}, ErrInvalid
 	}
 	a.remote = r.Hello
 	a.key = k
