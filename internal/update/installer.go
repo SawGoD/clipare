@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -95,7 +96,7 @@ func installLocation(exe string) (string, error) {
 	}
 	return "", ErrInstall
 }
-func (s *Staged) Prepare(exe, configPath string) (Plan, error) {
+func (s *Staged) Prepare(ctx context.Context, exe, configPath string) (Plan, error) {
 	target, e := installLocation(exe)
 	if e != nil {
 		return Plan{}, e
@@ -118,12 +119,17 @@ func (s *Staged) Prepare(exe, configPath string) (Plan, error) {
 	if runtime.GOOS == "darwin" {
 		newExe = filepath.Join(s.Root, "Clipare.app", "Contents", "MacOS", "Clipare")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	if e = validatePlatformPackage(ctx, s.Root); e != nil {
+		return Plan{}, e
+	}
 	cmd := exec.CommandContext(ctx, newExe, "--version")
 	configureCommand(cmd)
-	b, e := cmd.Output()
-	if e != nil || !strings.HasPrefix(string(b), "Clipare "+pkg.Version+" (") {
+	out := &limitedOutput{}
+	cmd.Stdout = out
+	e = cmd.Run()
+	if e != nil || !strings.HasPrefix(out.String(), "Clipare "+pkg.Version+" (") {
 		return Plan{}, ErrPackage
 	}
 	configPath, e = filepath.Abs(configPath)
@@ -156,7 +162,7 @@ func (s *Staged) Prepare(exe, configPath string) (Plan, error) {
 			}
 		}
 	}
-	b, e = json.Marshal(p)
+	b, e := json.Marshal(p)
 	if e != nil {
 		return Plan{}, e
 	}
@@ -164,6 +170,15 @@ func (s *Staged) Prepare(exe, configPath string) (Plan, error) {
 		return Plan{}, e
 	}
 	return p, nil
+}
+
+type limitedOutput struct{ bytes.Buffer }
+
+func (b *limitedOutput) Write(p []byte) (int, error) {
+	if b.Len()+len(p) > 4096 {
+		return 0, ErrPackage
+	}
+	return b.Buffer.Write(p)
 }
 func (p Plan) validate() error {
 	cache, e := CacheDir()
@@ -202,7 +217,15 @@ func (p Plan) LaunchHelper(ctx context.Context) error {
 	if e := cmd.Start(); e != nil {
 		return e
 	}
-	cmd.Process.Release()
+	success := false
+	defer func() {
+		if success {
+			cmd.Process.Release()
+		} else {
+			cmd.Process.Kill()
+			cmd.Wait()
+		}
+	}()
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
 	tick := time.NewTicker(50 * time.Millisecond)
@@ -216,11 +239,13 @@ func (p Plan) LaunchHelper(ctx context.Context) error {
 		case <-tick.C:
 			b, e := os.ReadFile(filepath.Join(p.Work, "helper-ready"))
 			if e == nil && string(b) == p.Token {
+				success = true
 				return nil
 			}
 		}
 	}
 }
+func (p Plan) Arm() error { return os.WriteFile(filepath.Join(p.Work, "armed"), []byte(p.Token), 0600) }
 func packageItems(p Package) []string {
 	if p.OS == "darwin" {
 		return []string{"Clipare.app"}
@@ -349,17 +374,23 @@ func Apply(ctx context.Context, planPath string) error {
 			return e
 		}
 	}
+	wait, closeWait, e := exitWaiter(p.ParentPID)
+	if e != nil {
+		return e
+	}
+	defer closeWait()
 	if e = os.WriteFile(filepath.Join(p.Work, "helper-ready"), []byte(p.Token), 0600); e != nil {
 		return e
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	e = waitForExit(waitCtx, p.ParentPID)
+	e = wait(waitCtx)
 	cancel()
 	if e != nil {
-		if errors.Is(e, ErrRollback) {
-			return e
-		}
 		return e
+	}
+	b, e = os.ReadFile(filepath.Join(p.Work, "armed"))
+	if e != nil || string(b) != p.Token {
+		return ErrInstall
 	}
 	target := p.Target
 	if runtime.GOOS == "darwin" {
@@ -367,6 +398,9 @@ func Apply(ctx context.Context, planPath string) error {
 	}
 	e = replaceTransaction(root, target, packageItems(pkg), os.Rename, func() error { return p.startNew(ctx) })
 	if e != nil {
+		if errors.Is(e, ErrRollback) {
+			return e
+		}
 		// Old paths are restored before relaunch. Retain recovery data on failure.
 		cmd := exec.Command(p.Executable, "--config", p.ConfigPath, "--update-failed")
 		configureHelper(cmd)

@@ -73,3 +73,19 @@ func (*nativeDesktop) Pair(name, sas string, mode int) {
 	cstr(name, func(a *C.char) { cstr(sas, func(b *C.char) { C.clipare_pair(a, b, C.int(n)) }) })
 }
 func (*nativeDesktop) PairClose() { C.clipare_pair_close() }
+func (*nativeDesktop) UpdateSettings(version string, enabled bool) {
+	n := 0
+	if enabled {
+		n = 1
+	}
+	cstr(version, func(p *C.char) { C.clipare_update_settings(p, C.int(n)) })
+}
+func (*nativeDesktop) UpdateEnabled() bool { return C.clipare_update_enabled() != 0 }
+func (*nativeDesktop) UpdatePrompt(text string, installable bool) {
+	n := 0
+	if installable {
+		n = 1
+	}
+	cstr(text, func(p *C.char) { C.clipare_update_prompt(p, C.int(n)) })
+}
+func (*nativeDesktop) UpdateClose() { C.clipare_update_close() }

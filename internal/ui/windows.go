@@ -46,6 +46,7 @@ type notifyIcon struct {
 	BalloonIcon         uintptr
 }
 type nativeDesktop struct {
+	updateWindow, updateCheck, updateVersion, updateText, updateInstall         uintptr
 	window, instance, callback, icon                                            uintptr
 	fields                                                                      [11]uintptr
 	auto, list                                                                  uintptr
@@ -133,7 +134,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= 18 {
+			} else if id >= 1 && id <= 22 {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -210,7 +211,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	panel := func(title string, h int) uintptr {
 		return call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), 0x00CA0000, 0x80000000, 0x80000000, n.px(500), n.px(h), 0, 0, n.instance, 0)
 	}
-	n.home = panel("Clipare", 500)
+	n.home = panel("Clipare", 644)
 	n.window = n.home
 	n.label("Этот компьютер", 24, 20, 430)
 	n.homeName = n.control("EDIT", "", 0x00810080, 24, 50, 432, 28, 130)
@@ -222,6 +223,15 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 24, 368, 432, 28, 131)
 	n.button("Дополнительно…", 24, 416, 190, 30)
 	n.button("Сохранить", 320, 416, 136, 1)
+	n.label("Обновления", 24, 464, 432)
+	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 24, 494, 432, 28, 22)
+	n.updateVersion = n.control("STATIC", "", 0, 24, 548, 200, 24, 0)
+	n.button("Проверить обновления", 254, 540, 202, 19)
+	n.updateWindow = panel("Обновление Clipare", 320)
+	n.window = n.updateWindow
+	n.updateText = n.control("STATIC", "", 0, 24, 24, 432, 170, 0)
+	n.updateInstall = n.control("BUTTON", "Обновить", 0x10000, 292, 220, 164, 32, 20)
+	n.button("Позже", 24, 220, 164, 21)
 	n.found = panel("Добавить устройство", 420)
 	n.window = n.found
 	n.label("Найденные устройства", 24, 20, 432)
@@ -273,6 +283,7 @@ func (n *nativeDesktop) menu() {
 	}
 	add(text, eventPause, false)
 	add("Настройки…", eventSettings, false)
+	add("Проверить обновления", eventCheckUpdate, false)
 	add("Выйти", eventQuit, false)
 	var pos struct{ X, Y int32 }
 	call("GetCursorPos", uintptr(unsafe.Pointer(&pos)))
@@ -397,6 +408,7 @@ func (n *nativeDesktop) Close() {
 	call("DestroyWindow", n.home)
 	call("DestroyWindow", n.found)
 	call("DestroyWindow", n.pair)
+	call("DestroyWindow", n.updateWindow)
 	if n.pairFont != 0 {
 		syscall.NewLazyDLL("gdi32.dll").NewProc("DeleteObject").Call(n.pairFont)
 	}
@@ -449,3 +461,25 @@ func (n *nativeDesktop) Pair(name, sas string, mode int) {
 	call("SetForegroundWindow", n.pair)
 }
 func (n *nativeDesktop) PairClose() { call("ShowWindow", n.pair, 0) }
+func (n *nativeDesktop) UpdateSettings(version string, enabled bool) {
+	v := uintptr(0)
+	if enabled {
+		v = 1
+	}
+	call("SendMessageW", n.updateCheck, 0xF1, v, 0)
+	call("SetWindowTextW", n.updateVersion, uintptr(unsafe.Pointer(wide("Версия: "+version))))
+}
+func (n *nativeDesktop) UpdateEnabled() bool {
+	return call("SendMessageW", n.updateCheck, 0xF0, 0, 0) == 1
+}
+func (n *nativeDesktop) UpdatePrompt(text string, installable bool) {
+	call("SetWindowTextW", n.updateText, uintptr(unsafe.Pointer(wide(text))))
+	show := uintptr(0)
+	if installable {
+		show = 5
+	}
+	call("ShowWindow", n.updateInstall, show)
+	call("ShowWindow", n.updateWindow, 5)
+	call("SetForegroundWindow", n.updateWindow)
+}
+func (n *nativeDesktop) UpdateClose() { call("ShowWindow", n.updateWindow, 0) }

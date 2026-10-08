@@ -49,9 +49,12 @@ type Config struct {
 	Group         struct {
 		ID string `yaml:"id"`
 	} `yaml:"group,omitempty"`
-	Autostart bool   `yaml:"autostart"`
-	Device    Device `yaml:"device"`
-	Listen    struct {
+	Autostart bool `yaml:"autostart"`
+	Updates   struct {
+		Enabled bool `yaml:"enabled"`
+	} `yaml:"updates"`
+	Device Device `yaml:"device"`
+	Listen struct {
 		Address string `yaml:"address"`
 		Port    int    `yaml:"port"`
 	} `yaml:"listen"`
@@ -73,6 +76,7 @@ func Load(path string) (Config, error) {
 }
 func Parse(r io.Reader) (Config, error) {
 	var c Config
+	c.Updates.Enabled = true
 	c.Listen.Port = 45873
 	c.Sync.Enabled = true
 	c.Sync.Mode = "bidirectional"

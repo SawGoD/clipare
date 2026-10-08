@@ -51,7 +51,10 @@ func (d Downloader) download(ctx context.Context, a Asset, path string, max int6
 
 // Stage owns a fresh private temporary directory. No installation is touched.
 func (d Downloader) Stage(ctx context.Context, r Release, cache string) (*Staged, error) {
-	a, e := r.Platform(runtime.GOOS, runtime.GOARCH)
+	return d.stageFor(ctx, r, cache, runtime.GOOS, runtime.GOARCH)
+}
+func (d Downloader) stageFor(ctx context.Context, r Release, cache, targetOS, arch string) (*Staged, error) {
+	a, e := r.Platform(targetOS, arch)
 	if e != nil {
 		return nil, e
 	}
@@ -126,7 +129,7 @@ func (d Downloader) Stage(ctx context.Context, r Release, cache string) (*Staged
 	if e = Extract(ctx, archive, extracted); e != nil {
 		return nil, e
 	}
-	pkg, e := ValidatePackage(extracted, r.Version, runtime.GOOS, runtime.GOARCH)
+	pkg, e := ValidatePackage(extracted, r.Version, targetOS, arch)
 	if e != nil {
 		return nil, e
 	}

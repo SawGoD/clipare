@@ -1,17 +1,20 @@
 package ui
 
 import (
+	"clipare"
 	"clipare/internal/app"
 	"clipare/internal/autostart"
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
 	"clipare/internal/discovery"
 	"clipare/internal/pairing"
+	"clipare/internal/update"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -40,7 +43,26 @@ const (
 	eventCancelPair
 	eventCloseDiscovery
 	eventConfirmLocal
+	eventCheckUpdate
+	eventInstallUpdate
+	eventLaterUpdate
+	eventUpdatePreference
 )
+
+type updateDesktop interface {
+	UpdateSettings(string, bool)
+	UpdateEnabled() bool
+	UpdatePrompt(string, bool)
+	UpdateClose()
+}
+type updateResult struct {
+	release *update.Release
+	plan    *update.Plan
+	err     error
+	manual  bool
+	work    string
+	helper  bool
+}
 
 type pairingDesktop interface {
 	Discovered(string, string)
@@ -109,6 +131,9 @@ type sessionStarter func(context.Context, config.Config, clipboard.Backend, *slo
 type loopTiming struct{ poll, refresh, retry time.Duration }
 
 func Run(parent context.Context, path string, log *slog.Logger) error {
+	return RunWithReady(parent, path, log, nil, false)
+}
+func RunWithReady(parent context.Context, path string, log *slog.Logger, ready func() error, restored bool) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	d, e := newDesktop()
@@ -119,12 +144,15 @@ func Run(parent context.Context, path string, log *slog.Logger) error {
 	if e != nil {
 		return e
 	}
-	return runDesktop(parent, path, log, d, b, nil, loopTiming{30 * time.Millisecond, 2 * time.Second, 5 * time.Second})
+	return runDesktopReady(parent, path, log, d, b, nil, loopTiming{30 * time.Millisecond, 2 * time.Second, 5 * time.Second}, ready, restored)
 }
 
 // The GUI loop is also exercised with a synthetic desktop and clipboard, so
 // recovery tests never modify the user's pasteboard, settings or login items.
 func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop, b clipboard.Backend, start sessionStarter, timing loopTiming) error {
+	return runDesktopReady(parent, path, log, d, b, start, timing, nil, false)
+}
+func runDesktopReady(parent context.Context, path string, log *slog.Logger, d desktop, b clipboard.Backend, start sessionStarter, timing loopTiming, ready func() error, restored bool) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	if e := d.Init(); e != nil {
@@ -156,6 +184,14 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		}
 	}
 	draft := c
+	if ready != nil {
+		if e = ready(); e != nil {
+			return e
+		}
+	}
+	if restored {
+		d.Alert("Обновление не удалось установить. Предыдущая версия восстановлена")
+	}
 	pd, hasPairUI := d.(pairingDesktop)
 	var service *pairing.Service
 	var memberUpdates <-chan config.Config
@@ -187,6 +223,42 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			return app.StartWithControl(ctx, next, b, log, health, service)
 		}
 	}
+	ud, hasUpdateUI := d.(updateDesktop)
+	updateDone := make(chan updateResult, 1)
+	var updateWG sync.WaitGroup
+	checking, installing := false, false
+	var available *update.Release
+	cache, cacheErr := update.CacheDir()
+	checker := update.Checker{Current: clipare.Version(), StatePath: filepath.Join(cache, "state.json")}
+	defer func() { cancel(); updateWG.Wait() }()
+	checkUpdate := func(manual bool) {
+		if !hasUpdateUI || checking || installing || cacheErr != nil {
+			return
+		}
+		checking = true
+		enabled := c.Updates.Enabled
+		if manual {
+			ud.UpdatePrompt("Проверка обновлений…", false)
+		}
+		updateWG.Add(1)
+		go func() {
+			defer updateWG.Done()
+			update.Cleanup(cache, time.Now())
+			if manual || enabled && checker.Due(time.Now()) {
+				log.Info("update check started")
+			}
+			r, err := checker.Check(ctx, enabled, manual)
+			select {
+			case updateDone <- updateResult{release: r, err: err, manual: manual}:
+			case <-ctx.Done():
+			}
+		}()
+	}
+	if hasUpdateUI {
+		ud.UpdateSettings(clipare.Version(), c.Updates.Enabled)
+		checkUpdate(false)
+	}
+	nextUpdatePoll := time.Now().Add(time.Minute)
 	defer func() {
 		if scanCancel != nil {
 			scanCancel()
@@ -332,6 +404,91 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		select {
 		case <-ctx.Done():
 			return nil
+		case ur := <-updateDone:
+			if ur.helper {
+				if ur.err == nil {
+					if e := ur.plan.Arm(); e == nil {
+						log.Info("update staged", "version", ur.plan.Version)
+						return nil
+					} else {
+						ur.err = e
+					}
+				}
+				installing = false
+				if service != nil {
+					service.ResumePairing()
+				}
+				ud.UpdatePrompt("Не удалось запустить установку. Текущая версия продолжает работать", false)
+				continue
+			}
+			if ur.plan != nil && ur.err == nil {
+				if busy {
+					installing = false
+					if service != nil {
+						service.ResumePairing()
+					}
+					os.RemoveAll(ur.work)
+					ud.UpdatePrompt("Дождитесь применения настроек и попробуйте обновление снова", false)
+					continue
+				}
+				ud.UpdatePrompt("Обновление проверено. Clipare перезапустится…", false)
+				updateWG.Add(1)
+				go func() {
+					defer updateWG.Done()
+					err := ur.plan.LaunchHelper(ctx)
+					select {
+					case updateDone <- updateResult{plan: ur.plan, err: err, helper: true, work: ur.work}:
+					case <-ctx.Done():
+					}
+				}()
+				continue
+			}
+			if installing {
+				installing = false
+				if service != nil {
+					service.ResumePairing()
+				}
+				if ur.work != "" {
+					os.RemoveAll(ur.work)
+				}
+				log.Warn("update failed")
+				message := "Не удалось подготовить обновление. Текущая версия продолжает работать"
+				if errors.Is(ur.err, update.ErrInstall) || errors.Is(ur.err, update.ErrVerify) || errors.Is(ur.err, update.ErrPackage) || errors.Is(ur.err, update.ErrDownload) || errors.Is(ur.err, update.ErrPlatform) {
+					message = ur.err.Error()
+				}
+				ud.UpdatePrompt(message, false)
+				continue
+			}
+			checking = false
+			if ur.err != nil {
+				log.Debug("update check failed")
+				if ur.manual {
+					ud.UpdatePrompt(update.ErrUnavailable.Error(), false)
+				}
+				continue
+			}
+			if ur.release == nil {
+				if ur.manual {
+					message := "Установлена последняя версия Clipare"
+					if _, e := update.StableVersion(clipare.Version()); e != nil {
+						message = "Автообновления недоступны для dev-сборок"
+					}
+					ud.UpdatePrompt(message, false)
+				}
+				continue
+			}
+			if !ur.manual && !c.Updates.Enabled {
+				continue
+			}
+			if _, e := ur.release.Platform(runtime.GOOS, runtime.GOARCH); e != nil {
+				if ur.manual {
+					ud.UpdatePrompt(update.ErrPlatform.Error(), false)
+				}
+				continue
+			}
+			available = ur.release
+			log.Info("update available", "version", available.Version)
+			ud.UpdatePrompt("Доступна новая версия Clipare "+available.Version+"\n\nУстановлена: "+clipare.Version()+"\n\nClipare загрузит обновление и перезапустится. Настройки и устройства сохранятся.", true)
 		case update := <-memberUpdates:
 			if reflect.DeepEqual(update, c) {
 				continue
@@ -417,6 +574,10 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 		case st := <-statusUpdates:
 			states[st.id] = st.online
 		case <-refresh.C:
+			if hasUpdateUI && !time.Now().Before(nextUpdatePoll) {
+				nextUpdatePoll = time.Now().Add(time.Minute)
+				checkUpdate(false)
+			}
 			if service != nil {
 				if snap, ok := service.Snapshot(); ok && snap.State == pairing.Pending && snap.Session != shownIncoming && !outgoing {
 					shownIncoming = snap.Session
@@ -451,6 +612,9 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			if action == eventNone {
 				continue
 			}
+			if installing && action != eventSettings && action != eventLaterUpdate {
+				continue
+			}
 			if busy {
 				if action != eventSettings {
 					continue
@@ -461,6 +625,54 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				continue
 			}
 			switch action {
+			case eventCheckUpdate:
+				checkUpdate(true)
+			case eventLaterUpdate:
+				if hasUpdateUI {
+					ud.UpdateClose()
+				}
+			case eventUpdatePreference:
+				if !hasUpdateUI || needsSetup {
+					continue
+				}
+				next := c
+				next.Updates.Enabled = ud.UpdateEnabled()
+				draft = next
+				apply(next, true)
+			case eventInstallUpdate:
+				if !hasUpdateUI || available == nil || checking || busy {
+					continue
+				}
+				if outgoing || shownIncoming != "" || service != nil && !service.SuspendPairing() {
+					d.Alert("Завершите текущее подключение устройства перед обновлением")
+					continue
+				}
+				installing = true
+				r := *available
+				ud.UpdatePrompt("Загрузка обновления…", false)
+				updateWG.Add(1)
+				go func() {
+					defer updateWG.Done()
+					log.Info("download started", "version", r.Version)
+					s, err := (update.Downloader{}).Stage(ctx, r, cache)
+					result := updateResult{err: err}
+					if err == nil {
+						log.Info("checksum verified", "version", r.Version)
+						result.work = s.Work
+						p, err := s.Prepare(ctx, exe, path)
+						result.err = err
+						if err == nil {
+							result.plan = &p
+						}
+					}
+					select {
+					case updateDone <- result:
+					case <-ctx.Done():
+						if result.work != "" {
+							os.RemoveAll(result.work)
+						}
+					}
+				}()
 			case eventAdd, eventRefresh:
 				if !hasPairUI {
 					continue
@@ -559,6 +771,9 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 			case eventSettings:
 				draft = c
 				d.Show(toForm(draft), draft.Peers, config.Addresses())
+				if hasUpdateUI {
+					ud.UpdateSettings(clipare.Version(), c.Updates.Enabled)
+				}
 			case eventPause:
 				if session == nil {
 					d.Alert("Сначала сохраните настройки подключения")
@@ -576,6 +791,9 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 				apply(next, true)
 			case eventSave:
 				next, err := fromForm(d.Read(), draft)
+				if hasUpdateUI {
+					next.Updates.Enabled = ud.UpdateEnabled()
+				}
 				if err == nil {
 					err = next.Validate()
 				}

@@ -26,3 +26,6 @@ func waitForExit(ctx context.Context, pid int) error {
 		}
 	}
 }
+func exitWaiter(pid int) (func(context.Context) error, func(), error) {
+	return func(ctx context.Context) error { return waitForExit(ctx, pid) }, func() {}, nil
+}

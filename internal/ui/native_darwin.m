@@ -21,6 +21,9 @@ static NSTableView *homeTable,*foundTable;
 static NSMutableArray *foundRows;
 static NSMutableArray *homeRows;
 static BOOL pairIncoming;
+static NSWindow *updateWindow;
+static NSButton *updateCheck,*updateInstall;
+static NSTextField *updateVersion,*updateText;
 @interface ClipareDelegate : NSObject <NSTableViewDataSource,NSTableViewDelegate,NSWindowDelegate>
 -(void)action:(id)sender;
 @end
@@ -50,13 +53,22 @@ static void button(NSView *root,NSString *text,CGFloat x,CGFloat y,CGFloat width
 static NSWindow *panel(NSString *title,CGFloat width,CGFloat height){NSWindow *w=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,width,height) styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable backing:NSBackingStoreBuffered defer:NO];w.title=title;w.releasedWhenClosed=NO;w.delegate=delegate;[w center];return w;}
 static NSTableView *device_table(NSView *root,CGFloat x,CGFloat y,CGFloat width,CGFloat height){NSScrollView *scroll=[[NSScrollView alloc] initWithFrame:NSMakeRect(x,y,width,height)];scroll.hasVerticalScroller=YES;scroll.borderType=NSBezelBorder;NSTableView *t=[[NSTableView alloc] initWithFrame:scroll.bounds];NSTableColumn *column=[[NSTableColumn alloc] initWithIdentifier:@"device"];column.width=width-20;column.editable=NO;[t addTableColumn:column];[column release];t.headerView=nil;t.dataSource=delegate;t.delegate=delegate;scroll.documentView=t;[root addSubview:scroll];[scroll release];return t;}
 static void install_home(void){
- homeWindow=panel(@"Clipare",480,450);NSView *root=homeWindow.contentView;
+ homeWindow=panel(@"Clipare",480,594);NSView *root=homeWindow.contentView;
+ // Preserve the established home layout; updates occupy a separate lower block.
+ NSView *deviceRoot=[[NSView alloc] initWithFrame:NSMakeRect(0,144,480,450)];[root addSubview:deviceRoot];root=deviceRoot;
  label(root,@"Этот компьютер",24,406,420);homeName=[[NSTextField alloc] initWithFrame:NSMakeRect(24,368,432,28)];[root addSubview:homeName];
  homeStatus=[NSTextField labelWithString:@"Ожидание NetBird"];homeStatus.frame=NSMakeRect(24,322,432,34);homeStatus.lineBreakMode=NSLineBreakByWordWrapping;[root addSubview:homeStatus];
  label(root,@"Устройства",24,284,420);homeTable=device_table(root,24,140,432,136);
  button(root,@"+ Добавить устройство",24,96,254,11);button(root,@"Удалить",334,96,122,9);
  homeAuto=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:nil action:nil];homeAuto.frame=NSMakeRect(24,60,420,26);[root addSubview:homeAuto];
  button(root,@"Дополнительно…",24,16,190,30);button(root,@"Сохранить",320,16,136,1);
+ root=homeWindow.contentView;
+ label(root,@"Обновления",24,110,432);
+ updateCheck=[NSButton checkboxWithTitle:@"Автоматически проверять обновления" target:delegate action:@selector(action:)];updateCheck.tag=22;updateCheck.frame=NSMakeRect(24,72,432,26);[root addSubview:updateCheck];
+ updateVersion=[NSTextField labelWithString:@""];updateVersion.frame=NSMakeRect(24,30,230,22);[root addSubview:updateVersion];button(root,@"Проверить обновления",254,24,202,19);
+ updateWindow=panel(@"Обновление Clipare",480,260);root=updateWindow.contentView;
+ updateText=[NSTextField labelWithString:@""];updateText.frame=NSMakeRect(24,82,432,150);updateText.lineBreakMode=NSLineBreakByWordWrapping;[root addSubview:updateText];
+ updateInstall=[NSButton buttonWithTitle:@"Обновить" target:delegate action:@selector(action:)];updateInstall.tag=20;updateInstall.frame=NSMakeRect(292,24,164,32);[root addSubview:updateInstall];button(root,@"Позже",24,24,164,21);
  discoveryWindow=panel(@"Добавить устройство",480,380);root=discoveryWindow.contentView;
  label(root,@"Найденные устройства",24,336,432);foundTable=device_table(root,24,144,432,180);
  discoveryStatus=[NSTextField labelWithString:@"Поиск устройств…"];discoveryStatus.frame=NSMakeRect(24,92,432,44);discoveryStatus.lineBreakMode=NSLineBreakByWordWrapping;[root addSubview:discoveryStatus];
@@ -149,11 +161,16 @@ void clipare_status(const char *status,int enabled,const char *peers) { @autorel
  [menu addItem:[NSMenuItem separatorItem]];
  NSArray *titles=@[enabled?@"Приостановить синхронизацию":@"Возобновить синхронизацию",@"Настройки…",@"Выйти"];
  int tags[]={3,2,4};for(int i=0;i<3;i++){NSMenuItem *item=[[NSMenuItem alloc] initWithTitle:titles[i] action:@selector(action:) keyEquivalent:@""];item.target=delegate;item.tag=tags[i];[menu addItem:item];[item release];}
+ NSMenuItem *check=[[NSMenuItem alloc] initWithTitle:@"Проверить обновления" action:@selector(action:) keyEquivalent:@""];check.target=delegate;check.tag=19;[menu insertItem:check atIndex:menu.numberOfItems-1];[check release];
  tray.menu=menu;[menu release];tray.button.toolTip=stateText;
 } }
 void clipare_alert(const char *text) { @autoreleasepool {NSAlert *a=[NSAlert new];a.messageText=@"Clipare";a.informativeText=str(text);[a addButtonWithTitle:@"OK"];[window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];[a beginSheetModalForWindow:window completionHandler:^(NSModalResponse response){[a release];}];} }
-void clipare_close(void) { @autoreleasepool {if(window.attachedSheet)[window endSheet:window.attachedSheet];[[NSStatusBar systemStatusBar] removeStatusItem:tray];[window orderOut:nil];[homeWindow orderOut:nil];[discoveryWindow orderOut:nil];[pairWindow orderOut:nil];} }
+void clipare_close(void) { @autoreleasepool {if(window.attachedSheet)[window endSheet:window.attachedSheet];[[NSStatusBar systemStatusBar] removeStatusItem:tray];[window orderOut:nil];[homeWindow orderOut:nil];[discoveryWindow orderOut:nil];[pairWindow orderOut:nil];[updateWindow orderOut:nil];} }
 void clipare_discovered(const char *lines,const char *status){@autoreleasepool{[foundRows removeAllObjects];for(NSString *s in [str(lines) componentsSeparatedByString:@"\n"]){if(s.length)[foundRows addObject:s];}[foundTable reloadData];discoveryStatus.stringValue=str(status);[discoveryWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
 int clipare_discovered_selected(void){return (int)foundTable.selectedRow;}
 void clipare_pair(const char *name,const char *sas,int mode){@autoreleasepool{pairIncoming=mode==1;pairName.stringValue=str(name);pairCode.stringValue=str(sas);pairHelp.stringValue=mode==2?@"Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение.":pairIncoming?@"Это устройство хочет подключиться. Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение.":@"Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…";approveButton.hidden=mode==0;approveButton.title=mode==2?@"Код совпадает":@"Разрешить";approveButton.tag=mode==2?18:14;rejectButton.title=pairIncoming?@"Отклонить":@"Отменить";rejectButton.tag=pairIncoming?15:16;[pairWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
 void clipare_pair_close(void){[pairWindow orderOut:nil];}
+void clipare_update_settings(const char *version,int enabled){@autoreleasepool{updateVersion.stringValue=[@"Версия: " stringByAppendingString:str(version)];updateCheck.state=enabled?NSControlStateValueOn:NSControlStateValueOff;}}
+int clipare_update_enabled(void){return updateCheck.state==NSControlStateValueOn;}
+void clipare_update_prompt(const char *text,int installable){@autoreleasepool{updateText.stringValue=str(text);updateInstall.hidden=!installable;[updateWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
+void clipare_update_close(void){[updateWindow orderOut:nil];}

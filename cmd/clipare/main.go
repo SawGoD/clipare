@@ -8,6 +8,7 @@ import (
 	"clipare/internal/pairing"
 	"clipare/internal/transport"
 	"clipare/internal/ui"
+	"clipare/internal/update"
 	"context"
 	"errors"
 	"flag"
@@ -29,6 +30,9 @@ func main() {
 	}
 }
 func run(args []string) error {
+	if len(args) == 2 && args[0] == "--apply-update" {
+		return update.Apply(context.Background(), args[1])
+	}
 	status := len(args) > 0 && args[0] == "status"
 	if status {
 		args = args[1:]
@@ -42,6 +46,9 @@ func run(args []string) error {
 	headless := fs.Bool("headless", false, "run without tray or settings")
 	debug := fs.Bool("debug", false, "debug metadata logs")
 	ver := fs.Bool("version", false, "print version")
+	ready := fs.String("update-ready", "", "internal update startup acknowledgement")
+	updateToken := fs.String("update-token", "", "internal update startup token")
+	updateFailed := fs.Bool("update-failed", false, "report restored update")
 	if e := fs.Parse(args); e != nil {
 		if errors.Is(e, flag.ErrHelp) {
 			return nil
@@ -63,7 +70,12 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if !status && !*headless {
-		return ui.Run(ctx, *path, log)
+		return ui.RunWithReady(ctx, *path, log, func() error {
+			if *ready != "" {
+				return update.Acknowledge(*ready, *updateToken)
+			}
+			return nil
+		}, *updateFailed)
 	}
 	c, e := config.LoadMigrated(*path)
 	if e != nil {

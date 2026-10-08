@@ -15,3 +15,7 @@ void clipare_discovered(const char *lines,const char *status);
 int clipare_discovered_selected(void);
 void clipare_pair(const char *name,const char *sas,int incoming);
 void clipare_pair_close(void);
+void clipare_update_settings(const char *version,int enabled);
+int clipare_update_enabled(void);
+void clipare_update_prompt(const char *text,int installable);
+void clipare_update_close(void);

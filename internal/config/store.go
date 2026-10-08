@@ -41,6 +41,7 @@ func NewSecret() (string, error) {
 }
 func Default() (Config, error) {
 	var c Config
+	c.Updates.Enabled = true
 	id, e := NewSecret()
 	if e != nil {
 		return c, e

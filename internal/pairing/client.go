@@ -52,9 +52,12 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 // Connect reports SAS only after commitment and key confirmation succeeded.
 // It persists trusted metadata only after the remote user's explicit approval.
 func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(string), verify ...func(context.Context) error) error {
-	if !s.sessions.Available() || !s.outgoing.CompareAndSwap(false, true) {
+	s.pairGate.Lock()
+	if s.disabled.Load() || !s.sessions.Available() || !s.outgoing.CompareAndSwap(false, true) {
+		s.pairGate.Unlock()
 		return errors.New("Другое подключение уже выполняется")
 	}
+	s.pairGate.Unlock()
 	defer s.outgoing.Store(false)
 	if !discovery.NetBirdAddress(d.IP) {
 		return ErrInvalid

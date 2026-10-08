@@ -22,6 +22,7 @@ import (
 
 type Service struct {
 	mu       sync.Mutex
+	pairGate sync.Mutex
 	c        config.Config
 	path     string
 	sessions *Sessions
@@ -74,6 +75,19 @@ func (s *Service) SaveSettings(next config.Config) (config.Config, error) {
 	return next, nil
 }
 func (s *Service) DisablePairing() { s.disabled.Store(true) }
+
+// SuspendPairing reserves the idle pairing lifecycle while installing updates.
+// The gate prevents a request slipping between the idle check and disable flag.
+func (s *Service) SuspendPairing() bool {
+	s.pairGate.Lock()
+	defer s.pairGate.Unlock()
+	if s.disabled.Load() || s.outgoing.Load() || !s.sessions.Available() {
+		return false
+	}
+	s.disabled.Store(true)
+	return true
+}
+func (s *Service) ResumePairing() { s.disabled.Store(false) }
 func (s *Service) saveLocked(c config.Config) error {
 	if reflect.DeepEqual(c, s.c) {
 		return nil
@@ -203,6 +217,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/v1/group/upgrade":
 		s.serveUpgrade(w, r, b, ip)
 	case "/api/v1/pair/request":
+		s.pairGate.Lock()
+		defer s.pairGate.Unlock()
 		if s.disabled.Load() || s.outgoing.Load() {
 			fail(ErrApproval)
 			return
