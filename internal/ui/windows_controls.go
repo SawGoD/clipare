@@ -37,8 +37,12 @@ func (n *nativeDesktop) styleControl(h uintptr) {
 				comctl.NewProc("RemoveWindowSubclass").Call(h, n.controlCallback, 1)
 			}
 			r, _, _ := comctl.NewProc("DefSubclassProc").Call(h, uintptr(msg), w, l)
-			if !check && (msg == 0xf || msg == 0x85 || msg == 0x318) {
-				n.paintInputFrame(h, c.class == "COMBOBOX")
+			if !check && (msg == 0xf || msg == 0x85 || msg == 0x317 || msg == 0x318) {
+				dc := uintptr(0)
+				if msg == 0x317 || msg == 0x318 {
+					dc = w
+				}
+				n.paintInputFrame(h, c.class == "COMBOBOX", dc)
 			}
 			switch msg {
 			case 7, 8, 0xf1, 0xf3, 0x100, 0x101, 0x201, 0x202, 0x200, 0xa:
@@ -88,7 +92,7 @@ func (n *nativeDesktop) paintCheckbox(h, dc uintptr) {
 	}
 }
 
-func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool) {
+func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 	var r winRect
 	call("GetWindowRect", h, uintptr(unsafe.Pointer(&r)))
 	r.Right -= r.Left
@@ -99,8 +103,10 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool) {
 		dpi = 96
 	}
 	px := func(v int) int32 { return int32(v * dpi / 96) }
-	dc := call("GetWindowDC", h)
-	defer call("ReleaseDC", h, dc)
+	if dc == 0 {
+		dc = call("GetWindowDC", h)
+		defer call("ReleaseDC", h, dc)
+	}
 	border := n.theme.border
 	if call("GetFocus") == h || call("IsChild", h, call("GetFocus")) != 0 {
 		border = n.theme.accent
