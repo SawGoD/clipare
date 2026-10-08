@@ -22,7 +22,7 @@ static NSMutableArray *foundRows;
 static NSMutableArray *homeRows;
 static BOOL pairIncoming;
 static NSWindow *updateWindow;
-static NSButton *updateCheck,*updateInstall;
+static NSButton *updateCheck,*updateInstall,*updateDismiss;
 static NSTextField *updateVersion,*updateText;
 @interface ClipareDelegate : NSObject <NSTableViewDataSource,NSTableViewDelegate,NSWindowDelegate>
 -(void)action:(id)sender;
@@ -68,7 +68,8 @@ static void install_home(void){
  updateVersion=[NSTextField labelWithString:@""];updateVersion.frame=NSMakeRect(24,30,230,22);[root addSubview:updateVersion];button(root,@"Проверить обновления",254,24,202,19);
  updateWindow=panel(@"Обновление Clipare",480,260);root=updateWindow.contentView;
  updateText=[NSTextField labelWithString:@""];updateText.frame=NSMakeRect(24,82,432,150);updateText.lineBreakMode=NSLineBreakByWordWrapping;[root addSubview:updateText];
- updateInstall=[NSButton buttonWithTitle:@"Обновить" target:delegate action:@selector(action:)];updateInstall.tag=20;updateInstall.frame=NSMakeRect(292,24,164,32);[root addSubview:updateInstall];button(root,@"Позже",24,24,164,21);
+ updateInstall=[NSButton buttonWithTitle:@"Обновить" target:delegate action:@selector(action:)];updateInstall.tag=20;updateInstall.frame=NSMakeRect(292,24,164,32);[root addSubview:updateInstall];
+ updateDismiss=[NSButton buttonWithTitle:@"Понятно" target:delegate action:@selector(action:)];updateDismiss.tag=21;updateDismiss.frame=NSMakeRect(24,24,164,32);updateDismiss.keyEquivalent=@"\033";[root addSubview:updateDismiss];
  discoveryWindow=panel(@"Добавить устройство",480,380);root=discoveryWindow.contentView;
  label(root,@"Найденные устройства",24,336,432);foundTable=device_table(root,24,144,432,180);
  discoveryStatus=[NSTextField labelWithString:@"Поиск устройств…"];discoveryStatus.frame=NSMakeRect(24,92,432,44);discoveryStatus.lineBreakMode=NSLineBreakByWordWrapping;[root addSubview:discoveryStatus];
@@ -172,5 +173,5 @@ void clipare_pair(const char *name,const char *sas,int mode){@autoreleasepool{pa
 void clipare_pair_close(void){[pairWindow orderOut:nil];}
 void clipare_update_settings(const char *version,int enabled){@autoreleasepool{updateVersion.stringValue=[@"Версия: " stringByAppendingString:str(version)];updateCheck.state=enabled?NSControlStateValueOn:NSControlStateValueOff;}}
 int clipare_update_enabled(void){return updateCheck.state==NSControlStateValueOn;}
-void clipare_update_prompt(const char *text,int installable){@autoreleasepool{updateText.stringValue=str(text);updateInstall.hidden=!installable;[updateWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
+void clipare_update_prompt(const char *text,const char *primary,const char *dismiss,int action){@autoreleasepool{updateText.stringValue=str(text);updateInstall.title=str(primary);updateInstall.tag=action;updateInstall.hidden=!str(primary).length;updateDismiss.title=str(dismiss);updateDismiss.hidden=!str(dismiss).length;updateDismiss.frame=NSMakeRect(str(primary).length?24:292,24,164,32);updateInstall.keyEquivalent=str(primary).length?@"\r":@"";if(!str(primary).length&&str(dismiss).length)updateDismiss.keyEquivalent=@"\r";else updateDismiss.keyEquivalent=@"\033";[updateWindow makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];}}
 void clipare_update_close(void){[updateWindow orderOut:nil];}

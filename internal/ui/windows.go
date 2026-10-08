@@ -46,22 +46,22 @@ type notifyIcon struct {
 	BalloonIcon         uintptr
 }
 type nativeDesktop struct {
-	updateWindow, updateCheck, updateVersion, updateText, updateInstall         uintptr
-	window, instance, callback, icon                                            uintptr
-	fields                                                                      [11]uintptr
-	auto, list                                                                  uintptr
-	statusLabel                                                                 uintptr
-	events                                                                      []int
-	state                                                                       string
-	enabled                                                                     bool
-	peerLines                                                                   string
-	scale                                                                       float64
-	taskbar                                                                     uint32
-	home, found, pair                                                           uintptr
-	homeName, homeAuto, homeList, homeStatus                                    uintptr
-	foundList, foundStatus, pairName, pairCode, pairHelp, pairAllow, pairReject uintptr
-	pairIncoming                                                                bool
-	pairFont                                                                    uintptr
+	updateWindow, updateCheck, updateVersion, updateText, updateInstall, updateDismiss uintptr
+	window, instance, callback, icon                                                   uintptr
+	fields                                                                             [11]uintptr
+	auto, list                                                                         uintptr
+	statusLabel                                                                        uintptr
+	events                                                                             []int
+	state                                                                              string
+	enabled                                                                            bool
+	peerLines                                                                          string
+	scale                                                                              float64
+	taskbar                                                                            uint32
+	home, found, pair                                                                  uintptr
+	homeName, homeAuto, homeList, homeStatus                                           uintptr
+	foundList, foundStatus, pairName, pairCode, pairHelp, pairAllow, pairReject        uintptr
+	pairIncoming                                                                       bool
+	pairFont                                                                           uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -231,7 +231,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.window = n.updateWindow
 	n.updateText = n.control("STATIC", "", 0, 24, 24, 432, 170, 0)
 	n.updateInstall = n.control("BUTTON", "Обновить", 0x10000, 292, 220, 164, 32, 20)
-	n.button("Позже", 24, 220, 164, 21)
+	n.updateDismiss = n.control("BUTTON", "Понятно", 0x10000, 24, 220, 164, 32, 21)
 	n.found = panel("Добавить устройство", 420)
 	n.window = n.found
 	n.label("Найденные устройства", 24, 20, 432)
@@ -300,6 +300,16 @@ func (n *nativeDesktop) Poll() int {
 		root := call("GetAncestor", m.Window, 2)
 		if root == 0 {
 			root = n.window
+		}
+		if root == n.updateWindow && m.ID == 0x100 && (m.WParam == 13 || m.WParam == 27) {
+			button := n.updateDismiss
+			if m.WParam == 13 && call("IsWindowVisible", n.updateInstall) != 0 {
+				button = n.updateInstall
+			}
+			if call("IsWindowVisible", button) != 0 {
+				call("SendMessageW", button, 0xF5, 0, 0)
+			}
+			continue
 		}
 		if call("IsDialogMessageW", root, uintptr(unsafe.Pointer(&m))) == 0 {
 			call("TranslateMessage", uintptr(unsafe.Pointer(&m)))
@@ -472,13 +482,21 @@ func (n *nativeDesktop) UpdateSettings(version string, enabled bool) {
 func (n *nativeDesktop) UpdateEnabled() bool {
 	return call("SendMessageW", n.updateCheck, 0xF0, 0, 0) == 1
 }
-func (n *nativeDesktop) UpdatePrompt(text string, installable bool) {
-	call("SetWindowTextW", n.updateText, uintptr(unsafe.Pointer(wide(text))))
+func (n *nativeDesktop) UpdatePrompt(v updatePrompt) {
+	call("SetWindowTextW", n.updateText, uintptr(unsafe.Pointer(wide(v.Text))))
+	call("SetWindowTextW", n.updateInstall, uintptr(unsafe.Pointer(wide(v.Primary))))
+	call("SetWindowLongPtrW", n.updateInstall, ^uintptr(11), uintptr(v.Action))
+	call("SetWindowTextW", n.updateDismiss, uintptr(unsafe.Pointer(wide(v.Dismiss))))
 	show := uintptr(0)
-	if installable {
+	if v.Primary != "" {
 		show = 5
 	}
 	call("ShowWindow", n.updateInstall, show)
+	show = 0
+	if v.Dismiss != "" {
+		show = 5
+	}
+	call("ShowWindow", n.updateDismiss, show)
 	call("ShowWindow", n.updateWindow, 5)
 	call("SetForegroundWindow", n.updateWindow)
 }

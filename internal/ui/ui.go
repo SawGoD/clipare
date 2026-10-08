@@ -52,7 +52,7 @@ const (
 type updateDesktop interface {
 	UpdateSettings(string, bool)
 	UpdateEnabled() bool
-	UpdatePrompt(string, bool)
+	UpdatePrompt(updatePrompt)
 	UpdateClose()
 }
 type updateResult struct {
@@ -238,7 +238,8 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		checking = true
 		enabled := c.Updates.Enabled
 		if manual {
-			ud.UpdatePrompt("Проверка обновлений…", false)
+			available = nil
+			ud.UpdatePrompt(updateProgress("Проверка обновлений…"))
 		}
 		updateWG.Add(1)
 		go func() {
@@ -418,7 +419,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				if service != nil {
 					service.ResumePairing()
 				}
-				ud.UpdatePrompt("Не удалось запустить установку. Текущая версия продолжает работать", false)
+				ud.UpdatePrompt(updateFailure("Не удалось запустить установку. Текущая версия продолжает работать", clipare.Version(), eventInstallUpdate))
 				continue
 			}
 			if ur.plan != nil && ur.err == nil {
@@ -428,10 +429,10 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 						service.ResumePairing()
 					}
 					os.RemoveAll(ur.work)
-					ud.UpdatePrompt("Дождитесь применения настроек и попробуйте обновление снова", false)
+					ud.UpdatePrompt(updateFailure("Дождитесь применения настроек и попробуйте обновление снова", clipare.Version(), eventInstallUpdate))
 					continue
 				}
-				ud.UpdatePrompt("Обновление проверено. Clipare перезапустится…", false)
+				ud.UpdatePrompt(updateProgress("Обновление готово\n\nClipare перезапустится для установки…"))
 				updateWG.Add(1)
 				go func() {
 					defer updateWG.Done()
@@ -456,14 +457,14 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				if errors.Is(ur.err, update.ErrInstall) || errors.Is(ur.err, update.ErrVerify) || errors.Is(ur.err, update.ErrPackage) || errors.Is(ur.err, update.ErrDownload) || errors.Is(ur.err, update.ErrPlatform) {
 					message = ur.err.Error()
 				}
-				ud.UpdatePrompt(message, false)
+				ud.UpdatePrompt(updateFailure(message, clipare.Version(), eventInstallUpdate))
 				continue
 			}
 			checking = false
 			if ur.err != nil {
 				log.Debug("update check failed")
 				if ur.manual {
-					ud.UpdatePrompt(update.ErrUnavailable.Error(), false)
+					ud.UpdatePrompt(updateFailure(update.ErrUnavailable.Error(), clipare.Version(), eventCheckUpdate))
 				}
 				continue
 			}
@@ -473,7 +474,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					if _, e := update.StableVersion(clipare.Version()); e != nil {
 						message = "Автообновления недоступны для dev-сборок"
 					}
-					ud.UpdatePrompt(message, false)
+					ud.UpdatePrompt(updateNotice(message, clipare.Version()))
 				}
 				continue
 			}
@@ -482,13 +483,13 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			}
 			if _, e := ur.release.Platform(runtime.GOOS, runtime.GOARCH); e != nil {
 				if ur.manual {
-					ud.UpdatePrompt(update.ErrPlatform.Error(), false)
+					ud.UpdatePrompt(updateNotice(update.ErrPlatform.Error(), clipare.Version()))
 				}
 				continue
 			}
 			available = ur.release
 			log.Info("update available", "version", available.Version)
-			ud.UpdatePrompt("Доступна новая версия Clipare "+available.Version+"\n\nУстановлена: "+clipare.Version()+"\n\nClipare загрузит обновление и перезапустится. Настройки и устройства сохранятся.", true)
+			ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))
 		case update := <-memberUpdates:
 			if reflect.DeepEqual(update, c) {
 				continue
@@ -649,7 +650,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 				installing = true
 				r := *available
-				ud.UpdatePrompt("Загрузка обновления…", false)
+				ud.UpdatePrompt(updateProgress("Загрузка Clipare " + r.Version + "…"))
 				updateWG.Add(1)
 				go func() {
 					defer updateWG.Done()

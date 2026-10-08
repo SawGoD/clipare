@@ -2,10 +2,17 @@
 #import <AppKit/AppKit.h>
 #include <assert.h>
 #include "../../internal/ui/native_darwin.m"
+// Compatibility wrapper for the synthetic fixture; production passes explicit actions.
+static void fixture_update_prompt(const char *text,int available){clipare_update_prompt(text,available?"Обновить":"",available?"Позже":"",available?20:0);}
+#define clipare_update_prompt fixture_update_prompt
 int main(int argc,const char **argv){@autoreleasepool{
  clipare_init();clipare_set(0,"MacBook — тест интерфейса");clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_show();
  assert(homeWindow.visible);assert(!window.visible);assert(homeName.stringValue.length>0);
  clipare_update_settings("0.4.0",1);assert(clipare_update_enabled());assert([updateVersion.stringValue isEqualToString:@"Версия: 0.4.0"]);assert(updateCheck.tag==22);
+ #undef clipare_update_prompt
+ clipare_update_prompt("Установлена последняя версия Clipare\n\nТекущая версия: 0.4.1","","Понятно",0);assert(updateInstall.hidden);assert(!updateDismiss.hidden);assert([updateDismiss.title isEqualToString:@"Понятно"]);assert([updateText.stringValue containsString:@"0.4.1"]);
+ clipare_update_prompt("Не удалось обновить Clipare","Повторить","Закрыть",19);assert(!updateInstall.hidden);assert(updateInstall.tag==19);assert([updateDismiss.title isEqualToString:@"Закрыть"]);
+ #define clipare_update_prompt fixture_update_prompt
  if(argc>1 && !strcmp(argv[1],"update")){clipare_update_prompt("Доступна новая версия Clipare 0.5.0\n\nУстановлена: 0.4.0\n\nClipare загрузит обновление и перезапустится. Настройки и устройства сохранятся.",1);assert(updateWindow.visible);assert(!updateInstall.hidden);assert(updateInstall.tag==20);}
  if(argc>1 && !strcmp(argv[1],"discovery")){clipare_discovered("Desktop-PC — 100.64.0.2\nLaptop — 100.64.0.3","Выберите устройство и нажмите «Подключить»");assert(foundRows.count==2);}
  if(argc>1 && !strcmp(argv[1],"pair")){clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(!approveButton.hidden);assert(rejectButton.tag==15);assert([pairCode.stringValue isEqualToString:@"482 731"]);}

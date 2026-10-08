@@ -81,11 +81,11 @@ func (*nativeDesktop) UpdateSettings(version string, enabled bool) {
 	cstr(version, func(p *C.char) { C.clipare_update_settings(p, C.int(n)) })
 }
 func (*nativeDesktop) UpdateEnabled() bool { return C.clipare_update_enabled() != 0 }
-func (*nativeDesktop) UpdatePrompt(text string, installable bool) {
-	n := 0
-	if installable {
-		n = 1
-	}
-	cstr(text, func(p *C.char) { C.clipare_update_prompt(p, C.int(n)) })
+func (*nativeDesktop) UpdatePrompt(v updatePrompt) {
+	cstr(v.Text, func(t *C.char) {
+		cstr(v.Primary, func(p *C.char) {
+			cstr(v.Dismiss, func(d *C.char) { C.clipare_update_prompt(t, p, d, C.int(v.Action)) })
+		})
+	})
 }
 func (*nativeDesktop) UpdateClose() { C.clipare_update_close() }
