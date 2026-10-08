@@ -264,6 +264,10 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 		r.Bottom -= window.scrollY
 		call("SetWindowPos", h, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x14)
 		call("SendMessageW", h, 0x30, n.fontFor(hwnd, c.role), 1)
+		if c.class == "COMBOBOX" {
+			call("SendMessageW", h, 0x153, ^uintptr(0), uintptr(n.scaledRect(hwnd, logicalRect{h: 26}).Bottom))
+			call("SendMessageW", h, 0x153, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 32}).Bottom))
+		}
 		if h == n.homeList || h == n.foundList {
 			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 60}).Bottom))
 		}
