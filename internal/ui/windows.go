@@ -70,6 +70,7 @@ type nativeDesktop struct {
 	pauseButton, emptyDevices, emptyDiscovery                                          uintptr
 	layingOut                                                                          bool
 	lastFocus                                                                          uintptr
+	controlCallback                                                                    uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -94,6 +95,9 @@ func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, i
 	handle := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), style|0x50000000, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), n.window, uintptr(id), n.instance, 0)
 	n.controls[handle] = winControl{parent: n.window, class: class, bounds: logicalRect{x, y, w, h}, kind: kind}
 	call("SendMessageW", handle, 0x30, n.fontFor(n.window, 0), 1)
+	if class == "EDIT" || class == "COMBOBOX" || class == "BUTTON" && style&15 == 3 {
+		n.styleControl(handle)
+	}
 	return handle
 }
 func (n *nativeDesktop) label(text string, x, y, w int) {

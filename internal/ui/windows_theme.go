@@ -99,14 +99,7 @@ func (n *nativeDesktop) setTheme(t winTheme) {
 			}
 			themes.NewProc("SetWindowTheme").Call(hwnd, uintptr(unsafe.Pointer(wide(name))), 0)
 		}
-		if c.class == "BUTTON" && call("GetWindowLongPtrW", hwnd, ^uintptr(15))&15 == 3 {
-			// Classic native checkbox drawing honors WM_CTLCOLOR in Dark/contrast mode.
-			name := "Explorer"
-			if n.theme.dark || n.theme.contrast {
-				name = ""
-			}
-			themes.NewProc("SetWindowTheme").Call(hwnd, uintptr(unsafe.Pointer(wide(name))), 0)
-		}
+		call("RedrawWindow", hwnd, 0, 0, 0x185)
 	}
 }
 
@@ -120,13 +113,14 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		return font
 	}
 	size, weight := 14, 400
+	faceName := "Segoe UI"
 	switch role {
 	case 1:
-		size, weight = 20, 600
+		size, faceName = 20, "Segoe UI Semibold"
 	case 2:
-		size, weight = 15, 600
+		size = 16
 	case 3:
-		size, weight = 36, 600
+		size, faceName = 36, "Segoe UI Semibold"
 	case 4:
 		size = 12
 	}
@@ -139,14 +133,14 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		lf.Height = -int32(size * dpi / 96)
 		lf.Weight = int32(weight)
 		lf.Flags[3] = 1
-		lf.Flags[6] = 5
+		lf.Flags[6] = 6 // CLEARTYPE_NATURAL_QUALITY, without synthesized bold.
 		copy(lf.Face[:], syscall.StringToUTF16(face))
 		font, _, _ := gdi.NewProc("CreateFontIndirectW").Call(uintptr(unsafe.Pointer(&lf)))
 		runtime.KeepAlive(lf)
 		return font
 	}
-	font := create("Segoe UI Variable")
-	// GDI can silently substitute Times New Roman on systems without Variable.
+	font := create(faceName)
+	// GDI can silently substitute another family when the requested face is absent.
 	// Check the realized face, not just the nonzero logical HFONT handle.
 	if font != 0 {
 		dc := gcall("CreateCompatibleDC", 0)
@@ -155,7 +149,7 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 		gcall("GetTextFaceW", dc, uintptr(len(face)), uintptr(unsafe.Pointer(&face[0])))
 		gcall("SelectObject", dc, old)
 		gcall("DeleteDC", dc)
-		if !strings.HasPrefix(syscall.UTF16ToString(face[:]), "Segoe UI Variable") {
+		if !strings.HasPrefix(syscall.UTF16ToString(face[:]), "Segoe UI") {
 			gcall("DeleteObject", font)
 			font = create("Segoe UI")
 		}

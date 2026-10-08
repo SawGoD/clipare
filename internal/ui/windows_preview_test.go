@@ -41,6 +41,17 @@ func TestWindowsFluentPreview(t *testing.T) {
 	n.Show(f, peers, []string{"100.64.0.1"})
 	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
 	n.UpdateSettings("0.5.0", true)
+	// Painting must not replace the native automatic-checkbox state machine.
+	before := call("SendMessageW", n.homeAuto, 0xf0, 0, 0)
+	call("SendMessageW", n.homeAuto, 0xf5, 0, 0) // BM_CLICK
+	if call("SendMessageW", n.homeAuto, 0xf0, 0, 0) == before {
+		t.Fatal("styled checkbox no longer toggles on native click")
+	}
+	call("SendMessageW", n.homeAuto, 0xf1, before, 0)
+	call("SendMessageW", n.homeName, 0xc, 0, uintptr(unsafe.Pointer(wide("Desktop-PC"))))
+	if windowText(n.homeName) != "Desktop-PC" {
+		t.Fatal("styled edit no longer accepts native text updates")
+	}
 	base := systemTheme()
 	variants := []struct {
 		name  string
