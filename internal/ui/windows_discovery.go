@@ -13,7 +13,7 @@ func (n *nativeDesktop) installDiscovery() {
 	n.iconButton("Вернуться к устройствам", "\ue72b", 40, 224, 36, 31)
 	n.heading("Найденные устройства", 88, 224, 440, 2)
 	n.foundList = n.deviceList(40, 264, 488, 120, 132)
-	n.emptyDiscovery = n.control("STATIC", "Устройства Clipare не найдены.\r\nУбедитесь, что NetBird запущен на обоих компьютерах.", 0, 40, 264, 488, 88, 0)
+	n.emptyDiscovery = n.control("STATIC", discoveryEmptyMessage, 0, 40, 264, 488, 88, 0)
 	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 40, 392, 488, 40, 0)
 	n.setRole(n.foundStatus, 4)
 	n.iconButton("Обновить список устройств", "\ue72c", 40, 444, 36, eventRefresh)
@@ -45,6 +45,7 @@ func (n *nativeDesktop) layoutDiscovery() int {
 	}
 	visible(n.foundList, count > 0)
 	visible(n.emptyDiscovery, count == 0)
+	visible(n.foundStatus, count > 0)
 	c := n.controls[n.foundList]
 	c.bounds.h = height
 	n.controls[n.foundList] = c

@@ -17,7 +17,8 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSButton *autostart,*updates,*additionalButton,*advancedButton,*pause,*emptyAdd,*compactAdd,*removePeer,*connect,*approve,*reject,*install,*dismiss;
 @property(retain) NSStackView *additional,*advanced;
 @property(retain) NSTableView *peerTable,*foundTable;
-@property(retain) NSView *emptyDevices,*peerList,*foundList,*emptyFound;
+@property(retain) NSView *emptyDevices,*peerList,*foundList;
+@property(retain) NSTextField *emptyFound;
 @property(retain) NSView *deviceHome,*deviceDiscovery,*devicePair;
 @property(retain) NSTextField *status,*reason,*version,*discoveryStatus,*pairName,*sas,*pairHelp,*updateText,*noticeText;
 @property(retain) NSString *statusMessage,*statusReason;

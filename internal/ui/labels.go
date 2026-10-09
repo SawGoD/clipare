@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const discoveryEmptyMessage = "Устройства Clipare не найдены.\nУбедитесь, что NetBird и Clipare запущены на обоих устройствах."
+
 func peerLabel(p config.Peer) string {
 	name := p.Name
 	if name == "" {

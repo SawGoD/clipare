@@ -293,7 +293,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.home = n.panel(class, "Clipare", 568, 624, logicalRect{24, 64, 520, 128}, logicalRect{24, 208, 520, 228}, logicalRect{24, 452, 520, 48})
 	n.window = n.home
 	n.heading("Clipare", 24, 16, 300, 1)
-	n.heading("Этот компьютер", 40, 80, 280, 2)
+	n.heading("Это устройство", 40, 80, 280, 2)
 	n.homeName = n.control("EDIT", "", 0x00810080, 40, 116, 332, 30, 130)
 	n.button("Применить", 384, 116, 144, eventDeviceName)
 	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 60, 158, 304, 22, 0)
@@ -594,6 +594,7 @@ func (n *nativeDesktop) Discovered(lines, status string) {
 	}
 	call("EnableWindow", call("GetDlgItem", n.found, 13), enabled)
 	call("SetWindowTextW", n.foundStatus, uintptr(unsafe.Pointer(wide(status))))
+	call("SetWindowTextW", n.emptyDiscovery, uintptr(unsafe.Pointer(wide(status))))
 	n.navigate(ViewDiscovery)
 }
 func (n *nativeDesktop) DiscoveredSelected() int {
@@ -608,12 +609,12 @@ func (n *nativeDesktop) Pair(name, sas string, mode int) {
 	n.pairMode = mode
 	call("SetWindowTextW", n.pairName, uintptr(unsafe.Pointer(wide(name))))
 	call("SetWindowTextW", n.pairCode, uintptr(unsafe.Pointer(wide(sas))))
-	text := "Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…"
+	text := "Сравните код на другом устройстве и разрешите подключение там. Ожидание подтверждения…"
 	show := uintptr(0)
 	tag := uintptr(16)
 	title := "Отменить"
 	if incoming {
-		text = "Это устройство хочет подключиться. Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение."
+		text = "Это устройство хочет подключиться. Сравните коды на обоих устройствах. Если они отличаются — отклоните подключение."
 		show = 5
 		tag = 15
 		title = "Отклонить"
@@ -624,7 +625,7 @@ func (n *nativeDesktop) Pair(name, sas string, mode int) {
 		show = 5
 		allowTag = 18
 		allowTitle = "Код совпадает"
-		text = "Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение."
+		text = "Сравните коды на обоих устройствах и нажмите «Код совпадает». На другом устройстве также разрешите подключение."
 	}
 	call("SetWindowLongPtrW", n.pairAllow, ^uintptr(11), allowTag)
 	call("SetWindowTextW", n.pairAllow, uintptr(unsafe.Pointer(wide(allowTitle))))

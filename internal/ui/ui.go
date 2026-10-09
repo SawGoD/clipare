@@ -557,7 +557,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			if sr.err != nil {
 				message = discovery.ErrUnavailable.Error()
 			} else if len(discovered) == 0 {
-				message = "Устройства не найдены. Запустите Clipare на другом компьютере или добавьте его по коду"
+				message = discoveryEmptyMessage
 			}
 			renderDiscovery(message)
 		case sas := <-sasUpdates:
@@ -926,7 +926,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				if err = b.Write(config.ConnectionCode(next)); err != nil {
 					d.Alert("Не удалось скопировать код")
 				} else {
-					d.Alert("Код скопирован. Добавьте его в настройках другого компьютера. Код содержит общий ключ — передавайте его приватно")
+					d.Alert("Код скопирован. Добавьте его в настройках другого устройства. Код содержит общий ключ — передавайте его приватно")
 				}
 			case eventImport:
 				f := d.Read()
@@ -940,7 +940,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 				draft = next
 				d.Show(toForm(draft), draft.Peers, config.Addresses())
-				d.Alert("Устройство добавлено. Сохраните настройки, затем скопируйте код этого компьютера и добавьте его на другом")
+				d.Alert("Устройство добавлено. Сохраните настройки, затем скопируйте код этого устройства и добавьте его на другом")
 			case eventUpsert:
 				f := d.Read()
 				p, err := strconv.Atoi(f.Values[9])

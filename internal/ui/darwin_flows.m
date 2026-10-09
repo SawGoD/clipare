@@ -4,7 +4,7 @@
 @implementation CPDesktop (Flows)
 -(NSStackView *)buildDiscovery {
  self.foundList=[self table:YES];self.foundList.hidden=YES;
- self.emptyFound=CPLabel(@"Устройства Clipare не найдены.\nУбедитесь, что NetBird запущен на обоих компьютерах.",14);self.discoveryStatus=CPLabel(@"Поиск устройств…",12);self.discoveryStatus.textColor=NSColor.secondaryLabelColor;self.connect=CPButton(@"Подключить",self,13);self.connect.enabled=NO;
+ self.emptyFound=CPLabel(@"Поиск устройств…",14);self.discoveryStatus=CPLabel(@"",12);self.discoveryStatus.hidden=YES;self.discoveryStatus.textColor=NSColor.secondaryLabelColor;self.connect=CPButton(@"Подключить",self,13);self.connect.enabled=NO;
  return CPStack(@[CPStack(@[CPIcon(@"chevron.left",@"Вернуться к устройствам",self,31),CPLabel(@"Найденные устройства",16)],YES),self.emptyFound,self.foundList,self.discoveryStatus,CPStack(@[CPIcon(@"arrow.clockwise",@"Обновить список устройств",self,12),self.connect,CPButton(@"По коду…",self,30)],YES)],NO);
 }
 -(NSStackView *)buildPair {

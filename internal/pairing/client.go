@@ -46,7 +46,7 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 		return ErrRemoved
 	}
 	if res.StatusCode == 409 {
-		return errors.New("Другое подключение уже выполняется или pairing приостановлен. Завершите подключение и включите синхронизацию на другом компьютере")
+		return errors.New("Другое подключение уже выполняется или pairing приостановлен. Завершите подключение и включите синхронизацию на другом устройстве")
 	}
 	if res.StatusCode == 429 {
 		return errors.New("Слишком много запросов подключения. Подождите несколько секунд и повторите")

@@ -57,13 +57,13 @@ void clipare_close(void) { @autoreleasepool {
 void clipare_discovered(const char *s,const char *status) { @autoreleasepool {
  [desktop.found removeAllObjects];for(NSString *line in lines(s)){if(!line.length)continue;NSArray *parts=[line componentsSeparatedByString:@" — "];[desktop.found addObject:@{@"name":parts[0],@"detail":parts.count>1?parts[1]:@"",@"online":@YES}];}
  for(NSLayoutConstraint *constraint in desktop.foundList.constraints)if([constraint.identifier isEqualToString:@"deviceListHeight"])constraint.constant=MIN(MAX(desktop.found.count*52+4,56),160);
- [desktop.foundTable reloadData];desktop.foundList.hidden=!desktop.found.count;desktop.emptyFound.hidden=desktop.found.count>0;desktop.connect.enabled=desktop.found.count>0;desktop.discoveryStatus.stringValue=str(status);[desktop show:CPDiscovery];
+ [desktop.foundTable reloadData];desktop.foundList.hidden=!desktop.found.count;desktop.emptyFound.hidden=desktop.found.count>0;desktop.emptyFound.stringValue=str(status);desktop.discoveryStatus.hidden=!desktop.found.count;desktop.connect.enabled=desktop.found.count>0;desktop.discoveryStatus.stringValue=str(status);[desktop show:CPDiscovery];
 } }
 int clipare_discovered_selected(void) {return (int)desktop.foundTable.selectedRow;}
 void clipare_pair(const char *name,const char *sas,int mode) { @autoreleasepool {
  if(mode==1&&!desktop.pairIncoming)[desktop notifyPair:str(name)];
  desktop.pairIncoming=mode==1;desktop.pairName.stringValue=str(name);desktop.sas.stringValue=str(sas);
- desktop.pairHelp.stringValue=mode==2?@"Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение.":mode==1?@"Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение.":@"Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…";
+ desktop.pairHelp.stringValue=mode==2?@"Сравните коды на обоих устройствах и нажмите «Код совпадает». На другом устройстве также разрешите подключение.":mode==1?@"Сравните коды на обоих устройствах. Если они отличаются — отклоните подключение.":@"Сравните код на другом устройстве и разрешите подключение там. Ожидание подтверждения…";
  desktop.approve.hidden=mode==0;desktop.approve.title=mode==2?@"Код совпадает":@"Разрешить";desktop.approve.tag=mode==2?18:14;desktop.reject.title=mode==1?@"Отклонить":@"Отменить";desktop.reject.tag=mode==1?15:16;[desktop show:CPPairing];
 } }
 void clipare_pair_close(void) { @autoreleasepool {[desktop clearPairNotification];if(desktop.noticeOrigin==CPPairing)desktop.noticeOrigin=CPHome;if(desktop.view==CPPairing)[desktop show:CPHome];} }

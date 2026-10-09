@@ -406,7 +406,7 @@ func (s *Service) adopt(v peers.Membership, expected string, approved bool, fqdn
 	if c.Group.ID != v.Group {
 		for _, p := range c.Peers {
 			if !p.Legacy {
-				return errors.New("Этот компьютер уже подключён к другой группе")
+				return errors.New("Это устройство уже подключён к другой группе")
 			}
 		}
 	}

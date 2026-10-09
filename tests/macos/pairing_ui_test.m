@@ -95,7 +95,9 @@ int main(int argc,const char **argv) { @autoreleasepool {
  assert(!desktop.deviceHome.hidden&&desktop.deviceDiscovery.hidden);assert(desktop.scroll.documentView==desktop.views[@0]);
  clipare_discovered("Desktop-PC — 100.64.0.2","Выберите устройство");capture(@"discovery-one");assert(desktop.foundList.frame.size.height<=60);assert(desktop.scroll.documentView.frame.size.height<=desktop.scroll.contentSize.height);
  [desktop.events removeAllObjects];[desktop action:desktop.advancedButton];assert(desktop.view==CPHome&&desktop.advancedExpanded&&[desktop.events containsObject:@17]);[desktop action:desktop.advancedButton];
- clipare_discovered("","Автоматическое обнаружение недоступно");assert(desktop.foundList.hidden);assert(!desktop.connect.enabled);capture(@"discovery-empty");
+ clipare_discovered("","Автоматическое обнаружение недоступно");assert(desktop.foundList.hidden);assert(!desktop.connect.enabled);assert(desktop.discoveryStatus.hidden);assert(!desktop.emptyFound.hidden);assert([desktop.emptyFound.stringValue isEqualToString:@"Автоматическое обнаружение недоступно"]);capture(@"discovery-empty");
+ clipare_discovered("","Устройства Clipare не найдены.\nУбедитесь, что NetBird и Clipare запущены на обоих устройствах.");assert(desktop.discoveryStatus.hidden);assert([desktop.emptyFound.stringValue containsString:@"обоих устройствах"]);capture(@"discovery-empty-message");
+ clipare_discovered("","Поиск устройств…");assert(desktop.discoveryStatus.hidden);assert([desktop.emptyFound.stringValue isEqualToString:@"Поиск устройств…"]);
  clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(desktop.view==CPPairing);assert(desktop.reject.tag==15);assert(!desktop.approve.hidden);assert([desktop.sas.stringValue isEqualToString:@"482 731"]);capture(@"pairing");
  assert(desktop.scroll.documentView==desktop.views[@0]);assert(!desktop.devicePair.hidden&&desktop.deviceHome.hidden&&desktop.deviceDiscovery.hidden);assert(![desktop.status isHiddenOrHasHiddenAncestor]);assert(![desktop.fields[0] isHiddenOrHasHiddenAncestor]);
  clipare_device_rows(rows,0,1,1,1);assert(desktop.deviceHome.hidden&&!desktop.devicePair.hidden);
