@@ -34,6 +34,14 @@ type Session struct {
 	done   chan struct{}
 	mu     sync.Mutex
 	err    error
+	client *transport.Client
+}
+
+func (s *Session) Platforms() map[string]string {
+	if s.client == nil {
+		return nil
+	}
+	return s.client.Platforms()
 }
 
 func Start(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool)) (*Session, error) {
@@ -55,7 +63,7 @@ func StartWithControl(parent context.Context, c config.Config, b clipboard.Backe
 		client.Close()
 		return nil, errors.New("Буфер обмена недоступен")
 	}
-	s := &Session{cancel: cancel, done: make(chan struct{})}
+	s := &Session{cancel: cancel, done: make(chan struct{}), client: client}
 	clipboardHandler := transport.Handler(c, security.NewPeerKeys(c), manager, log)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if control != nil && (r.URL.Path == "/api/v1/discovery" || strings.HasPrefix(r.URL.Path, "/api/v1/pair/") || strings.HasPrefix(r.URL.Path, "/api/v1/group/")) {

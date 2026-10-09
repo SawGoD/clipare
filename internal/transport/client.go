@@ -7,19 +7,23 @@ import (
 	"clipare/internal/security"
 	clipsync "clipare/internal/sync"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
 type Client struct {
-	http   *http.Client
-	secret security.SecretProvider
-	source string
+	http      *http.Client
+	secret    security.SecretProvider
+	source    string
+	platforms sync.Map
 }
 
 func NewPeerClient(c config.Config) *Client {
@@ -78,6 +82,17 @@ func (c *Client) peerRequest(ctx context.Context, peerID, method, url string, bo
 		}
 	}
 	r.Header.Set(security.SignatureHeader, security.Sign(key, ts, signed))
+	nonce := ""
+	if r.URL.Path == "/api/v1/health" {
+		if keys, ok := c.secret.(*security.PeerKeys); ok && peerID != "" && !keys.Legacy(peerID) {
+			var random [32]byte
+			if _, e = rand.Read(random[:]); e != nil {
+				return nil, e
+			}
+			nonce = hex.EncodeToString(random[:])
+			r.Header.Set("X-Clipare-Nonce", nonce)
+		}
+	}
 	r.Header.Set("Content-Type", "application/json")
 	res, e := c.http.Do(r)
 	if e != nil {
@@ -90,6 +105,14 @@ func (c *Client) peerRequest(ctx context.Context, peerID, method, url string, bo
 	}
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.New("peer rejected request")
+	}
+	if nonce != "" {
+		var h Health
+		if json.Unmarshal(b, &h) == nil && h.Device == peerID && security.Verify(key, ts, res.Header.Get("X-Clipare-Response-Signature"), healthProof(peerID, nonce, b), time.Now()) {
+			c.platforms.Store(peerID, platform(h.Platform))
+		} else {
+			c.platforms.Delete(peerID)
+		}
 	}
 	return b, nil
 }
@@ -106,9 +129,25 @@ func (c *Client) SendPeer(ctx context.Context, peerID, url string, m clipsync.Me
 }
 
 type Health struct {
-	Status string `json:"status"`
-	Device string `json:"device"`
-	Mode   string `json:"mode"`
+	Status   string `json:"status"`
+	Device   string `json:"device"`
+	Mode     string `json:"mode"`
+	Platform string `json:"platform,omitempty"`
+}
+
+func platform(value string) string {
+	if value == "windows" || value == "darwin" {
+		return value
+	}
+	return ""
+}
+func healthProof(id, nonce string, body []byte) []byte {
+	return security.AuthenticatedData("RESPONSE", "/api/v1/health", id, append([]byte(nonce+"\n"), body...))
+}
+func (c *Client) Platforms() map[string]string {
+	out := map[string]string{}
+	c.platforms.Range(func(key, value any) bool { out[key.(string)] = value.(string); return true })
+	return out
 }
 
 func (c *Client) Health(ctx context.Context, url string) (Health, error) {
@@ -122,6 +161,10 @@ func (c *Client) HealthPeer(ctx context.Context, peerID, url string) (Health, er
 	var h Health
 	if json.Unmarshal(b, &h) != nil || h.Status != "ok" {
 		return h, errors.New("invalid health response")
+	}
+	h.Platform = ""
+	if value, ok := c.platforms.Load(peerID); ok {
+		h.Platform = value.(string)
 	}
 	return h, nil
 }

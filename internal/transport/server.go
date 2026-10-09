@@ -8,12 +8,14 @@ import (
 	"clipare/internal/security"
 	clipsync "clipare/internal/sync"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime"
 	"time"
 )
 
@@ -112,7 +114,12 @@ func Handler(c config.Config, secret security.SecretProvider, receiver Receiver,
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(Health{"ok", c.Device.ID, c.Mode()})
+			b, _ := json.Marshal(Health{Status: "ok", Device: c.Device.ID, Mode: c.Mode(), Platform: platform(runtime.GOOS)})
+			nonce := r.Header.Get("X-Clipare-Nonce")
+			if decoded, err := hex.DecodeString(nonce); err == nil && len(decoded) == 32 {
+				w.Header().Set("X-Clipare-Response-Signature", security.Sign(key, r.Header.Get(security.TimestampHeader), healthProof(c.Device.ID, nonce, b)))
+			}
+			w.Write(b)
 			return
 		}
 		var msg clipsync.Message
