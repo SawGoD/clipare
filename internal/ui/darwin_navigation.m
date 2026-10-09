@@ -15,7 +15,7 @@
 
 NSImage *CPSymbol(NSString *symbol,NSString *label) {
  if(@available(macOS 11.0,*))return [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:label];
- NSString *name=[symbol isEqualToString:@"plus"]?NSImageNameAddTemplate:[symbol isEqualToString:@"arrow.clockwise"]?NSImageNameRefreshTemplate:NSImageNameGoLeftTemplate;
+ NSString *name=[symbol isEqualToString:@"plus"]?NSImageNameAddTemplate:[symbol isEqualToString:@"arrow.clockwise"]?NSImageNameRefreshTemplate:[symbol isEqualToString:@"trash"]?NSImageNameTrashEmpty:[symbol isEqualToString:@"chevron.right"]?NSImageNameGoRightTemplate:[symbol isEqualToString:@"chevron.down"]?NSImageNameTouchBarGoDownTemplate:[symbol isEqualToString:@"clipboard"]?nil:NSImageNameGoLeftTemplate;
  return [NSImage imageNamed:name];
 }
 
@@ -29,12 +29,10 @@ NSStackView *CPStack(NSArray *views,BOOL horizontal) {
 void CPAdd(NSStackView *s,NSView *v) {
  v.translatesAutoresizingMaskIntoConstraints=NO;[s addArrangedSubview:v];[v.widthAnchor constraintEqualToAnchor:s.widthAnchor].active=YES;
 }
-NSView *CPCard(NSStackView *s) {
- NSView *v=[[[NSView alloc]init]autorelease];v.translatesAutoresizingMaskIntoConstraints=NO;[v addSubview:s];
- [NSLayoutConstraint activateConstraints:@[[s.leadingAnchor constraintEqualToAnchor:v.leadingAnchor constant:16],[s.trailingAnchor constraintEqualToAnchor:v.trailingAnchor constant:-16],[s.topAnchor constraintEqualToAnchor:v.topAnchor constant:16],[s.bottomAnchor constraintEqualToAnchor:v.bottomAnchor constant:-16]]];return v;
-}
 NSButton *CPButton(NSString *title,CPDesktop *d,NSInteger tag) {
- NSButton *b=[NSButton buttonWithTitle:title target:d action:@selector(action:)];b.tag=tag;b.translatesAutoresizingMaskIntoConstraints=NO;[b.heightAnchor constraintEqualToConstant:32].active=YES;return b;
+ NSButton *b=[NSButton buttonWithTitle:title target:d action:@selector(action:)];b.tag=tag;b.translatesAutoresizingMaskIntoConstraints=NO;[b.heightAnchor constraintEqualToConstant:32].active=YES;
+ if(tag==1||tag==8||tag==13||tag==14||tag==18||tag==20)b.bezelColor=NSColor.controlAccentColor;
+ return b;
 }
 NSButton *CPIcon(NSString *symbol,NSString *label,CPDesktop *d,NSInteger tag) {
  NSButton *b=CPButton(label,d,tag);b.toolTip=label;b.accessibilityLabel=label;
@@ -50,7 +48,10 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
  self.views=[NSMutableDictionary dictionary];self.events=[NSMutableArray array];self.fields=[NSMutableArray array];self.peers=[NSMutableArray array];self.found=[NSMutableArray array];for(int i=0;i<11;i++)[self.fields addObject:NSNull.null];
  self.syncState=2;self.devicesEmpty=YES;self.statusMessage=@"Синхронизация недоступна";self.statusReason=@"Ожидание NetBird";
  self.window=[[[CPWindow alloc]initWithContentRect:NSMakeRect(0,0,560,720) styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskResizable backing:NSBackingStoreBuffered defer:NO]autorelease];self.window.title=@"Clipare";self.window.releasedWhenClosed=NO;self.window.delegate=self;self.window.contentMinSize=NSMakeSize(500,480);[self.window center];
- self.scroll=[[[NSScrollView alloc]initWithFrame:self.window.contentView.bounds]autorelease];self.scroll.autoresizingMask=NSViewWidthSizable|NSViewHeightSizable;self.scroll.hasVerticalScroller=YES;self.scroll.drawsBackground=NO;self.window.contentView=self.scroll;
+ self.window.titlebarAppearsTransparent=YES;
+ if(@available(macOS 11.0,*))self.window.toolbarStyle=NSWindowToolbarStyleUnified;
+ NSView *background=CPWindowBackground(self.window.contentView.bounds);self.window.contentView=background;
+ self.scroll=[[[NSScrollView alloc]initWithFrame:background.bounds]autorelease];self.scroll.autoresizingMask=NSViewWidthSizable|NSViewHeightSizable;self.scroll.hasVerticalScroller=YES;self.scroll.drawsBackground=NO;[background addSubview:self.scroll];
  self.views[@0]=[self document:[self buildHome]];[self buildFlows];[self installEditMenu];
  self.tray=[[NSStatusBar systemStatusBar]statusItemWithLength:NSVariableStatusItemLength];[self refreshTray];
  self.scroll.documentView=self.views[@0];[self resizeDocument];
@@ -67,9 +68,11 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 }
 -(void)windowDidResize:(NSNotification *)n { [self resizeDocument]; }
 -(void)show:(NSInteger)view {
+ if(view==CPNotice&&self.view!=CPNotice)self.noticeOrigin=self.view;
  self.view=view;[self.window makeFirstResponder:nil];self.scroll.documentView=self.views[@(view)];[self resizeDocument];[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
 }
 -(void)back {
+ if(self.view==CPNotice){[self show:self.noticeOrigin];return;}
  if(self.view==CPPairing)[self.events addObject:@(self.pairIncoming?15:16)];
  if(self.view==CPDiscovery)[self.events addObject:@17];
  if(self.view==CPUpdate){if(self.dismiss.hidden)return;[self.events addObject:@21];}

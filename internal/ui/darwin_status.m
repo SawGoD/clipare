@@ -10,17 +10,21 @@ NSColor *CPStatusColor(NSInteger state) {return state==0?NSColor.systemGreenColo
 
 @interface CPTrayImage : NSView
 @property NSInteger state;
+@property(retain) NSImageView *mark;
 @end
 @implementation CPTrayImage
+-(instancetype)initWithFrame:(NSRect)frame {
+ if((self=[super initWithFrame:frame])){
+  self.mark=[[[NSImageView alloc]initWithFrame:NSMakeRect(2,3,17,17)]autorelease];self.mark.image=CPSymbol(@"clipboard",@"Clipare");self.mark.contentTintColor=NSColor.labelColor;[self addSubview:self.mark];
+ }return self;
+}
 -(void)drawRect:(NSRect)rect {
- if(@available(macOS 11.0,*)){
-  NSImage *mark=[NSImage imageWithSystemSymbolName:@"clipboard" accessibilityDescription:@"Clipare"];
-  [mark drawInRect:NSMakeRect(2,3,17,17)];
- }else{[NSColor.labelColor setStroke];NSBezierPath *mark=[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(4,3,13,17) xRadius:2 yRadius:2];mark.lineWidth=1.5;[mark stroke];}
+ if(!self.mark.image){[NSColor.labelColor setStroke];NSBezierPath *mark=[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(4,3,13,17) xRadius:2 yRadius:2];mark.lineWidth=1.5;[mark stroke];}
  [NSColor.windowBackgroundColor setFill];[[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(16,2,9,9)]fill];[CPStatusColor(self.state)setFill];[[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(17,3,7,7)]fill];
 }
 -(void)viewDidChangeEffectiveAppearance {[super viewDidChangeEffectiveAppearance];self.needsDisplay=YES;}
 -(NSView *)hitTest:(NSPoint)p {return nil;}
+-(void)dealloc {[_mark release];[super dealloc];}
 @end
 
 @implementation CPDesktop (Status)

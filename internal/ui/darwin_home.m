@@ -6,9 +6,10 @@
  self.status=CPLabel(self.statusMessage,14);self.reason=CPLabel(self.statusReason,12);self.reason.textColor=NSColor.secondaryLabelColor;
  self.statusDot=[[[CPStatusDot alloc]init]autorelease];[self.statusDot.widthAnchor constraintEqualToConstant:12].active=YES;[self.statusDot.heightAnchor constraintEqualToConstant:20].active=YES;
  self.pause=CPButton(@"Пауза",self,3);
- NSStackView *top=CPStack(@[CPLabel(@"Clipare",24),self.pause],YES);
+ NSView *space=[[[NSView alloc]init]autorelease];[space setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
+ NSStackView *top=CPStack(@[CPLabel(@"Clipare",24),space,self.pause],YES);[top.widthAnchor constraintGreaterThanOrEqualToConstant:440].active=YES;
  NSTextField *name=CPInput(self,0,NO);name.accessibilityLabel=@"Имя этого компьютера";
- NSView *computer=CPCard(CPStack(@[CPStack(@[self.statusDot,self.status],YES),self.reason,CPLabel(@"Этот компьютер",12),name,CPButton(@"Применить имя",self,1)],NO));
+ NSView *computer=CPCard(CPStack(@[CPStack(@[self.statusDot,self.status],YES),self.reason,CPLabel(@"Этот компьютер",12),CPStack(@[name,CPButton(@"Применить",self,1)],YES)],NO));
  self.peerList=[self table:NO];
  NSButton *large=[NSButton buttonWithTitle:@"" target:self action:@selector(action:)];large.tag=11;large.toolTip=@"Добавить устройство";large.accessibilityLabel=@"Добавить устройство";large.bezelStyle=NSBezelStyleCircular;large.translatesAutoresizingMaskIntoConstraints=NO;
  if(@available(macOS 11.0,*)){large.image=[[NSImage imageWithSystemSymbolName:@"plus" accessibilityDescription:@"Добавить устройство"]imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:32 weight:NSFontWeightRegular]];}
@@ -34,7 +35,7 @@
  return CPStack(@[CPLabel(@"Device ID",12),identity,CPLabel(@"NetBird IP / listen address",12),address,CPLabel(@"Порт",12),CPInput(self,3,NO),fingerprint,CPLabel(@"Legacy и ручное подключение",16),CPLabel(@"Legacy общий ключ",12),CPInput(self,4,YES),CPStack(@[CPButton(@"Создать legacy key",self,5),CPButton(@"Скопировать код",self,6)],YES),CPLabel(@"Имя peer",12),CPInput(self,6,NO),CPLabel(@"Device ID peer",12),CPInput(self,7,NO),CPLabel(@"NetBird IP / FQDN",12),CPInput(self,8,NO),CPLabel(@"Порт peer",12),CPInput(self,9,NO),CPButton(@"Добавить / изменить peer",self,8),CPLabel(@"Legacy connection code",12),CPInput(self,10,YES),CPButton(@"Добавить по коду",self,7),CPLabel(@"Код содержит ключ. Передавайте его приватно.",12),CPButton(@"Применить",self,1)],NO);
 }
 -(NSView *)table:(BOOL)discovery {
- NSScrollView *scroll=[[[NSScrollView alloc]init]autorelease];scroll.hasVerticalScroller=YES;scroll.drawsBackground=NO;scroll.borderType=NSNoBorder;scroll.translatesAutoresizingMaskIntoConstraints=NO;[scroll.heightAnchor constraintEqualToConstant:180].active=YES;
+ NSScrollView *scroll=[[[NSScrollView alloc]init]autorelease];scroll.hasVerticalScroller=YES;scroll.drawsBackground=NO;scroll.borderType=NSNoBorder;scroll.translatesAutoresizingMaskIntoConstraints=NO;NSLayoutConstraint *height=[scroll.heightAnchor constraintEqualToConstant:180];height.identifier=@"deviceListHeight";height.active=YES;
  NSTableView *table=[[[NSTableView alloc]initWithFrame:NSMakeRect(0,0,480,180)]autorelease];NSTableColumn *column=[[[NSTableColumn alloc]initWithIdentifier:@"device"]autorelease];column.width=480;column.editable=NO;column.resizingMask=NSTableColumnAutoresizingMask;[table addTableColumn:column];table.headerView=nil;table.rowHeight=52;table.dataSource=self;table.delegate=self;table.backgroundColor=NSColor.clearColor;table.autoresizingMask=NSViewWidthSizable;scroll.documentView=table;
  if(discovery)self.foundTable=table;else self.peerTable=table;return scroll;
 }
@@ -50,6 +51,7 @@
  if(n.object==self.peerTable){self.removePeer.hidden=!self.canRemove||self.peerTable.selectedRow<0;[self.events addObject:@10];}
 }
 -(void)refreshDevices {
+ for(NSLayoutConstraint *c in self.peerList.constraints)if([c.identifier isEqualToString:@"deviceListHeight"])c.constant=MIN(MAX(self.peers.count*52+4,56),240);
  self.emptyDevices.hidden=!self.devicesEmpty;self.peerList.hidden=!self.listVisible;self.compactAdd.hidden=!self.compactVisible;self.removePeer.hidden=!self.canRemove||self.peerTable.selectedRow<0;[self.peerTable reloadData];[self resizeDocument];
 }
 @end

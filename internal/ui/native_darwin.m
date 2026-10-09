@@ -55,11 +55,11 @@ void clipare_pair(const char *name,const char *sas,int mode) { @autoreleasepool 
  desktop.pairHelp.stringValue=mode==2?@"Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение.":mode==1?@"Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение.":@"Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…";
  desktop.approve.hidden=mode==0;desktop.approve.title=mode==2?@"Код совпадает":@"Разрешить";desktop.approve.tag=mode==2?18:14;desktop.reject.title=mode==1?@"Отклонить":@"Отменить";desktop.reject.tag=mode==1?15:16;[desktop show:CPPairing];
 } }
-void clipare_pair_close(void) { @autoreleasepool {[desktop clearPairNotification];if(desktop.view==CPPairing)[desktop show:CPHome];} }
+void clipare_pair_close(void) { @autoreleasepool {[desktop clearPairNotification];if(desktop.noticeOrigin==CPPairing)desktop.noticeOrigin=CPHome;if(desktop.view==CPPairing)[desktop show:CPHome];} }
 void clipare_update_settings(const char *version,int enabled) { @autoreleasepool {desktop.version.stringValue=[@"Версия: "stringByAppendingString:str(version)];desktop.updates.state=enabled?NSControlStateValueOn:NSControlStateValueOff;} }
 int clipare_update_enabled(void) {return desktop.updates.state==NSControlStateValueOn;}
 void clipare_update_prompt(const char *text,const char *primary,const char *dismiss,int action) { @autoreleasepool {
  desktop.updateText.stringValue=str(text);desktop.install.title=str(primary);desktop.install.tag=action;desktop.install.hidden=!str(primary).length;desktop.dismiss.title=str(dismiss);desktop.dismiss.hidden=!str(dismiss).length;
  desktop.install.keyEquivalent=str(primary).length?@"\r":@"";desktop.dismiss.keyEquivalent=!str(primary).length&&str(dismiss).length?@"\r":@"\033";[desktop show:CPUpdate];
 } }
-void clipare_update_close(void) { @autoreleasepool {if(desktop.view==CPUpdate)[desktop show:CPHome];} }
+void clipare_update_close(void) { @autoreleasepool {if(desktop.noticeOrigin==CPUpdate)desktop.noticeOrigin=CPHome;if(desktop.view==CPUpdate)[desktop show:CPHome];} }

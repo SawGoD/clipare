@@ -18,7 +18,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSView *emptyDevices,*peerList,*foundList,*emptyFound;
 @property(retain) NSTextField *status,*reason,*version,*discoveryStatus,*pairName,*sas,*pairHelp,*updateText,*noticeText;
 @property(retain) NSString *statusMessage,*statusReason;
-@property NSInteger view, syncState;
+@property NSInteger view, syncState, noticeOrigin;
 @property BOOL pairIncoming, additionalExpanded, advancedExpanded;
 @property BOOL devicesEmpty, canRemove, compactVisible, listVisible;
 @property BOOL closed;
@@ -53,6 +53,7 @@ NSTextField *CPLabel(NSString *text,CGFloat size);
 NSStackView *CPStack(NSArray *views,BOOL horizontal);
 void CPAdd(NSStackView *stack,NSView *view);
 NSView *CPCard(NSStackView *stack);
+NSView *CPWindowBackground(NSRect frame);
 NSButton *CPButton(NSString *title,CPDesktop *desktop,NSInteger tag);
 NSButton *CPIcon(NSString *symbol,NSString *label,CPDesktop *desktop,NSInteger tag);
 NSTextField *CPInput(CPDesktop *desktop,NSInteger index,BOOL secure);
