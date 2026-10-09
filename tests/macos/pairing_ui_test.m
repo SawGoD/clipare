@@ -39,7 +39,8 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_set(0,"MacBook — тест интерфейса");clipare_set(1,"synthetic-device");clipare_set(2,"100.64.0.1");clipare_set(3,"45873");clipare_set(5,"Public key SHA-256: synthetic fingerprint");clipare_show();
  assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer==nil);
  assert(desktop.advancedButton.imagePosition==NSImageOnly&&desktop.advancedButton.toolTip.length>0);
- [desktop.window.contentView layoutSubtreeIfNeeded];NSRect gear=[desktop.advancedButton convertRect:desktop.advancedButton.bounds toView:desktop.window.contentView];NSRect pause=[desktop.pause convertRect:desktop.pause.bounds toView:desktop.window.contentView];assert(NSMinX(gear)>NSMaxX(pause));
+ assert(desktop.advancedButton.superview==desktop.pause.superview);
+ NSStackView *header=(NSStackView *)desktop.pause.superview;assert([header.arrangedSubviews indexOfObject:desktop.advancedButton]==[header.arrangedSubviews indexOfObject:desktop.pause]+1);
  clipare_actions(0);for(NSButton *button in desktop.actionButtons)assert(!button.enabled);
  clipare_actions(1ULL<<7);for(NSButton *button in desktop.actionButtons)if(button.tag==7)assert(button.enabled);
  clipare_actions((1ULL<<7)|(1ULL<<25));
@@ -49,6 +50,11 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_apply_visibility(0);[desktop action:desktop.advancedButton];for(NSButton *button in desktop.actionButtons)if(button.tag==1)assert(button.hidden);[desktop action:desktop.advancedButton];
  clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
  capture(@"empty");
+ // macOS 15 settles NSStackView geometry on the first event-loop/display
+ // pass, not immediately after makeKeyAndOrderFront.
+ NSRect gear=[desktop.advancedButton convertRect:desktop.advancedButton.bounds toView:desktop.window.contentView];NSRect pause=[desktop.pause convertRect:desktop.pause.bounds toView:desktop.window.contentView];
+ if(NSMinX(gear)<=NSMaxX(pause))fprintf(stderr,"gear=%s pause=%s\n",NSStringFromRect(gear).UTF8String,NSStringFromRect(pause).UTF8String);
+ assert(NSMinX(gear)>NSMaxX(pause));
  assert(desktop.emptyDevices.frame.size.height<=120);
  assert(desktop.scroll.documentView.frame.size.height<=desktop.scroll.contentSize.height);
  assert(desktop.version.frame.size.height>0);
