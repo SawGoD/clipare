@@ -33,13 +33,26 @@ static void capture(NSString *name) {
 }
 int main(int argc,const char **argv) { @autoreleasepool {
  clipare_init();NSWindow *original=desktop.window;
- clipare_set(0,"MacBook — тест интерфейса");clipare_set(1,"synthetic-device");clipare_set(2,"100.64.0.1");clipare_set(3,"45873");clipare_set(5,"Public key SHA-256: synthetic fingerprint");clipare_peers("");clipare_show();
+ // Match production startup: an unchanged empty payload skips the cache refresh.
+ clipare_device_rows("[]",1,0,0,0);
+ assert(desktop.peerList.hidden);assert(desktop.compactAdd.hidden);assert(!desktop.emptyDevices.hidden);
+ clipare_set(0,"MacBook — тест интерфейса");clipare_set(1,"synthetic-device");clipare_set(2,"100.64.0.1");clipare_set(3,"45873");clipare_set(5,"Public key SHA-256: synthetic fingerprint");clipare_show();
  assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer==nil);
  clipare_actions(0);for(NSButton *button in desktop.actionButtons)assert(!button.enabled);
  clipare_actions(1ULL<<7);for(NSButton *button in desktop.actionButtons)if(button.tag==7)assert(button.enabled);
  clipare_actions((1ULL<<7)|(1ULL<<25));
  clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
  capture(@"empty");
+ assert(desktop.emptyDevices.frame.size.height<=120);
+ assert(desktop.scroll.documentView.frame.size.height<=desktop.scroll.contentSize.height);
+ assert(desktop.version.frame.size.height>0);
+ for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]){
+  desktop.window.appearance=[NSAppearance appearanceNamed:appearance];opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"empty-opaque-light":@"empty-opaque-dark");
+  assert([desktop.compactAdd isHiddenOrHasHiddenAncestor]);assert(![desktop.emptyAdd isHiddenOrHasHiddenAncestor]);
+  for(NSValue *size in @[[NSValue valueWithSize:NSMakeSize(560,800)],[NSValue valueWithSize:NSMakeSize(720,900)]]){[desktop.window setContentSize:size.sizeValue];[desktop resizeDocument];assert(desktop.emptyDevices.frame.size.height<=120);}
+  [desktop.window setContentSize:NSMakeSize(560,600)];[desktop resizeDocument];
+ }
+ desktop.window.appearance=nil;[NSWorkspace.sharedWorkspace.notificationCenter postNotificationName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
  [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
  [desktop action:desktop.advancedButton];assert(!desktop.advanced.hidden);assert(desktop.window==original);capture(@"advanced");[desktop action:desktop.advancedButton];assert(desktop.advanced.hidden);
  clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_sync_status(0,"Синхронизация включена","");
@@ -48,6 +61,8 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_device_rows(rows,0,1,1,1);NSMenu *unchangedMenu=desktop.tray.menu;NSMutableArray *unchangedPeers=desktop.peers;
  for(int i=0;i<100;i++){clipare_device_rows(rows,0,1,1,1);clipare_sync_status(0,"Синхронизация включена","");}
  assert(desktop.tray.menu==unchangedMenu);assert(desktop.peers==unchangedPeers);
+ clipare_device_rows("[]",1,0,0,0);assert(desktop.compactAdd.hidden&&desktop.peerList.hidden&&!desktop.emptyDevices.hidden);assert(desktop.emptyDevices.frame.size.height<=120);
+ clipare_device_rows(rows,0,1,1,1);assert(!desktop.compactAdd.hidden&&desktop.emptyDevices.hidden);
  for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]) {
   desktop.window.appearance=[NSAppearance appearanceNamed:appearance];[desktop.window.contentView setNeedsDisplay:YES];capture([appearance isEqualToString:NSAppearanceNameAqua]?@"home-light":@"home-dark");
   opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"opaque-light":@"opaque-dark");

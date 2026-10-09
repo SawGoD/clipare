@@ -19,8 +19,12 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  [large.widthAnchor constraintEqualToConstant:80].active=YES;[large.heightAnchor constraintEqualToConstant:80].active=YES;self.emptyAdd=large;
  NSStackView *empty=[NSStackView stackViewWithViews:@[large,CPLabel(@"Добавить устройство",14)]];empty.orientation=NSUserInterfaceLayoutOrientationVertical;empty.alignment=NSLayoutAttributeCenterX;empty.spacing=16;empty.translatesAutoresizingMaskIntoConstraints=NO;self.emptyDevices=empty;
  self.compactAdd=CPIcon(@"plus",@"Добавить устройство",self,11);
+ // Apply the empty state before the first cached render (which may be a no-op).
+ self.compactAdd.hidden=YES;self.peerList.hidden=YES;
  NSStackView *actions=CPStack(@[self.compactAdd],YES);
- NSView *devices=CPCard(CPStack(@[CPLabel(@"Устройства",18),self.emptyDevices,self.peerList,actions],NO));
+ NSStackView *deviceContent=CPStack(@[CPLabel(@"Устройства",18),self.emptyDevices,self.peerList,actions],NO);
+ [self.emptyDevices.heightAnchor constraintEqualToConstant:116].active=YES;
+ NSView *devices=CPCard(deviceContent);
  self.version=CPLabel(@"",12);self.version.textColor=NSColor.secondaryLabelColor;
  NSStackView *updates=CPStack(@[self.version,CPIcon(@"arrow.clockwise",@"Проверить обновления",self,19)],YES);updates.distribution=NSStackViewDistributionFill;[self.version setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
  self.autostart=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:self action:@selector(action:)];self.autostart.tag=23;
