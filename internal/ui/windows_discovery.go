@@ -41,7 +41,7 @@ func (n *nativeDesktop) layoutDiscovery() int {
 		height = 180
 	}
 	if count == 0 {
-		height = 88
+		height = 64
 	}
 	visible(n.foundList, count > 0)
 	visible(n.emptyDiscovery, count == 0)
@@ -49,6 +49,9 @@ func (n *nativeDesktop) layoutDiscovery() int {
 	c := n.controls[n.foundList]
 	c.bounds.h = height
 	n.controls[n.foundList] = c
+	c = n.controls[n.emptyDiscovery]
+	c.bounds.h = height
+	n.controls[n.emptyDiscovery] = c
 	for _, h := range n.discoveryControls {
 		c := n.controls[h]
 		if h == n.foundStatus {
@@ -56,8 +59,14 @@ func (n *nativeDesktop) layoutDiscovery() int {
 		}
 		if c.class == "BUTTON" && c.bounds.y != 224 {
 			c.bounds.y = 264 + height + 60
+			if count == 0 {
+				c.bounds.y = 264 + height + 16
+			}
 		}
 		n.controls[h] = c
+	}
+	if count == 0 {
+		return 120 + height - 228
 	}
 	return 164 + height - 228
 }
