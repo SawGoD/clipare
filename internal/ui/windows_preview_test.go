@@ -136,7 +136,7 @@ func TestWindowsFluentPreview(t *testing.T) {
 	}
 	captureWindow(t, n.home, filepath.Join(dir, "home-empty.png"))
 	n.Update("Синхронизация включена", true, peers, nil)
-	if call("IsWindowVisible", n.emptyAdd) != 0 || call("IsWindowVisible", n.removePeer) == 0 {
+	if call("IsWindowVisible", n.emptyAdd) != 0 || len(n.rowTrash) != len(peers) || call("IsWindowVisible", n.rowTrash[0]) == 0 {
 		t.Fatal("peer arrival did not restore list actions")
 	}
 	n.Discovered("Desktop-PC — 100.64.0.2\nLaptop — laptop.netbird.cloud", "Выберите устройство и нажмите «Подключить»")

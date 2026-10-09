@@ -185,7 +185,7 @@ func (n *nativeDesktop) Init() error {
 				n.confirmRowRemoval(id - 9000)
 				return 0
 			}
-			if (w>>16 == 0x300 && (id >= 100 && id <= 110 || id == 130)) || (id == 102 && w>>16 == 5) {
+			if (w>>16 == 0x300 && (id >= 100 && id <= 110 || id == 130)) || (id == 102 && (w>>16 == 5 || w>>16 == 1)) {
 				n.events = append(n.events, eventFormChanged)
 				return 0
 			}

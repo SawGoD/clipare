@@ -67,6 +67,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
  NSView *v=self.scroll.documentView;if(!v)return;
  for(NSLayoutConstraint *c in v.constraints)if([c.identifier isEqualToString:@"documentWidth"])c.constant=self.scroll.contentSize.width;
  CGFloat height=v.fittingSize.height;[v setFrameSize:NSMakeSize(self.scroll.contentSize.width,MAX(height,1))];[v layoutSubtreeIfNeeded];
+ for(NSScrollView *list in [NSArray arrayWithObjects:self.peerList,self.foundList,nil]){NSTableView *table=(NSTableView *)list.documentView;CGFloat width=MAX(list.contentSize.width,1);[table setFrameSize:NSMakeSize(width,table.frame.size.height)];table.tableColumns.firstObject.width=MAX(width-table.intercellSpacing.width,1);}
 }
 -(void)windowDidResize:(NSNotification *)n { [self resizeDocument]; }
 -(void)show:(NSInteger)view {

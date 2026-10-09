@@ -37,6 +37,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
  assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer==nil);
  clipare_actions(0);for(NSButton *button in desktop.actionButtons)assert(!button.enabled);
  clipare_actions(1ULL<<7);for(NSButton *button in desktop.actionButtons)if(button.tag==7)assert(button.enabled);
+ clipare_actions((1ULL<<7)|(1ULL<<25));
  clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
  capture(@"empty");
  [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
@@ -50,6 +51,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
  for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]) {
   desktop.window.appearance=[NSAppearance appearanceNamed:appearance];[desktop.window.contentView setNeedsDisplay:YES];capture([appearance isEqualToString:NSAppearanceNameAqua]?@"home-light":@"home-dark");
   opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"opaque-light":@"opaque-dark");
+  for(NSInteger row=0;row<2;row++){NSView *cell=[desktop.peerTable viewAtColumn:0 row:row makeIfNecessary:YES];NSUInteger buttons=0;for(NSView *view in cell.subviews)if([view isKindOfClass:NSButton.class]){buttons++;NSRect bounds=[view convertRect:view.bounds toView:desktop.peerTable];assert(NSMaxX(bounds)<=desktop.peerTable.visibleRect.size.width+1);}assert(buttons==1);}
   [NSWorkspace.sharedWorkspace.notificationCenter postNotificationName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
  }
  desktop.window.appearance=nil;
