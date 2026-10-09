@@ -48,6 +48,8 @@ const (
 	eventLaterUpdate
 	eventUpdatePreference
 	eventAutostartPreference
+	eventFormChanged
+	eventDeviceName
 )
 
 type updateDesktop interface {
@@ -649,6 +651,13 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			if action == eventNone {
 				continue
 			}
+			if action == eventFormChanged {
+				renderActions(d, d.Read())
+				continue
+			}
+			if (action == eventSave || action == eventImport || action == eventUpsert || action == eventCopy || action == eventDeviceName) && !actionReady(action, d.Read()) {
+				continue
+			}
 			if installing && action != eventSettings && action != eventLaterUpdate {
 				continue
 			}
@@ -666,6 +675,19 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				continue
 			}
 			switch action {
+			case eventDeviceName:
+				if outgoing || shownIncoming != "" {
+					d.Alert("Завершите подключение перед изменением имени")
+					continue
+				}
+				next := c
+				next.Device.Name = strings.TrimSpace(d.Read().Values[0])
+				if err := next.Validate(); err != nil {
+					d.Alert(err.Error())
+					continue
+				}
+				draft = next
+				apply(next, true)
 			case eventCheckUpdate:
 				checkUpdate(true)
 			case eventLaterUpdate:
@@ -929,15 +951,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			case eventRemove:
 				index := d.Selected()
 				if index >= 0 && index < len(draft.Peers) {
-					next, err := fromForm(d.Read(), draft)
-					if err != nil {
-						d.Alert(err.Error())
-						continue
-					}
-					next.Peers = append(append([]config.Peer(nil), draft.Peers[:index]...), draft.Peers[index+1:]...)
-					if !draft.Peers[index].Legacy {
-						next.Removed = append(append([]string(nil), next.Removed...), draft.Peers[index].ID)
-					}
+					next := removeDevice(c, draft.Peers[index].ID)
 					draft = next
 					d.Show(toForm(draft), draft.Peers, config.Addresses())
 					if hasPairUI {
@@ -956,6 +970,23 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			}
 		}
 	}
+}
+
+// Deleting a trusted peer is not a settings-form submission. Ignore incomplete
+// technical drafts and remove the peer's credential and membership atomically.
+func removeDevice(c config.Config, id string) config.Config {
+	next := c
+	next.Peers = make([]config.Peer, 0, len(c.Peers))
+	for _, peer := range c.Peers {
+		if peer.ID != id {
+			next.Peers = append(next.Peers, peer)
+			continue
+		}
+		if !peer.Legacy {
+			next.Removed = append(append([]string(nil), c.Removed...), id)
+		}
+	}
+	return next
 }
 
 func shouldRetry(now, due time.Time, busy, running, needsSetup bool) bool {
