@@ -16,3 +16,19 @@ func TestScrollBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestScrollBarVisibility(t *testing.T) {
+	for _, tc := range []struct {
+		w, h, cw, ch         int32
+		horizontal, vertical bool
+	}{
+		{500, 500, 400, 400, false, false}, {500, 500, 500, 500, false, false},
+		{500, 500, 400, 600, false, true}, {500, 500, 600, 400, true, false},
+		{500, 500, 490, 600, true, true}, {500, 500, 600, 490, true, true},
+	} {
+		h, v := scrollBars(tc.w, tc.h, tc.cw, tc.ch, 17, 17)
+		if h != tc.horizontal || v != tc.vertical {
+			t.Fatalf("%+v: got horizontal=%v vertical=%v", tc, h, v)
+		}
+	}
+}

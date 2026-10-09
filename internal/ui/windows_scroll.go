@@ -85,29 +85,34 @@ func (n *nativeDesktop) updateScroll(hwnd uintptr) {
 	}
 	n.layingOut = true
 	defer func() { n.layingOut = false }()
-	// A previous tall view can leave both bars visible. Measure the unscrolled
-	// client first, otherwise each old bar makes the other appear necessary.
-	call("ShowScrollBar", hwnd, 3, 0) // SB_BOTH
+	// Recover the full client size mathematically. Hiding/re-showing both bars
+	// on every resize used to produce intermediate layouts and flashing.
 	var client winRect
 	call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
 	content := n.scaledRect(hwnd, logicalRect{w: window.width, h: window.height})
 	dpi := call("GetDpiForWindow", hwnd)
-	vertical := content.Bottom > client.Bottom
-	width := client.Right
-	if vertical {
-		width -= int32(call("GetSystemMetricsForDpi", 2, dpi))
+	barW, barH := int32(call("GetSystemMetricsForDpi", 2, dpi)), int32(call("GetSystemMetricsForDpi", 3, dpi))
+	style := call("GetWindowLongPtrW", hwnd, ^uintptr(15))
+	width, height := client.Right, client.Bottom
+	if style&0x200000 != 0 {
+		width += barW
 	}
-	horizontal := content.Right > width
-	if horizontal && content.Bottom > client.Bottom-int32(call("GetSystemMetricsForDpi", 3, dpi)) {
-		vertical = true
+	if style&0x100000 != 0 {
+		height += barH
 	}
-	if vertical {
-		call("ShowScrollBar", hwnd, 1, 1)
-	}
-	call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
-	horizontal = content.Right > client.Right
-	if horizontal {
-		call("ShowScrollBar", hwnd, 0, 1)
+	horizontal, vertical := scrollBars(width, height, content.Right, content.Bottom, barW, barH)
+	for axis, need := range []bool{horizontal, vertical} {
+		mask := uintptr(0x100000)
+		if axis == 1 {
+			mask = 0x200000
+		}
+		if (style&mask != 0) != need {
+			show := uintptr(0)
+			if need {
+				show = 1
+			}
+			call("ShowScrollBar", hwnd, uintptr(axis), show)
+		}
 	}
 	call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
 	for axis := uintptr(0); axis < 2; axis++ {
@@ -137,6 +142,9 @@ func (n *nativeDesktop) scrollWindow(hwnd uintptr, axis uintptr, delta int32, ab
 		pos = delta
 	}
 	pos = clampScroll(pos, info.Max+1, int32(info.Page))
+	if pos == info.Pos {
+		return
+	}
 	window := n.windows[hwnd]
 	if axis == 0 {
 		window.scrollX = pos
@@ -156,6 +164,9 @@ func (n *nativeDesktop) scrollMessage(hwnd uintptr, msg uint32, w, l uintptr) bo
 	}
 	switch msg {
 	case 5:
+		if n.layingOut {
+			return true
+		}
 		if hwnd == n.main {
 			if h := n.activePanel(); h != 0 {
 				n.sizePanel(h)

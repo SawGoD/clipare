@@ -37,7 +37,7 @@ func (n *nativeDesktop) scaledRect(hwnd uintptr, r logicalRect) winRect {
 
 func (n *nativeDesktop) panel(class *uint16, title string, width, height int, cards ...logicalRect) uintptr {
 	if n.main != 0 {
-		h := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), 0x42000000,
+		h := call("CreateWindowExW", 0x02000000, uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(wide(title))), 0x42000000,
 			0, 0, n.px(width), n.px(height), n.main, 0, n.instance, 0)
 		n.windows[h] = winWindow{width: width, height: height, cards: cards}
 		return h
@@ -183,7 +183,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		} else {
 			n.drawText(d.DC, n.fontFor(c.parent, role), label, r, fg, 0x25|0x8000)
 		}
-		if d.State&0x10 != 0 {
+		if d.State&0x10 != 0 && n.keyboardFocusVisible() {
 			r.Left += px(4)
 			r.Top += px(4)
 			r.Right -= px(4)
@@ -241,7 +241,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		r.Left += px(12)
 	}
 	n.drawText(d.DC, n.fontFor(c.parent, 4), row.detail, r, muted, 0x8020)
-	if d.State&0x10 != 0 {
+	if d.State&0x10 != 0 && n.keyboardFocusVisible() {
 		r = d.Rect
 		r.Left += 2
 		r.Right -= 2
@@ -294,6 +294,11 @@ func (n *nativeDesktop) dpiChanged(hwnd uintptr, w, l uintptr) {
 
 func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 	window := n.windows[hwnd]
+	type move struct {
+		h uintptr
+		r winRect
+	}
+	var moves []move
 	for h, c := range n.controls {
 		if c.parent != hwnd {
 			continue
@@ -306,14 +311,33 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 		r.Right -= window.scrollX
 		r.Top -= window.scrollY
 		r.Bottom -= window.scrollY
-		call("SetWindowPos", h, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x14)
-		call("SendMessageW", h, 0x30, n.fontFor(hwnd, c.role), 1)
-		if c.class == "COMBOBOX" {
+		moves = append(moves, move{h, r})
+		font := n.fontFor(hwnd, c.role)
+		fontChanged := call("SendMessageW", h, 0x31, 0, 0) != font
+		if fontChanged {
+			call("SendMessageW", h, 0x30, font, 0)
+		}
+		if fontChanged && c.class == "COMBOBOX" {
 			call("SendMessageW", h, 0x153, ^uintptr(0), uintptr(n.scaledRect(hwnd, logicalRect{h: 26}).Bottom))
 			call("SendMessageW", h, 0x153, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 32}).Bottom))
 		}
-		if h == n.homeList || h == n.foundList {
+		if fontChanged && (h == n.homeList || h == n.foundList) {
 			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 60}).Bottom))
+		}
+	}
+	// Commit positions together, without intermediate erase/font redraws.
+	batch := call("BeginDeferWindowPos", uintptr(len(moves)))
+	for _, m := range moves {
+		if batch == 0 {
+			break
+		}
+		r := m.r
+		batch = call("DeferWindowPos", batch, m.h, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x1c)
+	}
+	if batch == 0 || call("EndDeferWindowPos", batch) == 0 {
+		for _, m := range moves {
+			r := m.r
+			call("SetWindowPos", m.h, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x1c)
 		}
 	}
 	if hwnd == n.home {

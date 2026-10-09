@@ -386,6 +386,12 @@ func (n *nativeDesktop) Poll() int {
 	var m message
 	// Yield back to the application loop even under continuous input/paint.
 	for processed := 0; processed < 64 && call("PeekMessageW", uintptr(unsafe.Pointer(&m)), 0, 0, 0, 1) != 0; processed++ {
+		if m.ID == 0x201 || m.ID == 0x204 {
+			n.focusCues(false)
+		}
+		if m.ID == 0x100 && (m.WParam == 9 || m.WParam == 13 || m.WParam == 32 || m.WParam >= 0x25 && m.WParam <= 0x28) {
+			n.focusCues(true)
+		}
 		root := call("GetAncestor", m.Window, 2)
 		if root == n.main || root == 0 {
 			root = n.activePanel()

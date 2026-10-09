@@ -91,7 +91,7 @@ func (n *nativeDesktop) paintCheckbox(h, dc uintptr) {
 	}
 	r.Left = px(30)
 	n.drawText(dc, n.fontFor(c.parent, 0), windowText(h), r, fg, 0x8024)
-	if call("GetFocus") == h {
+	if call("GetFocus") == h && n.keyboardFocusVisible() {
 		r.Left = 0
 		call("DrawFocusRect", dc, uintptr(unsafe.Pointer(&r)))
 	}
@@ -113,7 +113,7 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 		defer call("ReleaseDC", h, dc)
 	}
 	border := n.theme.border
-	if call("GetFocus") == h || call("IsChild", h, call("GetFocus")) != 0 {
+	if n.keyboardFocusVisible() && (call("GetFocus") == h || call("IsChild", h, call("GetFocus")) != 0) {
 		border = n.theme.accent
 	}
 	if combo {

@@ -128,6 +128,17 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("message burst starved tray action")
 	}
 	n.ApplyVisibility(applyMask(f, f, false))
+	call("SetFocus", n.homeName)
+	n.focusCues(false)
+	if n.keyboardFocusVisible() || call("GetFocus") != n.homeName {
+		t.Fatal("mouse focus must retain editing without keyboard outlines")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "focus-mouse.png"))
+	n.focusCues(true)
+	if !n.keyboardFocusVisible() {
+		t.Fatal("keyboard navigation lost visible focus")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "focus-keyboard.png"))
 	nameApply := call("GetDlgItem", n.home, eventDeviceName)
 	if call("IsWindowVisible", nameApply) != 0 {
 		t.Fatal("unchanged name shows apply")
@@ -270,6 +281,27 @@ func TestWindowsFluentPreview(t *testing.T) {
 		captureWindow(t, n.home, filepath.Join(dir, "home-"+v.name+".png"))
 	}
 	n.scrollWindow(n.home, 1, 10000, true)
+	if call("GetWindowLongPtrW", n.home, ^uintptr(19))&0x02000000 == 0 {
+		t.Fatal("content panel lacks native buffered descendant painting")
+	}
+	fontBefore := call("SendMessageW", n.homeName, 0x31, 0, 0)
+	fontAssignments := 0
+	observer := syscall.NewCallback(func(h uintptr, msg uint32, w, l, id, ref uintptr) uintptr {
+		if msg == 0x30 {
+			fontAssignments++
+		}
+		r, _, _ := comctl.NewProc("DefSubclassProc").Call(h, uintptr(msg), w, l)
+		return r
+	})
+	comctl.NewProc("SetWindowSubclass").Call(n.homeName, observer, 99, 0)
+	for i := 0; i < 10; i++ {
+		n.scrollWindow(n.home, 1, -32, false)
+		n.scrollWindow(n.home, 1, 32, false)
+	}
+	comctl.NewProc("RemoveWindowSubclass").Call(n.homeName, observer, 99)
+	if fontAssignments != 0 || call("SendMessageW", n.homeName, 0x31, 0, 0) != fontBefore || windowText(n.homeName) != "Desktop-PC" {
+		t.Fatal("scrolling reset font or input value")
+	}
 	captureWindow(t, n.home, filepath.Join(dir, "home-scrolled.png"))
 	n.scrollWindow(n.home, 1, 0, true)
 	n.setTheme(variants[0].theme)
@@ -310,10 +342,18 @@ func TestWindowsFluentPreview(t *testing.T) {
 	}
 	captureWindow(t, n.found, filepath.Join(dir, "discovery.png"))
 	n.Discovered("", "Автоматическое обнаружение недоступно")
+	if call("IsWindowVisible", n.foundStatus) != 0 || windowText(n.emptyDiscovery) != "Автоматическое обнаружение недоступно" {
+		t.Fatal("empty discovery duplicates status or displays wrong error")
+	}
 	if call("IsWindowEnabled", call("GetDlgItem", n.found, 13)) != 0 {
 		t.Fatal("connect enabled without devices")
 	}
 	captureWindow(t, n.found, filepath.Join(dir, "discovery-empty.png"))
+	n.Discovered("", discoveryEmptyMessage)
+	if call("IsWindowVisible", n.foundStatus) != 0 || windowText(n.emptyDiscovery) != discoveryEmptyMessage {
+		t.Fatal("empty discovery message is duplicated")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "discovery-empty-message.png"))
 	n.back(false)
 	if n.navigation.View != ViewHome || call("IsWindowVisible", n.homeList) == 0 || call("IsWindowVisible", n.foundStatus) != 0 {
 		t.Fatal("back did not restore the peer card")
