@@ -143,7 +143,7 @@ func AddConnection(c Config, code string) (Config, error) {
 		return c, errors.New("Общий ключ отличается: используйте код из существующей группы устройств")
 	}
 	if v.Peer.ID == c.Device.ID {
-		return c, errors.New("Это код этого компьютера")
+		return c, errors.New("Это код текущего устройства. Используйте код другого устройства")
 	}
 	c.Security.Secret = v.Secret
 	found := false
