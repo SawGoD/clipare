@@ -13,10 +13,28 @@ const (
 type Navigation struct {
 	View                                 ViewState
 	AdditionalExpanded, AdvancedExpanded bool
+	noticeOrigin                         ViewState
 }
 
-func (n *Navigation) Open(v ViewState) { n.View = v }
-func (n *Navigation) Home()            { n.View = ViewHome }
+func (n *Navigation) Open(v ViewState) {
+	if v == ViewNotice && n.View != ViewNotice {
+		n.noticeOrigin = n.View
+	}
+	n.View = v
+}
+func (n *Navigation) DismissNotice() ViewState {
+	n.View = n.noticeOrigin
+	return n.View
+}
+func (n *Navigation) End(v ViewState) {
+	if n.noticeOrigin == v {
+		n.noticeOrigin = ViewHome
+	}
+	if n.View == v {
+		n.Home()
+	}
+}
+func (n *Navigation) Home() { n.View = ViewHome }
 
 type SyncState int
 

@@ -42,3 +42,19 @@ func TestNavigation(t *testing.T) {
 		t.Fatal("navigation lost disclosure state")
 	}
 }
+
+func TestInlineNoticeReturnsToActiveWorkflow(t *testing.T) {
+	for _, view := range []ViewState{ViewHome, ViewDiscovery, ViewPairing, ViewUpdate} {
+		n := Navigation{View: view}
+		n.Open(ViewNotice)
+		n.Open(ViewNotice)
+		if n.DismissNotice() != view {
+			t.Fatal("notice lost the active workflow")
+		}
+		n.Open(ViewNotice)
+		n.End(view)
+		if n.DismissNotice() != ViewHome {
+			t.Fatal("notice returned to a completed workflow")
+		}
+	}
+}

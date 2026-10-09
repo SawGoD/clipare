@@ -567,6 +567,9 @@ func (n *nativeDesktop) Pair(name, sas string, mode int) {
 	n.navigate(ViewPairing)
 }
 func (n *nativeDesktop) PairClose() {
+	if n.navigation.View == ViewNotice {
+		n.navigation.End(ViewPairing)
+	}
 	if n.navigation.View == ViewPairing {
 		n.navigate(ViewHome)
 	}
@@ -600,6 +603,9 @@ func (n *nativeDesktop) UpdatePrompt(v updatePrompt) {
 	n.navigate(ViewUpdate)
 }
 func (n *nativeDesktop) UpdateClose() {
+	if n.navigation.View == ViewNotice {
+		n.navigation.End(ViewUpdate)
+	}
 	if n.navigation.View == ViewUpdate {
 		n.navigate(ViewHome)
 	}

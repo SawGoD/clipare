@@ -229,11 +229,18 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	var updateWG sync.WaitGroup
 	checking, installing := false, false
 	var available *update.Release
+	deferredUpdateOffer := false
 	cache, cacheErr := update.CacheDir()
 	checker := update.Checker{Current: clipare.Version(), StatePath: filepath.Join(cache, "state.json")}
 	defer func() { cancel(); updateWG.Wait() }()
 	checkUpdate := func(manual bool) {
 		if !hasUpdateUI || checking || installing || cacheErr != nil {
+			return
+		}
+		if outgoing || shownIncoming != "" {
+			if manual {
+				d.Alert("Завершите подключение устройства перед проверкой обновлений")
+			}
 			return
 		}
 		checking = true
@@ -492,7 +499,11 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			}
 			available = ur.release
 			log.Info("update available", "version", available.Version)
-			ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))
+			if outgoing || shownIncoming != "" {
+				deferredUpdateOffer = true
+			} else {
+				ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))
+			}
 		case update := <-memberUpdates:
 			if reflect.DeepEqual(update, c) {
 				continue
@@ -579,6 +590,10 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		case st := <-statusUpdates:
 			states[st.id] = st.online
 		case <-refresh.C:
+			if deferredUpdateOffer && !outgoing && shownIncoming == "" && available != nil {
+				deferredUpdateOffer = false
+				ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))
+			}
 			if hasUpdateUI && !time.Now().Before(nextUpdatePoll) {
 				nextUpdatePoll = time.Now().Add(time.Minute)
 				checkUpdate(false)

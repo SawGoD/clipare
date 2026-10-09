@@ -40,6 +40,12 @@ func (n *nativeDesktop) navigate(v ViewState) {
 
 func (n *nativeDesktop) back(closeWindow bool) {
 	switch n.navigation.View {
+	case ViewNotice:
+		n.navigate(n.navigation.DismissNotice())
+		if closeWindow {
+			visible(n.main, false)
+		}
+		return
 	case ViewPairing:
 		if n.pairIncoming {
 			n.events = append(n.events, eventReject)
