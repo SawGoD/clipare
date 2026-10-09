@@ -66,6 +66,37 @@ func (d *testDesktop) Update(status string, enabled bool, _ []config.Peer, _ map
 func (d *testDesktop) Alert(s string) { d.alerts = append(d.alerts, s) }
 func (*testDesktop) Close()           {}
 
+type preparedTestDesktop struct {
+	testDesktop
+	prepared bool
+}
+
+func (d *preparedTestDesktop) Prepare(f form, _ []config.Peer, _ []string) {
+	d.f, d.prepared = f, true
+}
+
+func TestTrayStartupPreparesPersistedFieldsBeforeReady(t *testing.T) {
+	c, _ := config.Default()
+	c.Sync.Enabled = false
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := config.Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	d := &preparedTestDesktop{testDesktop: testDesktop{path: path, actions: make(chan int, 1)}}
+	d.actions <- eventQuit
+	ready := func() error {
+		if !d.prepared || d.Read().Values != toForm(c).Values {
+			t.Fatal("startup did not prepare saved fields")
+		}
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := runDesktopReady(ctx, path, slog.New(slog.NewTextHandler(io.Discard, nil)), d, testClipboard{}, nil, loopTiming{time.Millisecond, time.Millisecond, time.Millisecond}, ready, false); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGUIRecoversAndPersistsWithoutNetBird(t *testing.T) {
 	listener, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
