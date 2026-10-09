@@ -36,9 +36,9 @@ func (n *Navigation) End(v ViewState) {
 }
 func (n *Navigation) Home() { n.View = ViewHome }
 
-// Discovery is an inline state of the home device card, not a full-page view.
+// Device workflows stay inside the home device card.
 func (n Navigation) Container() ViewState {
-	if n.View == ViewDiscovery {
+	if n.View == ViewDiscovery || n.View == ViewPairing {
 		return ViewHome
 	}
 	return n.View

@@ -74,8 +74,8 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 -(void)show:(NSInteger)view {
  if(view==CPNotice&&self.view!=CPNotice)self.noticeOrigin=self.view;
  BOOL changed=self.view!=view;self.view=view;
- self.deviceHome.hidden=view==CPDiscovery;self.deviceDiscovery.hidden=view!=CPDiscovery;
- NSView *document=self.views[@(view==CPDiscovery?CPHome:view)];
+ self.deviceHome.hidden=view==CPDiscovery||view==CPPairing;self.deviceDiscovery.hidden=view!=CPDiscovery;self.devicePair.hidden=view!=CPPairing;
+ NSView *document=self.views[@((view==CPDiscovery||view==CPPairing)?CPHome:view)];
  if(self.scroll.documentView!=document){[self.window makeFirstResponder:nil];self.scroll.documentView=document;[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];}
  if(changed)[self.window makeFirstResponder:nil];[self resizeDocument];[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
 }
@@ -104,7 +104,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 }
 -(void)dealloc {
  [_actionButtons release];
- [_deviceHome release];[_deviceDiscovery release];
+ [_deviceHome release];[_deviceDiscovery release];[_devicePair release];
  [_statusDot release];
  self.window.delegate=nil;[_window release];[_scroll release];[_views release];[_fields release];[_events release];[_peers release];[_found release];[_tray release];
  [_autostart release];[_updates release];[_additionalButton release];[_advancedButton release];[_pause release];[_emptyAdd release];[_compactAdd release];[_removePeer release];[_connect release];[_approve release];[_reject release];[_install release];[_dismiss release];[_additional release];[_advanced release];[_peerTable release];[_foundTable release];[_emptyDevices release];[_peerList release];[_foundList release];[_emptyFound release];[_status release];[_reason release];[_version release];[_discoveryStatus release];[_pairName release];[_sas release];[_pairHelp release];[_updateText release];[_noticeText release];[_statusMessage release];[_statusReason release];[super dealloc];

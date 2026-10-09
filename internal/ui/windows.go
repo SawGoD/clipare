@@ -72,6 +72,8 @@ type nativeDesktop struct {
 	footerCheck                                                                        uintptr
 	devicesHeader                                                                      uintptr
 	discoveryControls                                                                  []uintptr
+	pairControls                                                                       []uintptr
+	pairMode                                                                           int
 	pauseButton, emptyDevices, emptyDiscovery                                          uintptr
 	layingOut                                                                          bool
 	lastFocus                                                                          uintptr
@@ -90,6 +92,7 @@ type nativeDesktop struct {
 	statusIcons                                                                        [3]uintptr
 	actionButtons                                                                      map[uintptr]int
 	applyVisible                                                                       uint64
+	helpTexts                                                                          map[int]string
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -187,6 +190,10 @@ func (n *nativeDesktop) Init() error {
 			return 0
 		case 0x111:
 			id := int(w & 0xffff)
+			if help, ok := n.helpTexts[id]; ok {
+				n.Alert(help)
+				return 0
+			}
 			if id >= 9000 && id < 9000+len(n.rowTrash) {
 				n.confirmRowRemoval(id - 9000)
 				return 0
@@ -304,17 +311,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.updateInstall = n.control("BUTTON", "Обновить", 0x10000, 332, 264, 164, 36, 20)
 	n.updateDismiss = n.control("BUTTON", "Понятно", 0x10000, 24, 264, 164, 36, 21)
 	n.installDiscovery()
-	n.pair = n.panel(class, "Подключение устройства", 520, 380, logicalRect{24, 112, 472, 96})
-	n.window = n.pair
-	n.heading("Подключение устройства", 24, 16, 408, 1)
-	n.iconButton("Вернуться к устройствам", "\ue72b", 448, 16, 48, 31)
-	n.pairName = n.control("STATIC", "", 0x4000, 24, 60, 472, 28, 0)
-	n.heading("Код проверки", 40, 122, 440, 2)
-	n.pairCode = n.control("STATIC", "", 1, 40, 156, 440, 48, 0)
-	n.setRole(n.pairCode, 3)
-	n.pairHelp = n.control("STATIC", "", 0, 24, 232, 472, 80, 0)
-	n.pairAllow = n.control("BUTTON", "Разрешить", 0x10000, 316, 328, 180, 36, 14)
-	n.pairReject = n.control("BUTTON", "Отклонить", 0x10000, 24, 328, 164, 36, 15)
+	n.installPairing()
 	n.notice = n.panel(class, "Clipare", 568, 360)
 	n.window = n.notice
 	n.heading("Clipare", 24, 16, 440, 1)
@@ -402,16 +399,18 @@ func (n *nativeDesktop) Poll() int {
 				if root == n.home && (call("GetFocus") == n.homeName || !n.navigation.AdvancedExpanded) {
 					button = call("GetDlgItem", root, eventDeviceName)
 				}
-				switch root {
-				case n.updateWindow:
+				switch n.navigation.View {
+				case ViewUpdate:
 					button = n.updateInstall
 					if call("IsWindowVisible", button) == 0 {
 						button = n.updateDismiss
 					}
-				case n.pair:
-					button = n.pairAllow
-				case n.found:
-					if n.navigation.View == ViewDiscovery && call("GetFocus") != n.homeName {
+				case ViewPairing:
+					if call("GetFocus") != n.homeName {
+						button = n.pairAllow
+					}
+				case ViewDiscovery:
+					if call("GetFocus") != n.homeName {
 						button = call("GetDlgItem", root, 13)
 					}
 				}
@@ -580,6 +579,7 @@ func (n *nativeDesktop) Pair(name, sas string, mode int) {
 		n.notifyPair(name)
 	}
 	n.pairIncoming = incoming
+	n.pairMode = mode
 	call("SetWindowTextW", n.pairName, uintptr(unsafe.Pointer(wide(name))))
 	call("SetWindowTextW", n.pairCode, uintptr(unsafe.Pointer(wide(sas))))
 	text := "Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…"

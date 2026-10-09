@@ -39,7 +39,7 @@ func (n *nativeDesktop) positionRowTrash() {
 	var client winRect
 	call("GetClientRect", n.homeList, uintptr(unsafe.Pointer(&client)))
 	for i, h := range n.rowTrash {
-		if n.navigation.View == ViewDiscovery {
+		if n.navigation.View == ViewDiscovery || n.navigation.View == ViewPairing {
 			visible(h, false)
 			continue
 		}

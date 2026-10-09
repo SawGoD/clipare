@@ -88,9 +88,16 @@ int main(int argc,const char **argv) { @autoreleasepool {
  [desktop.events removeAllObjects];[desktop action:desktop.advancedButton];assert(desktop.view==CPHome&&desktop.advancedExpanded&&[desktop.events containsObject:@17]);[desktop action:desktop.advancedButton];
  clipare_discovered("","Автоматическое обнаружение недоступно");assert(desktop.foundList.hidden);assert(!desktop.connect.enabled);capture(@"discovery-empty");
  clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(desktop.view==CPPairing);assert(desktop.reject.tag==15);assert(!desktop.approve.hidden);assert([desktop.sas.stringValue isEqualToString:@"482 731"]);capture(@"pairing");
+ assert(desktop.scroll.documentView==desktop.views[@0]);assert(!desktop.devicePair.hidden&&desktop.deviceHome.hidden&&desktop.deviceDiscovery.hidden);assert(![desktop.status isHiddenOrHasHiddenAncestor]);assert(![desktop.fields[0] isHiddenOrHasHiddenAncestor]);
+ clipare_device_rows(rows,0,1,1,1);assert(desktop.deviceHome.hidden&&!desktop.devicePair.hidden);
+ for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]){desktop.window.appearance=[NSAppearance appearanceNamed:appearance];opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"pairing-inline-light":@"pairing-inline-dark");}desktop.window.appearance=nil;
  clipare_alert("Сначала завершите подключение");assert(desktop.view==CPPairing);assert(desktop.window.attachedSheet);[desktop.window endSheet:desktop.window.attachedSheet];for(int i=0;i<10;i++)clipare_poll();assert(desktop.pairIncoming);
  clipare_pair_close();assert(desktop.view==CPHome);assert(desktop.window==original);
  clipare_pair("Laptop","482 731",2);assert(desktop.approve.tag==18);clipare_pair_close();
+ for(NSNumber *mode in @[@0,@1,@2]){clipare_pair("Laptop","482 731",mode.intValue);[desktop.events removeAllObjects];[desktop back];assert(desktop.view==CPHome);assert([desktop.events containsObject:mode.intValue==1?@15:@16]);}
+ [desktop action:desktop.advancedButton];NSButton *help=nil;NSMutableArray *pending=[NSMutableArray arrayWithObject:desktop.advanced];NSUInteger helpCount=0;
+ while(pending.count){NSView *view=[pending.lastObject retain];[pending removeLastObject];if([view isKindOfClass:NSButton.class]&&[(NSButton *)view tag]==40){helpCount++;help=(NSButton *)view;assert(help.toolTip.length&&help.accessibilityLabel.length);} [pending addObjectsFromArray:view.subviews];[view release];}
+ assert(helpCount==4);[desktop showHelp:help];assert(desktop.window.attachedSheet&&desktop.view==CPHome);[desktop.window endSheet:desktop.window.attachedSheet];for(int i=0;i<10;i++)clipare_poll();[desktop action:desktop.advancedButton];
  clipare_update_prompt("Установлена последняя версия Clipare\n\nТекущая версия: 0.6.0","","Понятно",0);assert(desktop.view==CPUpdate);assert(desktop.install.hidden);assert(!desktop.dismiss.hidden);capture(@"update-latest");
  clipare_update_prompt("Доступна новая версия","Обновить","Позже",20);assert(desktop.install.tag==20);capture(@"update-available");
  clipare_update_prompt("Загрузка обновления…","","",0);assert(desktop.install.hidden&&desktop.dismiss.hidden);[desktop back];assert(desktop.view==CPUpdate);capture(@"update-download");

@@ -17,7 +17,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSStackView *additional,*advanced;
 @property(retain) NSTableView *peerTable,*foundTable;
 @property(retain) NSView *emptyDevices,*peerList,*foundList,*emptyFound;
-@property(retain) NSView *deviceHome,*deviceDiscovery;
+@property(retain) NSView *deviceHome,*deviceDiscovery,*devicePair;
 @property(retain) NSTextField *status,*reason,*version,*discoveryStatus,*pairName,*sas,*pairHelp,*updateText,*noticeText;
 @property(retain) NSString *statusMessage,*statusReason;
 @property NSInteger view, syncState, noticeOrigin;
@@ -36,12 +36,14 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 
 @interface CPDesktop (Home) <NSTableViewDataSource,NSTableViewDelegate,NSTextFieldDelegate,NSComboBoxDelegate>
 -(void)refreshDevices;
+-(void)showHelp:(NSButton *)sender;
 -(NSStackView *)buildHome;
 -(NSStackView *)buildAdvanced;
 -(NSView *)table:(BOOL)discovery;
 @end
 @interface CPDesktop (Flows)
 -(NSStackView *)buildDiscovery;
+-(NSStackView *)buildPair;
 -(void)buildFlows;
 @end
 @interface CPDesktop (Status)

@@ -73,8 +73,8 @@ func TestDiscoverySharesHomeContainer(t *testing.T) {
 		t.Fatal("inline discovery lost settings")
 	}
 	n.Open(ViewPairing)
-	if n.Container() != ViewPairing {
-		t.Fatal("pairing routing changed")
+	if n.Container() != ViewHome || n.View != ViewPairing {
+		t.Fatal("pairing replaced home")
 	}
 }
 

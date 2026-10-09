@@ -2,6 +2,11 @@
 #import "darwin_desktop.h"
 
 static NSView *CPField(NSString *title, NSView *field) { return CPStack(@[CPLabel(title,12),field],NO); }
+static NSView *CPHelpField(NSString *title, NSView *field, NSString *help, CPDesktop *desktop) {
+ NSButton *button=CPIcon(@"questionmark.circle",[title stringByAppendingString:@": помощь"],desktop,40);button.action=@selector(showHelp:);button.toolTip=help;
+ for(NSLayoutConstraint *constraint in button.constraints)if(constraint.firstAttribute==NSLayoutAttributeWidth||constraint.firstAttribute==NSLayoutAttributeHeight)constraint.constant=20;
+ return CPStack(@[CPStack(@[CPLabel(title,12),button],YES),field],NO);
+}
 static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack(@[left,right],YES);row.distribution=NSStackViewDistributionFillEqually;return row; }
 
 @implementation CPDesktop (Home)
@@ -25,7 +30,8 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  NSStackView *deviceContent=CPStack(@[CPLabel(@"Устройства",18),self.emptyDevices,self.peerList,actions],NO);
  [self.emptyDevices.heightAnchor constraintEqualToConstant:116].active=YES;
  self.deviceHome=deviceContent;self.deviceDiscovery=[self buildDiscovery];self.deviceDiscovery.hidden=YES;
- NSView *devices=CPCard(CPStack(@[self.deviceHome,self.deviceDiscovery],NO));
+ self.devicePair=[self buildPair];self.devicePair.hidden=YES;
+ NSView *devices=CPCard(CPStack(@[self.deviceHome,self.deviceDiscovery,self.devicePair],NO));
  self.version=CPLabel(@"",12);self.version.textColor=NSColor.secondaryLabelColor;
  NSStackView *updates=CPStack(@[self.version,CPIcon(@"arrow.clockwise",@"Проверить обновления",self,19)],YES);updates.distribution=NSStackViewDistributionFill;[self.version setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
  self.autostart=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:self action:@selector(action:)];self.autostart.tag=23;
@@ -40,7 +46,10 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  NSTextField *identity=CPInput(self,1,NO);identity.editable=NO;
  NSComboBox *address=[[[NSComboBox alloc]init]autorelease];address.font=[NSFont systemFontOfSize:14];address.delegate=self;self.fields[2]=address;address.accessibilityLabel=@"NetBird IP / listen address";
  NSTextField *fingerprint=CPLabel(@"",12);fingerprint.textColor=NSColor.secondaryLabelColor;self.fields[5]=fingerprint;
- return CPStack(@[CPField(@"Device ID",identity),CPColumns(CPField(@"NetBird IP",address),CPField(@"Порт",CPInput(self,3,NO))),fingerprint,CPLabel(@"Legacy и ручное подключение",16),CPField(@"Legacy общий ключ",CPInput(self,4,YES)),CPStack(@[CPButton(@"Создать legacy key",self,5),CPButton(@"Скопировать код",self,6)],YES),CPColumns(CPField(@"Имя устройства",CPInput(self,6,NO)),CPField(@"Device ID",CPInput(self,7,NO))),CPColumns(CPField(@"NetBird IP / FQDN",CPInput(self,8,NO)),CPField(@"Порт",CPInput(self,9,NO))),CPButton(@"Добавить / изменить peer",self,8),CPField(@"Legacy connection code",CPInput(self,10,YES)),CPStack(@[CPButton(@"Добавить по коду",self,7),CPButton(@"Применить",self,1)],YES),CPLabel(@"Код содержит ключ. Передавайте его приватно.",12)],NO);
+ return CPStack(@[CPHelpField(@"Device ID",identity,@"Постоянный ID этого компьютера. Создан автоматически; менять его не нужно.",self),CPColumns(CPHelpField(@"NetBird IP",address,@"Локальный NetBird IP, на котором Clipare принимает соединения. Не используйте публичный IP или 0.0.0.0.",self),CPField(@"Порт",CPInput(self,3,NO))),fingerprint,CPHelpField(@"Legacy общий ключ",CPInput(self,4,YES),@"Только для старого подключения по коду. Автоматический pairing использует отдельные ключи. Новый legacy key может нарушить старые соединения.",self),CPStack(@[CPButton(@"Создать legacy key",self,5),CPButton(@"Скопировать код",self,6)],YES),CPColumns(CPField(@"Имя другого компьютера",CPInput(self,6,NO)),CPField(@"ID другого компьютера",CPInput(self,7,NO))),CPColumns(CPField(@"NetBird IP / FQDN",CPInput(self,8,NO)),CPField(@"Порт",CPInput(self,9,NO))),CPButton(@"Добавить / изменить peer",self,8),CPHelpField(@"Код подключения",CPInput(self,10,YES),@"Вставьте полный clipare1:… с другого компьютера. Код содержит legacy ключ: передавайте его приватно. Обычно удобнее подключить устройство через поиск.",self),CPStack(@[CPButton(@"Добавить по коду",self,7),CPButton(@"Применить",self,1)],YES)],NO);
+}
+-(void)showHelp:(NSButton *)sender {
+ if(self.window.attachedSheet)return;NSAlert *alert=[[[NSAlert alloc]init]autorelease];alert.messageText=@"Clipare";alert.informativeText=sender.toolTip;[alert addButtonWithTitle:@"Понятно"];[alert beginSheetModalForWindow:self.window completionHandler:nil];
 }
 -(void)controlTextDidChange:(NSNotification *)notification { [self.events addObject:@24]; }
 -(void)comboBoxSelectionDidChange:(NSNotification *)notification { [self.events addObject:@24]; }

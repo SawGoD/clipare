@@ -202,6 +202,13 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("single discovery row left a large blank list")
 	}
 	n.Pair("MacBook хочет подключиться к Clipare", "482 731", 1)
+	if n.activePanel() != n.home || call("IsWindowVisible", n.homeName) == 0 || call("IsWindowVisible", n.homeList) != 0 || call("IsWindowVisible", n.foundList) != 0 {
+		t.Fatal("pairing replaced home or overlaps device list")
+	}
+	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
+	if call("IsWindowVisible", n.homeList) != 0 {
+		t.Fatal("peer refresh overlaps pairing")
+	}
 	if n.navigation.View != ViewPairing {
 		t.Fatal("pairing did not navigate inline")
 	}
@@ -218,6 +225,24 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("outgoing approval exposed")
 	}
 	n.PairClose()
+	if n.activePanel() != n.home || call("IsWindowVisible", n.pairCode) != 0 {
+		t.Fatal("completed pairing did not restore home")
+	}
+	for _, mode := range []int{0, 1, 2} {
+		n.Pair("MacBook", "482 731", mode)
+		n.events = nil
+		n.back(false)
+		want := eventCancelPair
+		if mode == 1 {
+			want = eventReject
+		}
+		if len(n.events) != 1 || n.events[0] != want || n.navigation.View != ViewHome {
+			t.Fatal("inline back lost pairing cancellation")
+		}
+	}
+	if len(n.helpTexts) != 4 {
+		t.Fatal("advanced help missing")
+	}
 	states := []struct {
 		name string
 		p    updatePrompt

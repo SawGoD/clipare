@@ -6,8 +6,6 @@ import "unsafe"
 
 func (n *nativeDesktop) activePanel() uintptr {
 	switch n.navigation.Container() {
-	case ViewPairing:
-		return n.pair
 	case ViewUpdate:
 		return n.updateWindow
 	case ViewNotice:
@@ -26,7 +24,7 @@ func (n *nativeDesktop) sizePanel(h uintptr) {
 func (n *nativeDesktop) navigate(v ViewState) {
 	previous := n.navigation.View
 	n.navigation.Open(v)
-	for _, h := range []uintptr{n.home, n.pair, n.updateWindow, n.notice} {
+	for _, h := range []uintptr{n.home, n.updateWindow, n.notice} {
 		visible(h, h == n.activePanel())
 	}
 	if n.activePanel() == n.home {
