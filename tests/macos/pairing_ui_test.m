@@ -50,9 +50,9 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_apply_visibility(0);[desktop action:desktop.advancedButton];for(NSButton *button in desktop.actionButtons)if(button.tag==1)assert(button.hidden);[desktop action:desktop.advancedButton];
  clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
  capture(@"empty");
- // macOS 15 settles NSStackView geometry on the first event-loop/display
- // pass, not immediately after makeKeyAndOrderFront.
- NSRect gear=[desktop.advancedButton convertRect:desktop.advancedButton.bounds toView:desktop.window.contentView];NSRect pause=[desktop.pause convertRect:desktop.pause.bounds toView:desktop.window.contentView];
+ // AppKit layout uses alignment rectangles; older button frames include
+ // drawing outsets which can overlap without overlapping their bezels.
+ NSRect gear=[desktop.advancedButton.superview convertRect:[desktop.advancedButton alignmentRectForFrame:desktop.advancedButton.frame] toView:desktop.window.contentView];NSRect pause=[desktop.pause.superview convertRect:[desktop.pause alignmentRectForFrame:desktop.pause.frame] toView:desktop.window.contentView];
  if(NSMinX(gear)<=NSMaxX(pause))fprintf(stderr,"gear=%s pause=%s\n",NSStringFromRect(gear).UTF8String,NSStringFromRect(pause).UTF8String);
  assert(NSMinX(gear)>NSMaxX(pause));
  assert(desktop.emptyDevices.frame.size.height<=120);
