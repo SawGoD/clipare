@@ -25,6 +25,9 @@ static void CPInAppearance(NSView *view,void (^draw)(void)) {
 @property(retain) NSView *effect;
 @property(retain) NSArray *bodyConstraints;
 @property BOOL forceFallback;
+@property BOOL materialInitialized;
+@property BOOL materialOpaque;
+@property BOOL materialFallback;
 -(void)refreshMaterial;
 -(void)applyReducedTransparency:(BOOL)opaque;
 @end
@@ -41,6 +44,8 @@ static void CPInAppearance(NSView *view,void (^draw)(void)) {
  [self applyReducedTransparency:NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency];
 }
 -(void)applyReducedTransparency:(BOOL)opaque {
+ if(self.materialInitialized&&self.materialOpaque==opaque&&self.materialFallback==self.forceFallback){CPInAppearance(self,^{self.layer.backgroundColor=(opaque?NSColor.controlBackgroundColor:NSColor.clearColor).CGColor;self.layer.borderColor=NSColor.separatorColor.CGColor;});return;}
+ self.materialInitialized=YES;self.materialOpaque=opaque;self.materialFallback=self.forceFallback;
  if(self.bodyConstraints)[NSLayoutConstraint deactivateConstraints:self.bodyConstraints];
  [self.body removeFromSuperview];[self.effect removeFromSuperview];self.effect=nil;
  NSView *host=self;

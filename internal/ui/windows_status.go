@@ -9,6 +9,9 @@ import (
 
 func (n *nativeDesktop) SyncStatus(s SyncStatus) {
 	previous := n.utilityStatus
+	if previous == s {
+		return
+	}
 	n.utilityStatus = s
 	n.enabled = s.State != SyncDisabled
 	n.state = s.Message
@@ -17,9 +20,6 @@ func (n *nativeDesktop) SyncStatus(s SyncStatus) {
 	}
 	call("SetWindowTextW", n.homeStatus, uintptr(unsafe.Pointer(wide(n.state))))
 	call("InvalidateRect", n.statusDot, 0, 1)
-	if previous == s {
-		return
-	}
 	if n.statusIcons[s.State] == 0 {
 		n.statusIcons[s.State] = statusIcon(s)
 	}

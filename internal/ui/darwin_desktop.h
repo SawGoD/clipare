@@ -10,6 +10,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSScrollView *scroll;
 @property(retain) NSMutableDictionary *views;
 @property(retain) NSMutableArray *fields, *events, *peers, *found;
+@property(retain) NSMutableArray *actionButtons;
 @property(retain) NSStatusItem *tray;
 @property(retain) CPStatusDot *statusDot;
 @property(retain) NSButton *autostart,*updates,*additionalButton,*advancedButton,*pause,*emptyAdd,*compactAdd,*removePeer,*connect,*approve,*reject,*install,*dismiss;
@@ -32,7 +33,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 -(void)installEditMenu;
 @end
 
-@interface CPDesktop (Home) <NSTableViewDataSource,NSTableViewDelegate>
+@interface CPDesktop (Home) <NSTableViewDataSource,NSTableViewDelegate,NSTextFieldDelegate,NSComboBoxDelegate>
 -(void)refreshDevices;
 -(NSStackView *)buildHome;
 -(NSStackView *)buildAdvanced;

@@ -218,6 +218,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	r.Left += px(16)
 	r.Right -= px(12)
 	if d.Window == n.homeList {
+		r.Right -= px(40)
 		dot := t.muted
 		if row.online {
 			dot = t.online
@@ -270,6 +271,9 @@ func (n *nativeDesktop) setRows(hwnd uintptr, rows []deviceRow) {
 	}
 	call("SendMessageW", hwnd, 0xb, 1, 0)
 	call("InvalidateRect", hwnd, 0, 1)
+	if hwnd == n.homeList {
+		n.updateRowTrash()
+	}
 }
 
 func (n *nativeDesktop) dpiChanged(hwnd uintptr, w, l uintptr) {
@@ -301,5 +305,8 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 60}).Bottom))
 		}
 	}
-	call("RedrawWindow", hwnd, 0, 0, 0x185)
+	if hwnd == n.home {
+		n.updateRowTrash()
+	}
+	call("RedrawWindow", hwnd, 0, 0, 0x81)
 }

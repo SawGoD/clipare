@@ -28,7 +28,7 @@ func (n *nativeDesktop) Poll() int {
 	return event
 }
 func cstr(s string, fn func(*C.char)) { p := C.CString(s); defer C.free(unsafe.Pointer(p)); fn(p) }
-func (*nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
+func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	cstr(strings.Join(addresses, "\n"), func(p *C.char) { C.clipare_addresses(p) })
 	for i, v := range f.Values {
 		cstr(v, func(p *C.char) { C.clipare_set(C.int(i), p) })
@@ -40,6 +40,7 @@ func (*nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	}
 	C.clipare_auto(C.int(auto))
 	C.clipare_show()
+	n.Actions(actionMask(f))
 }
 func (*nativeDesktop) Read() form {
 	var f form
@@ -52,18 +53,19 @@ func (*nativeDesktop) Read() form {
 	return f
 }
 func (*nativeDesktop) Selected() int { return int(C.clipare_selected()) }
-func (*nativeDesktop) SetPeer(p config.Peer) {
+func (n *nativeDesktop) SetPeer(p config.Peer) {
 	for i, v := range peerValues(p) {
 		cstr(v, func(s *C.char) { C.clipare_set(C.int(i+6), s) })
 	}
+	n.Actions(actionMask(n.Read()))
 }
 func (*nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
 	renderDarwinRows(peers, states)
 }
 func renderDarwinRows(peers []config.Peer, states map[string]bool) {
 	rows := make([]map[string]any, 0, len(peers))
-	for _, row := range pairedRows(peers, states) {
-		rows = append(rows, map[string]any{"name": row.name, "detail": row.detail, "online": row.online})
+	for i, row := range pairedRows(peers, states) {
+		rows = append(rows, map[string]any{"id": peers[i].ID, "name": row.name, "detail": row.detail, "online": row.online})
 	}
 	data, _ := json.Marshal(rows)
 	s := presentSettings(len(peers), false)
@@ -80,7 +82,8 @@ func renderDarwinRows(peers []config.Peer, states map[string]bool) {
 func (*nativeDesktop) SyncStatus(s SyncStatus) {
 	cstr(s.Message, func(m *C.char) { cstr(s.Reason, func(r *C.char) { C.clipare_sync_status(C.int(s.State), m, r) }) })
 }
-func (*nativeDesktop) Alert(s string) { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
+func (*nativeDesktop) Alert(s string)      { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
+func (*nativeDesktop) Actions(mask uint64) { C.clipare_actions(C.ulonglong(mask)) }
 func (*nativeDesktop) Preferences(autostart, updates bool) {
 	flag := func(v bool) C.int {
 		if v {

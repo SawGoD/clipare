@@ -34,13 +34,19 @@ static void capture(NSString *name) {
 int main(int argc,const char **argv) { @autoreleasepool {
  clipare_init();NSWindow *original=desktop.window;
  clipare_set(0,"MacBook — тест интерфейса");clipare_set(1,"synthetic-device");clipare_set(2,"100.64.0.1");clipare_set(3,"45873");clipare_set(5,"Public key SHA-256: synthetic fingerprint");clipare_peers("");clipare_show();
- assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer.hidden);
+ assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer==nil);
+ clipare_actions(0);for(NSButton *button in desktop.actionButtons)assert(!button.enabled);
+ clipare_actions(1ULL<<7);for(NSButton *button in desktop.actionButtons)if(button.tag==7)assert(button.enabled);
  clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
  capture(@"empty");
  [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
  [desktop action:desktop.advancedButton];assert(!desktop.advanced.hidden);assert(desktop.window==original);capture(@"advanced");[desktop action:desktop.advancedButton];assert(desktop.advanced.hidden);
  clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_sync_status(0,"Синхронизация включена","");
  assert(desktop.emptyDevices.hidden);assert(!desktop.peerList.hidden);assert(desktop.peers.count==2);assert(desktop.syncState==0);
+ const char *rows="[{\"id\":\"a\",\"name\":\"Desktop-PC\",\"detail\":\"Подключено\",\"online\":true},{\"id\":\"b\",\"name\":\"Laptop\",\"detail\":\"Не в сети\",\"online\":false}]";
+ clipare_device_rows(rows,0,1,1,1);NSMenu *unchangedMenu=desktop.tray.menu;NSMutableArray *unchangedPeers=desktop.peers;
+ for(int i=0;i<100;i++){clipare_device_rows(rows,0,1,1,1);clipare_sync_status(0,"Синхронизация включена","");}
+ assert(desktop.tray.menu==unchangedMenu);assert(desktop.peers==unchangedPeers);
  for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]) {
   desktop.window.appearance=[NSAppearance appearanceNamed:appearance];[desktop.window.contentView setNeedsDisplay:YES];capture([appearance isEqualToString:NSAppearanceNameAqua]?@"home-light":@"home-dark");
   opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"opaque-light":@"opaque-dark");
@@ -54,7 +60,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
  [desktop back];assert(desktop.view==CPHome);
  clipare_discovered("","Автоматическое обнаружение недоступно");assert(desktop.foundList.hidden);assert(!desktop.connect.enabled);capture(@"discovery-empty");
  clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(desktop.view==CPPairing);assert(desktop.reject.tag==15);assert(!desktop.approve.hidden);assert([desktop.sas.stringValue isEqualToString:@"482 731"]);capture(@"pairing");
- clipare_alert("Сначала завершите подключение");[desktop back];assert(desktop.view==CPPairing);assert(desktop.pairIncoming);
+ clipare_alert("Сначала завершите подключение");assert(desktop.view==CPPairing);assert(desktop.window.attachedSheet);[desktop.window endSheet:desktop.window.attachedSheet];for(int i=0;i<10;i++)clipare_poll();assert(desktop.pairIncoming);
  clipare_pair_close();assert(desktop.view==CPHome);assert(desktop.window==original);
  clipare_pair("Laptop","482 731",2);assert(desktop.approve.tag==18);clipare_pair_close();
  clipare_update_prompt("Установлена последняя версия Clipare\n\nТекущая версия: 0.6.0","","Понятно",0);assert(desktop.view==CPUpdate);assert(desktop.install.hidden);assert(!desktop.dismiss.hidden);capture(@"update-latest");
@@ -62,7 +68,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_update_prompt("Загрузка обновления…","","",0);assert(desktop.install.hidden&&desktop.dismiss.hidden);[desktop back];assert(desktop.view==CPUpdate);capture(@"update-download");
  clipare_update_prompt("Не удалось обновить Clipare","Повторить","Закрыть",19);assert(desktop.install.tag==19);capture(@"update-error");
  clipare_update_close();assert(desktop.view==CPHome);
- clipare_alert("Настройки сохранены");assert(desktop.view==CPNotice);assert(desktop.window==original);[desktop back];assert(desktop.view==CPHome);
+ clipare_alert("Настройки сохранены");assert(desktop.view==CPHome);assert(desktop.window==original);assert(desktop.window.attachedSheet);[desktop.window endSheet:desktop.window.attachedSheet];for(int i=0;i<10;i++)clipare_poll();assert(desktop.view==CPHome);
  NSUInteger topLevel=0;for(NSWindow *w in NSApp.windows)if(w==original||([w.title isEqualToString:@"Clipare"]&&w.visible))topLevel++;assert(topLevel==1);
  if(argc>1&&!strcmp(argv[1],"preview")){NSDate *until=[NSDate dateWithTimeIntervalSinceNow:120];while(until.timeIntervalSinceNow>0){int event=clipare_poll();if(event==4)break;if(event==11||event==12)clipare_discovered("Desktop-PC — 100.64.0.2","Выберите устройство");if(event==13)clipare_pair("Desktop-PC","482 731",1);if(event==14||event==15||event==16)clipare_pair_close();[NSThread sleepForTimeInterval:0.02];}}
  clipare_close();puts("PASS: single-window navigation, typed status, empty state, disclosures, pairing, updates");return 0;

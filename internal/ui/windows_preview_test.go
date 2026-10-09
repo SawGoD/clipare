@@ -44,6 +44,19 @@ func TestWindowsFluentPreview(t *testing.T) {
 	f.Values[5] = "Протокол 1 · Тест интерфейса"
 	f.Values[9] = "45873"
 	n.Show(f, peers, []string{"100.64.0.1"})
+	if len(n.rowTrash) != len(peers) {
+		t.Fatal("missing per-device removal buttons")
+	}
+	if call("IsWindowEnabled", call("GetDlgItem", n.home, eventImport)) != 0 {
+		t.Fatal("empty connection code enabled import")
+	}
+	n.set(10, "clipare1:synthetic")
+	n.Actions(actionMask(n.Read()))
+	if call("IsWindowEnabled", call("GetDlgItem", n.home, eventImport)) == 0 {
+		t.Fatal("nonempty connection code disabled import")
+	}
+	n.set(10, "")
+	n.Actions(actionMask(n.Read()))
 	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
 	n.UpdateSettings("0.5.0", true)
 	for _, state := range []SyncState{SyncActive, SyncDisabled, SyncDegraded, SyncActive} {

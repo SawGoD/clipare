@@ -67,6 +67,9 @@ type nativeDesktop struct {
 	controls                                                                           map[uintptr]winControl
 	fonts                                                                              map[[2]int]uintptr
 	rows                                                                               map[uintptr][]deviceRow
+	rowTrash                                                                           []uintptr
+	rowCallback                                                                        uintptr
+	footerCheck                                                                        uintptr
 	pauseButton, emptyDevices, emptyDiscovery                                          uintptr
 	layingOut                                                                          bool
 	lastFocus                                                                          uintptr
@@ -83,6 +86,7 @@ type nativeDesktop struct {
 	tooltip                                                                            uintptr
 	tooltipText                                                                        []*uint16
 	statusIcons                                                                        [3]uintptr
+	actionButtons                                                                      map[uintptr]int
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -97,7 +101,7 @@ func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, i
 	if class == "BUTTON" && style&15 == 0 {
 		style = style&^15 | 11
 		switch id {
-		case 1, 8, 13, 14, 18, 20:
+		case 1, 8, 13, 14, 18, 20, eventDeviceName:
 			kind = 1
 		case 9:
 			kind = 2
@@ -106,6 +110,12 @@ func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, i
 	r := n.scaledRect(n.window, logicalRect{x, y, w, h})
 	handle := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), style|0x50000000, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), n.window, uintptr(id), n.instance, 0)
 	n.controls[handle] = winControl{parent: n.window, class: class, bounds: logicalRect{x, y, w, h}, kind: kind}
+	if class == "BUTTON" && (id == eventSave || id == eventCopy || id == eventImport || id == eventUpsert || id == eventDeviceName) {
+		if n.actionButtons == nil {
+			n.actionButtons = map[uintptr]int{}
+		}
+		n.actionButtons[handle] = id
+	}
 	call("SendMessageW", handle, 0x30, n.fontFor(n.window, 0), 1)
 	if class == "EDIT" || class == "COMBOBOX" || class == "BUTTON" && style&15 == 3 {
 		n.styleControl(handle)
@@ -171,6 +181,14 @@ func (n *nativeDesktop) Init() error {
 			return 0
 		case 0x111:
 			id := int(w & 0xffff)
+			if id >= 9000 && id < 9000+len(n.rowTrash) {
+				n.confirmRowRemoval(id - 9000)
+				return 0
+			}
+			if (w>>16 == 0x300 && (id >= 100 && id <= 110 || id == 130)) || (id == 102 && w>>16 == 5) {
+				n.events = append(n.events, eventFormChanged)
+				return 0
+			}
 			if id == 32 {
 				n.preferencesExpanded = !n.preferencesExpanded
 				n.layoutPreferences()
@@ -196,7 +214,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= eventAutostartPreference {
+			} else if id >= 1 && id <= eventDeviceName {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -243,12 +261,12 @@ func windowText(h uintptr) string {
 	return syscall.UTF16ToString(b)
 }
 func (n *nativeDesktop) installHome(class *uint16) {
-	n.home = n.panel(class, "Clipare", 568, 688, logicalRect{24, 64, 520, 128}, logicalRect{24, 208, 520, 228}, logicalRect{24, 452, 520, 88}, logicalRect{24, 556, 520, 48})
+	n.home = n.panel(class, "Clipare", 568, 624, logicalRect{24, 64, 520, 128}, logicalRect{24, 208, 520, 228}, logicalRect{24, 452, 520, 48})
 	n.window = n.home
 	n.heading("Clipare", 24, 16, 300, 1)
 	n.heading("Этот компьютер", 40, 80, 280, 2)
 	n.homeName = n.control("EDIT", "", 0x00810080, 40, 116, 332, 30, 130)
-	n.button("Сохранить", 384, 116, 144, 1)
+	n.button("Применить", 384, 116, 144, eventDeviceName)
 	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 40, 158, 312, 22, 0)
 	n.statusDot = n.control("STATIC", "", 13, 24, 158, 12, 22, 0)
 	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 144, 32, eventPause)
@@ -260,18 +278,16 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.controls[n.emptyAdd] = c
 	n.emptyDevices = n.control("STATIC", addDeviceTitle, 1, 56, 374, 456, 24, 0)
 	n.compactAdd = n.control("BUTTON", "+ "+addDeviceTitle, 0x10000, 40, 392, 268, 30, 11)
-	n.removePeer = n.control("BUTTON", "Удалить", 0x10000, 400, 392, 128, 30, 9)
-	n.heading("Обновления", 40, 462, 360, 2)
-	n.updateVersion = n.control("STATIC", "", 0x4000, 40, 508, 232, 24, 0)
+	n.updateVersion = n.control("STATIC", "", 0x4000, 40, 576, 400, 24, 0)
 	n.setRole(n.updateVersion, 4)
-	n.button("Проверить обновления", 292, 500, 236, 19)
-	n.preferencesToggle = n.control("BUTTON", additionalTitle, 0x10000, 40, 564, 488, 32, 32)
+	n.footerCheck = n.iconButton("Проверить обновления", "\ue72c", 492, 568, 36, 19)
+	n.preferencesToggle = n.control("BUTTON", additionalTitle, 0x10000, 40, 460, 488, 32, 32)
 	c = n.controls[n.preferencesToggle]
 	c.kind = 4
 	n.controls[n.preferencesToggle] = c
-	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 612, 488, 28, eventAutostartPreference)
-	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 652, 488, 28, 22)
-	n.advancedButton = n.control("BUTTON", advancedTitle, 0x10000, 24, 620, 520, 32, 30)
+	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 508, 488, 28, eventAutostartPreference)
+	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 548, 488, 28, 22)
+	n.advancedButton = n.control("BUTTON", advancedTitle, 0x10000, 24, 516, 520, 32, 30)
 	n.fields[0], n.auto, n.list, n.statusLabel = n.homeName, n.homeAuto, n.homeList, n.homeStatus
 	n.updateWindow = n.panel(class, "Обновление Clipare", 520, 320, logicalRect{24, 24, 472, 216})
 	n.window = n.updateWindow
@@ -384,6 +400,9 @@ func (n *nativeDesktop) Poll() int {
 			button := call("GetFocus")
 			if c, ok := n.controls[button]; !ok || c.class != "BUTTON" || call("GetWindowLongPtrW", button, ^uintptr(15))&15 == 3 {
 				button = call("GetDlgItem", root, 1)
+				if root == n.home && (call("GetFocus") == n.homeName || !n.navigation.AdvancedExpanded) {
+					button = call("GetDlgItem", root, eventDeviceName)
+				}
 				switch root {
 				case n.updateWindow:
 					button = n.updateInstall
@@ -436,6 +455,7 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	n.showDevicePresentation(len(peers))
 	n.navigate(n.navigation.View)
 	n.peerLines = ""
+	n.Actions(actionMask(f))
 }
 func (n *nativeDesktop) Read() form {
 	var f form
@@ -468,27 +488,36 @@ func (n *nativeDesktop) SetPeer(p config.Peer) {
 	for i, s := range []string{p.Name, p.ID, p.Address, strconv.Itoa(p.Port)} {
 		n.set(i+6, s)
 	}
+	n.Actions(actionMask(n.Read()))
 }
 func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
 	n.showDevicePresentation(len(peers))
-	call("SetWindowTextW", n.statusLabel, uintptr(unsafe.Pointer(wide(status))))
-	n.state = status
-	n.enabled = enabled
 	lines := peerStatuses(peers, states)
 	if lines != n.peerLines {
 		n.setRows(n.homeList, pairedRows(peers, states))
 	}
 	n.peerLines = lines
-	call("SetWindowTextW", n.homeStatus, uintptr(unsafe.Pointer(wide(status))))
 	text := "Возобновить"
 	if enabled {
 		text = "Пауза"
 	}
-	call("SetWindowTextW", n.pauseButton, uintptr(unsafe.Pointer(wide(text))))
+	if windowText(n.pauseButton) != text {
+		call("SetWindowTextW", n.pauseButton, uintptr(unsafe.Pointer(wide(text))))
+	}
 }
 func (n *nativeDesktop) Alert(s string) {
-	call("SetWindowTextW", n.noticeText, uintptr(unsafe.Pointer(wide(s))))
-	n.navigate(ViewNotice)
+	call("MessageBoxW", n.main, uintptr(unsafe.Pointer(wide(s))), uintptr(unsafe.Pointer(wide("Clipare"))), 0x40)
+}
+func (n *nativeDesktop) Actions(mask uint64) {
+	for h, id := range n.actionButtons {
+		value := uintptr(0)
+		if mask&(1<<id) != 0 {
+			value = 1
+		}
+		if call("IsWindowEnabled", h) != value {
+			call("EnableWindow", h, value)
+		}
+	}
 }
 func (n *nativeDesktop) Close() {
 	data := notifyIcon{Window: n.main, ID: 1}

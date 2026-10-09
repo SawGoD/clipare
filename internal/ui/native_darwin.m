@@ -34,12 +34,17 @@ void clipare_status(const char *status,int enabled,const char *s) { @autorelease
   BOOL online=[line hasPrefix:@"● "];[desktop.peers addObject:@{@"name":[line substringFromIndex:2],@"detail":online?@"Подключено":@"Не в сети",@"online":@(online)}];
  }[desktop refreshDevices];[desktop refreshTray];
 } }
-void clipare_sync_status(int state,const char *message,const char *reason) { @autoreleasepool {desktop.syncState=state;desktop.statusMessage=str(message);desktop.statusReason=str(reason);[desktop refreshTray];} }
+void clipare_sync_status(int state,const char *message,const char *reason) { @autoreleasepool {if(desktop.syncState==state&&[desktop.statusMessage isEqual:str(message)]&&[desktop.statusReason isEqual:str(reason)])return;desktop.syncState=state;desktop.statusMessage=str(message);desktop.statusReason=str(reason);[desktop refreshTray];} }
 void clipare_device_rows(const char *json,int empty,int list,int remove,int compact) { @autoreleasepool {
- desktop.devicesEmpty=empty;desktop.listVisible=list;desktop.canRemove=remove;desktop.compactVisible=compact;
- NSData *data=[str(json)dataUsingEncoding:NSUTF8StringEncoding];id rows=[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];if([rows isKindOfClass:NSArray.class]){desktop.peers=[NSMutableArray arrayWithArray:rows];[desktop refreshDevices];[desktop refreshTray];}
+ NSData *data=[str(json)dataUsingEncoding:NSUTF8StringEncoding];id rows=[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];if(![rows isKindOfClass:NSArray.class])return;
+ if([desktop.peers isEqual:rows]&&desktop.devicesEmpty==empty&&desktop.listVisible==list&&desktop.compactVisible==compact)return;
+ desktop.devicesEmpty=empty;desktop.listVisible=list;desktop.canRemove=remove;desktop.compactVisible=compact;desktop.peers=[NSMutableArray arrayWithArray:rows];[desktop refreshDevices];[desktop refreshTray];
 } }
-void clipare_alert(const char *text) { @autoreleasepool {desktop.noticeText.stringValue=str(text);[desktop show:CPNotice];} }
+void clipare_alert(const char *text) { @autoreleasepool {
+ if(desktop.window.attachedSheet)return;NSAlert *alert=[[[NSAlert alloc]init]autorelease];alert.messageText=@"Clipare";alert.informativeText=str(text);[alert addButtonWithTitle:@"Понятно"];
+ [desktop.window makeKeyAndOrderFront:nil];[alert beginSheetModalForWindow:desktop.window completionHandler:nil];
+} }
+void clipare_actions(unsigned long long mask) {for(NSButton *button in desktop.actionButtons)button.enabled=(mask&(1ULL<<button.tag))!=0;}
 void clipare_close(void) { @autoreleasepool {
  desktop.closed=YES;[desktop clearPairNotification];if([NSBundle.mainBundle.bundleIdentifier isEqualToString:@"io.clipare.app"])[UNUserNotificationCenter currentNotificationCenter].delegate=nil;
  if(desktop.window.attachedSheet)[desktop.window endSheet:desktop.window.attachedSheet];

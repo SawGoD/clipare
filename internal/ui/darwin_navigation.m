@@ -31,7 +31,8 @@ void CPAdd(NSStackView *s,NSView *v) {
 }
 NSButton *CPButton(NSString *title,CPDesktop *d,NSInteger tag) {
  NSButton *b=[NSButton buttonWithTitle:title target:d action:@selector(action:)];b.tag=tag;b.translatesAutoresizingMaskIntoConstraints=NO;[b.heightAnchor constraintEqualToConstant:32].active=YES;
- if(tag==1||tag==8||tag==13||tag==14||tag==18||tag==20)b.bezelColor=NSColor.controlAccentColor;
+ if(tag==1||tag==8||tag==13||tag==14||tag==18||tag==20||tag==25)b.bezelColor=NSColor.controlAccentColor;
+ if(tag==1||tag==6||tag==7||tag==8||tag==25)[d.actionButtons addObject:b];
  return b;
 }
 NSButton *CPIcon(NSString *symbol,NSString *label,CPDesktop *d,NSInteger tag) {
@@ -40,14 +41,15 @@ NSButton *CPIcon(NSString *symbol,NSString *label,CPDesktop *d,NSInteger tag) {
  [b.widthAnchor constraintEqualToConstant:36].active=YES;return b;
 }
 NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
- NSTextField *v=secure?[[[NSSecureTextField alloc]init]autorelease]:[[[NSTextField alloc]init]autorelease];v.translatesAutoresizingMaskIntoConstraints=NO;v.font=[NSFont systemFontOfSize:14];[v.heightAnchor constraintEqualToConstant:28].active=YES;d.fields[index]=v;return v;
+ NSTextField *v=secure?[[[NSSecureTextField alloc]init]autorelease]:[[[NSTextField alloc]init]autorelease];v.delegate=d;v.translatesAutoresizingMaskIntoConstraints=NO;v.font=[NSFont systemFontOfSize:14];[v.heightAnchor constraintEqualToConstant:28].active=YES;d.fields[index]=v;return v;
 }
 
 @implementation CPDesktop
 -(void)build {
+ self.actionButtons=[NSMutableArray array];
  self.views=[NSMutableDictionary dictionary];self.events=[NSMutableArray array];self.fields=[NSMutableArray array];self.peers=[NSMutableArray array];self.found=[NSMutableArray array];for(int i=0;i<11;i++)[self.fields addObject:NSNull.null];
  self.syncState=2;self.devicesEmpty=YES;self.statusMessage=@"Синхронизация недоступна";self.statusReason=@"Ожидание NetBird";
- self.window=[[[CPWindow alloc]initWithContentRect:NSMakeRect(0,0,560,720) styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskResizable backing:NSBackingStoreBuffered defer:NO]autorelease];self.window.title=@"Clipare";self.window.releasedWhenClosed=NO;self.window.delegate=self;self.window.contentMinSize=NSMakeSize(500,480);[self.window center];
+ self.window=[[[CPWindow alloc]initWithContentRect:NSMakeRect(0,0,560,600) styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskResizable backing:NSBackingStoreBuffered defer:NO]autorelease];self.window.title=@"Clipare";self.window.releasedWhenClosed=NO;self.window.delegate=self;self.window.contentMinSize=NSMakeSize(500,480);[self.window center];
  self.window.titlebarAppearsTransparent=YES;
  if(@available(macOS 11.0,*))self.window.toolbarStyle=NSWindowToolbarStyleUnified;
  NSView *background=CPWindowBackground(self.window.contentView.bounds);self.window.contentView=background;
@@ -69,7 +71,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 -(void)windowDidResize:(NSNotification *)n { [self resizeDocument]; }
 -(void)show:(NSInteger)view {
  if(view==CPNotice&&self.view!=CPNotice)self.noticeOrigin=self.view;
- self.view=view;[self.window makeFirstResponder:nil];self.scroll.documentView=self.views[@(view)];[self resizeDocument];[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
+ if(self.scroll.documentView!=self.views[@(view)]){self.view=view;[self.window makeFirstResponder:nil];self.scroll.documentView=self.views[@(view)];[self resizeDocument];[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];}[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
 }
 -(void)back {
  if(self.view==CPNotice){[self show:self.noticeOrigin];return;}
@@ -95,6 +97,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
  for(NSUInteger i=0;i<titles.count;i++){NSMenuItem *item=[[[NSMenuItem alloc]initWithTitle:titles[i] action:actions[i] keyEquivalent:keys[i]]autorelease];item.keyEquivalentModifierMask=NSEventModifierFlagCommand;[menu addItem:item];}edit.submenu=menu;[main addItem:edit];NSApp.mainMenu=main;
 }
 -(void)dealloc {
+ [_actionButtons release];
  [_statusDot release];
  self.window.delegate=nil;[_window release];[_scroll release];[_views release];[_fields release];[_events release];[_peers release];[_found release];[_tray release];
  [_autostart release];[_updates release];[_additionalButton release];[_advancedButton release];[_pause release];[_emptyAdd release];[_compactAdd release];[_removePeer release];[_connect release];[_approve release];[_reject release];[_install release];[_dismiss release];[_additional release];[_advanced release];[_peerTable release];[_foundTable release];[_emptyDevices release];[_peerList release];[_foundList release];[_emptyFound release];[_status release];[_reason release];[_version release];[_discoveryStatus release];[_pairName release];[_sas release];[_pairHelp release];[_updateText release];[_noticeText release];[_statusMessage release];[_statusReason release];[super dealloc];

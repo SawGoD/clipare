@@ -50,8 +50,8 @@ func (n *nativeDesktop) styleControl(h uintptr) {
 				n.paintInputFrame(h, c.class == "COMBOBOX", dc)
 			}
 			switch msg {
-			case 7, 8, 0xf1, 0xf3, 0x100, 0x101, 0x201, 0x202, 0x200, 0xa:
-				call("RedrawWindow", h, 0, 0, 0x105)
+			case 7, 8, 0xf1, 0xf3, 0x100, 0x101, 0x201, 0x202, 0xa:
+				call("InvalidateRect", h, 0, 0)
 			}
 			return r
 		})
