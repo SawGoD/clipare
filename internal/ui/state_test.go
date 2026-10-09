@@ -62,6 +62,22 @@ func TestNavigation(t *testing.T) {
 	}
 }
 
+func TestDiscoverySharesHomeContainer(t *testing.T) {
+	n := Navigation{AdditionalExpanded: true, AdvancedExpanded: true}
+	n.Open(ViewDiscovery)
+	if n.Container() != ViewHome || n.View != ViewDiscovery {
+		t.Fatal("discovery replaced home")
+	}
+	n.Home()
+	if !n.AdditionalExpanded || !n.AdvancedExpanded {
+		t.Fatal("inline discovery lost settings")
+	}
+	n.Open(ViewPairing)
+	if n.Container() != ViewPairing {
+		t.Fatal("pairing routing changed")
+	}
+}
+
 func TestInlineNoticeReturnsToActiveWorkflow(t *testing.T) {
 	for _, view := range []ViewState{ViewHome, ViewDiscovery, ViewPairing, ViewUpdate} {
 		n := Navigation{View: view}

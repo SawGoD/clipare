@@ -36,6 +36,14 @@ func (n *Navigation) End(v ViewState) {
 }
 func (n *Navigation) Home() { n.View = ViewHome }
 
+// Discovery is an inline state of the home device card, not a full-page view.
+func (n Navigation) Container() ViewState {
+	if n.View == ViewDiscovery {
+		return ViewHome
+	}
+	return n.View
+}
+
 type SyncState int
 
 const (
