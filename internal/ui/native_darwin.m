@@ -52,6 +52,7 @@ void clipare_close(void) { @autoreleasepool {
 } }
 void clipare_discovered(const char *s,const char *status) { @autoreleasepool {
  [desktop.found removeAllObjects];for(NSString *line in lines(s)){if(!line.length)continue;NSArray *parts=[line componentsSeparatedByString:@" — "];[desktop.found addObject:@{@"name":parts[0],@"detail":parts.count>1?parts[1]:@"",@"online":@YES}];}
+ for(NSLayoutConstraint *constraint in desktop.foundList.constraints)if([constraint.identifier isEqualToString:@"deviceListHeight"])constraint.constant=MIN(MAX(desktop.found.count*52+4,56),160);
  [desktop.foundTable reloadData];desktop.foundList.hidden=!desktop.found.count;desktop.emptyFound.hidden=desktop.found.count>0;desktop.connect.enabled=desktop.found.count>0;desktop.discoveryStatus.stringValue=str(status);[desktop show:CPDiscovery];
 } }
 int clipare_discovered_selected(void) {return (int)desktop.foundTable.selectedRow;}

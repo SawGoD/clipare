@@ -140,6 +140,13 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("peer arrival did not restore list actions")
 	}
 	n.Discovered("Desktop-PC — 100.64.0.2\nLaptop — laptop.netbird.cloud", "Выберите устройство и нажмите «Подключить»")
+	if n.activePanel() != n.home || call("IsWindowVisible", n.homeName) == 0 || call("IsWindowVisible", n.homeStatus) == 0 || call("IsWindowVisible", n.homeList) != 0 {
+		t.Fatal("discovery did not stay in the home device card")
+	}
+	n.Update("Синхронизация включена", true, peers, nil)
+	if call("IsWindowVisible", n.homeList) != 0 {
+		t.Fatal("peer health refresh replaced inline discovery")
+	}
 	if call("GetWindowLongPtrW", n.found, ^uintptr(15))&0x00100000 != 0 {
 		t.Fatal("switching from a tall home view left a horizontal scrollbar")
 	}
@@ -152,6 +159,15 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("connect enabled without devices")
 	}
 	captureWindow(t, n.found, filepath.Join(dir, "discovery-empty.png"))
+	n.back(false)
+	if n.navigation.View != ViewHome || call("IsWindowVisible", n.homeList) == 0 || call("IsWindowVisible", n.foundStatus) != 0 {
+		t.Fatal("back did not restore the peer card")
+	}
+	n.Discovered("Desktop-PC — 100.64.0.2", "Выберите устройство")
+	captureWindow(t, n.home, filepath.Join(dir, "discovery-one.png"))
+	if n.controls[n.foundList].bounds.h != 60 {
+		t.Fatal("single discovery row left a large blank list")
+	}
 	n.Pair("MacBook хочет подключиться к Clipare", "482 731", 1)
 	if n.navigation.View != ViewPairing {
 		t.Fatal("pairing did not navigate inline")

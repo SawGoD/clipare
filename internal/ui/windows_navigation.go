@@ -5,9 +5,7 @@ package ui
 import "unsafe"
 
 func (n *nativeDesktop) activePanel() uintptr {
-	switch n.navigation.View {
-	case ViewDiscovery:
-		return n.found
+	switch n.navigation.Container() {
 	case ViewPairing:
 		return n.pair
 	case ViewUpdate:
@@ -26,16 +24,25 @@ func (n *nativeDesktop) sizePanel(h uintptr) {
 }
 
 func (n *nativeDesktop) navigate(v ViewState) {
+	previous := n.navigation.View
 	n.navigation.Open(v)
-	for _, h := range []uintptr{n.home, n.found, n.pair, n.updateWindow, n.notice} {
+	for _, h := range []uintptr{n.home, n.pair, n.updateWindow, n.notice} {
 		visible(h, h == n.activePanel())
 	}
-	n.fitWindow(n.activePanel())
-	n.layoutControls(n.activePanel())
+	if n.activePanel() == n.home {
+		n.showDevicePresentation(len(n.rows[n.homeList]))
+		n.layoutPreferences()
+	} else {
+		n.fitWindow(n.activePanel())
+		n.layoutControls(n.activePanel())
+	}
 	visible(n.main, true)
 	call("SetForegroundWindow", n.main)
 	// Focus never remains in a hidden panel.
-	call("SetFocus", n.activePanel())
+	focus := call("GetFocus")
+	if previous != v || focus == 0 || call("IsWindowVisible", focus) == 0 {
+		call("SetFocus", n.activePanel())
+	}
 }
 
 func (n *nativeDesktop) back(closeWindow bool) {

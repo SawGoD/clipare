@@ -70,6 +70,8 @@ type nativeDesktop struct {
 	rowTrash                                                                           []uintptr
 	rowCallback                                                                        uintptr
 	footerCheck                                                                        uintptr
+	devicesHeader                                                                      uintptr
+	discoveryControls                                                                  []uintptr
 	pauseButton, emptyDevices, emptyDiscovery                                          uintptr
 	layingOut                                                                          bool
 	lastFocus                                                                          uintptr
@@ -195,6 +197,9 @@ func (n *nativeDesktop) Init() error {
 				return 0
 			}
 			if id == 30 {
+				if n.navigation.View == ViewDiscovery {
+					n.events = append(n.events, eventCloseDiscovery)
+				}
 				if n.navigation.View != ViewHome {
 					n.navigate(ViewHome)
 					n.navigation.AdvancedExpanded = true
@@ -270,7 +275,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 40, 158, 312, 22, 0)
 	n.statusDot = n.control("STATIC", "", 13, 24, 158, 12, 22, 0)
 	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 144, 32, eventPause)
-	n.heading(devicesTitle, 40, 224, 360, 2)
+	n.devicesHeader = n.heading(devicesTitle, 40, 224, 360, 2)
 	n.homeList = n.deviceList(40, 264, 488, 120, 120)
 	n.emptyAdd = n.control("BUTTON", addDeviceTitle, 0x10000, 244, 278, 80, 80, 11)
 	c := n.controls[n.emptyAdd]
@@ -294,17 +299,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.updateText = n.control("STATIC", "", 0, 40, 40, 440, 184, 0)
 	n.updateInstall = n.control("BUTTON", "Обновить", 0x10000, 332, 264, 164, 36, 20)
 	n.updateDismiss = n.control("BUTTON", "Понятно", 0x10000, 24, 264, 164, 36, 21)
-	n.found = n.panel(class, "Добавить устройство", 568, 420, logicalRect{24, 64, 520, 248})
-	n.window = n.found
-	n.heading("Найденные устройства", 24, 16, 456, 1)
-	n.iconButton("Вернуться к устройствам", "\ue72b", 496, 16, 48, 31)
-	n.foundList = n.deviceList(40, 80, 488, 180, 132)
-	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 40, 268, 488, 38, 0)
-	n.setRole(n.foundStatus, 4)
-	n.emptyDiscovery = n.control("STATIC", "Устройства Clipare не найдены\r\n\r\nУбедитесь, что NetBird запущен\r\nна обоих компьютерах.", 1, 64, 126, 440, 96, 0)
-	n.iconButton("Обновить список устройств", "\ue72c", 24, 332, 48, 12)
-	n.button("Подключить", 324, 332, 220, 13)
-	n.button("Не нашли? Добавить по коду…", 24, 376, 340, 30)
+	n.installDiscovery()
 	n.pair = n.panel(class, "Подключение устройства", 520, 380, logicalRect{24, 112, 472, 96})
 	n.window = n.pair
 	n.heading("Подключение устройства", 24, 16, 408, 1)
@@ -412,7 +407,9 @@ func (n *nativeDesktop) Poll() int {
 				case n.pair:
 					button = n.pairAllow
 				case n.found:
-					button = call("GetDlgItem", root, 13)
+					if n.navigation.View == ViewDiscovery && call("GetFocus") != n.homeName {
+						button = call("GetDlgItem", root, 13)
+					}
 				}
 			}
 			if call("IsWindowVisible", button) != 0 && call("IsWindowEnabled", button) != 0 {

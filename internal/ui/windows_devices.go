@@ -39,6 +39,10 @@ func (n *nativeDesktop) positionRowTrash() {
 	var client winRect
 	call("GetClientRect", n.homeList, uintptr(unsafe.Pointer(&client)))
 	for i, h := range n.rowTrash {
+		if n.navigation.View == ViewDiscovery {
+			visible(h, false)
+			continue
+		}
 		var r winRect
 		if i >= len(n.rows[n.homeList]) || int32(call("SendMessageW", n.homeList, 0x198, uintptr(i), uintptr(unsafe.Pointer(&r)))) < 0 || r.Top < 0 || r.Bottom > client.Bottom {
 			visible(h, false)

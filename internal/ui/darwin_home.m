@@ -24,7 +24,8 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  NSStackView *actions=CPStack(@[self.compactAdd],YES);
  NSStackView *deviceContent=CPStack(@[CPLabel(@"Устройства",18),self.emptyDevices,self.peerList,actions],NO);
  [self.emptyDevices.heightAnchor constraintEqualToConstant:116].active=YES;
- NSView *devices=CPCard(deviceContent);
+ self.deviceHome=deviceContent;self.deviceDiscovery=[self buildDiscovery];self.deviceDiscovery.hidden=YES;
+ NSView *devices=CPCard(CPStack(@[self.deviceHome,self.deviceDiscovery],NO));
  self.version=CPLabel(@"",12);self.version.textColor=NSColor.secondaryLabelColor;
  NSStackView *updates=CPStack(@[self.version,CPIcon(@"arrow.clockwise",@"Проверить обновления",self,19)],YES);updates.distribution=NSStackViewDistributionFill;[self.version setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
  self.autostart=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:self action:@selector(action:)];self.autostart.tag=23;

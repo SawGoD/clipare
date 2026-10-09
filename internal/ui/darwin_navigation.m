@@ -72,7 +72,11 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 -(void)windowDidResize:(NSNotification *)n { [self resizeDocument]; }
 -(void)show:(NSInteger)view {
  if(view==CPNotice&&self.view!=CPNotice)self.noticeOrigin=self.view;
- if(self.scroll.documentView!=self.views[@(view)]){self.view=view;[self.window makeFirstResponder:nil];self.scroll.documentView=self.views[@(view)];[self resizeDocument];[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];}[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
+ BOOL changed=self.view!=view;self.view=view;
+ self.deviceHome.hidden=view==CPDiscovery;self.deviceDiscovery.hidden=view!=CPDiscovery;
+ NSView *document=self.views[@(view==CPDiscovery?CPHome:view)];
+ if(self.scroll.documentView!=document){[self.window makeFirstResponder:nil];self.scroll.documentView=document;[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];}
+ if(changed)[self.window makeFirstResponder:nil];[self resizeDocument];[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
 }
 -(void)back {
  if(self.view==CPNotice){[self show:self.noticeOrigin];return;}
@@ -85,7 +89,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 -(void)action:(id)sender {
  NSInteger tag=[sender tag];
  if(tag==31){[self back];return;}
- if(tag==30){BOOL wasHome=self.view==CPHome;[self show:CPHome];self.advancedExpanded=wasHome?!self.advancedExpanded:YES;self.advanced.hidden=!self.advancedExpanded;self.advancedButton.image=CPSymbol(self.advancedExpanded?@"chevron.down":@"chevron.right",nil);[self resizeDocument];return;}
+ if(tag==30){BOOL wasHome=self.view==CPHome;if(self.view==CPDiscovery)[self.events addObject:@17];[self show:CPHome];self.advancedExpanded=wasHome?!self.advancedExpanded:YES;self.advanced.hidden=!self.advancedExpanded;self.advancedButton.image=CPSymbol(self.advancedExpanded?@"chevron.down":@"chevron.right",nil);[self resizeDocument];return;}
  if(tag==32){self.additionalExpanded=!self.additionalExpanded;self.additional.hidden=!self.additionalExpanded;self.additionalButton.image=CPSymbol(self.additionalExpanded?@"chevron.down":@"chevron.right",nil);[self resizeDocument];return;}
  if(tag==9){NSAlert *a=[[[NSAlert alloc]init]autorelease];a.messageText=@"Удалить устройство?";a.informativeText=@"Синхронизация с выбранным устройством будет прекращена.";[a addButtonWithTitle:@"Удалить"];[a addButtonWithTitle:@"Отмена"];[a beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse r){if(r==NSAlertFirstButtonReturn)[self.events addObject:@9];}];return;}
  [self.events addObject:@(tag)];
@@ -99,6 +103,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 }
 -(void)dealloc {
  [_actionButtons release];
+ [_deviceHome release];[_deviceDiscovery release];
  [_statusDot release];
  self.window.delegate=nil;[_window release];[_scroll release];[_views release];[_fields release];[_events release];[_peers release];[_found release];[_tray release];
  [_autostart release];[_updates release];[_additionalButton release];[_advancedButton release];[_pause release];[_emptyAdd release];[_compactAdd release];[_removePeer release];[_connect release];[_approve release];[_reject release];[_install release];[_dismiss release];[_additional release];[_advanced release];[_peerTable release];[_foundTable release];[_emptyDevices release];[_peerList release];[_foundList release];[_emptyFound release];[_status release];[_reason release];[_version release];[_discoveryStatus release];[_pairName release];[_sas release];[_pairHelp release];[_updateText release];[_noticeText release];[_statusMessage release];[_statusReason release];[super dealloc];

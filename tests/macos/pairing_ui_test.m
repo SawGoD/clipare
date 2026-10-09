@@ -74,7 +74,14 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_sync_status(1,"Синхронизация приостановлена","");capture(@"paused");
  clipare_sync_status(2,"Синхронизация недоступна","Ожидание NetBird");assert(desktop.syncState==2);capture(@"degraded");
  clipare_discovered("Desktop-PC — 100.64.0.2\nLaptop — 100.64.0.3","Выберите устройство");assert(desktop.view==CPDiscovery);assert(desktop.found.count==2);assert(desktop.window==original);capture(@"discovery");
+ assert(desktop.scroll.documentView==desktop.views[@0]);assert(desktop.deviceHome.hidden&&!desktop.deviceDiscovery.hidden);assert(![desktop.fields[0] isHiddenOrHasHiddenAncestor]);assert(![desktop.status isHiddenOrHasHiddenAncestor]);
+ clipare_device_rows(rows,0,1,1,1);assert(desktop.deviceHome.hidden&&!desktop.deviceDiscovery.hidden);
+ for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]){desktop.window.appearance=[NSAppearance appearanceNamed:appearance];opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"discovery-inline-light":@"discovery-inline-dark");}
+ desktop.window.appearance=nil;
  [desktop back];assert(desktop.view==CPHome);
+ assert(!desktop.deviceHome.hidden&&desktop.deviceDiscovery.hidden);assert(desktop.scroll.documentView==desktop.views[@0]);
+ clipare_discovered("Desktop-PC — 100.64.0.2","Выберите устройство");capture(@"discovery-one");assert(desktop.foundList.frame.size.height<=60);assert(desktop.scroll.documentView.frame.size.height<=desktop.scroll.contentSize.height);
+ [desktop.events removeAllObjects];[desktop action:desktop.advancedButton];assert(desktop.view==CPHome&&desktop.advancedExpanded&&[desktop.events containsObject:@17]);[desktop action:desktop.advancedButton];
  clipare_discovered("","Автоматическое обнаружение недоступно");assert(desktop.foundList.hidden);assert(!desktop.connect.enabled);capture(@"discovery-empty");
  clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(desktop.view==CPPairing);assert(desktop.reject.tag==15);assert(!desktop.approve.hidden);assert([desktop.sas.stringValue isEqualToString:@"482 731"]);capture(@"pairing");
  clipare_alert("Сначала завершите подключение");assert(desktop.view==CPPairing);assert(desktop.window.attachedSheet);[desktop.window endSheet:desktop.window.attachedSheet];for(int i=0;i<10;i++)clipare_poll();assert(desktop.pairIncoming);

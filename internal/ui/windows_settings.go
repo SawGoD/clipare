@@ -15,10 +15,12 @@ func visible(h uintptr, show bool) {
 
 func (n *nativeDesktop) showDevicePresentation(count int) {
 	s := presentSettings(count, n.preferencesExpanded)
-	visible(n.emptyAdd, s.EmptyDevices)
-	visible(n.emptyDevices, s.EmptyDevices)
-	visible(n.homeList, s.ShowPeerList)
-	visible(n.compactAdd, s.ShowCompactAdd)
+	home := n.navigation.View != ViewDiscovery
+	visible(n.devicesHeader, home)
+	visible(n.emptyAdd, home && s.EmptyDevices)
+	visible(n.emptyDevices, home && s.EmptyDevices)
+	visible(n.homeList, home && s.ShowPeerList)
+	visible(n.compactAdd, home && s.ShowCompactAdd)
 }
 
 func (n *nativeDesktop) layoutPreferences() {
@@ -30,10 +32,18 @@ func (n *nativeDesktop) layoutPreferences() {
 		v.cards = v.cards[:3]
 	}
 	v.cards[2].h = 48
-	y := 516
+	delta := n.layoutDiscovery()
+	v.cards[1].h = 228 + delta
+	v.cards[2].y = 452 + delta
+	for h, y := range map[uintptr]int{n.preferencesToggle: 460, n.homeAuto: 508, n.updateCheck: 548} {
+		c := n.controls[h]
+		c.bounds.y = y + delta
+		n.controls[h] = c
+	}
+	y := 516 + delta
 	if s.ShowPreferences {
 		v.cards[2].h = 136
-		y = 604
+		y = 604 + delta
 	}
 	c := n.controls[n.advancedButton]
 	c.bounds.y = y
