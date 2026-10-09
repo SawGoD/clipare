@@ -95,7 +95,21 @@ the public metadata and local private identity. Updates happen immediately on
 change and every 20 seconds for eventual reconciliation with offline devices.
 They contain no clipboard history or secrets. Known public keys cannot be
 replaced by membership metadata. Removal tombstones prevent stale snapshots
-from reintroducing removed IDs; re-adding a removed identity is not supported.
+from reintroducing removed IDs. Since 0.5.0-beta.8, each removal/restoration has
+a per-device membership revision. Legacy tombstones normalize to revision 1;
+equal revisions favor removal. A new, cryptographically verified and explicitly
+approved pairing advances the removed peer's revision before persisting it.
+Rejection, cancellation and ordinary unversioned metadata cannot clear removal.
+Higher revisions from authenticated existing members propagate the restored
+mesh; stale removal cannot undo restoration, and stale restoration cannot undo
+a subsequent removal. Removed devices cannot authenticate membership updates
+using their former pairwise key to restore themselves. Known active public keys
+remain pinned; this is not an identity rotation mechanism.
+
+All group members must run beta.8 or later before using reinstatement. The
+optional `versions` wire field and persisted `membership_versions` config field
+are not understood by older strict decoders; downgrading after saving this
+state is unsupported. Bounds remain 256 revision entries and 64 remote peers.
 No automatic merging of already established groups is performed.
 
 Clipboard/health HMAC includes sender ID, method and route, in addition to raw
