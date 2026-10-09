@@ -75,6 +75,11 @@ func (s *Service) Connect(ctx context.Context, d discovery.Device, show func(str
 		return ErrInvalid
 	}
 	c := s.Config()
+	for _, removed := range c.Removed {
+		if removed == d.DeviceID {
+			return ErrRemoved
+		}
+	}
 	if len(c.Peers) > 0 && len(verify) == 0 {
 		return errors.New("Подтвердите совпадение кода на существующем устройстве")
 	}

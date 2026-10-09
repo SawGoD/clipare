@@ -422,7 +422,14 @@ func (s *Service) Adopt(v peers.Membership, expected string, fqdn ...string) err
 	if err != nil {
 		return ErrInvalid
 	}
-	return s.saveLocked(next)
+	// A tombstone (local or supplied by the group) must not produce a
+	// successful pairing with no relationship actually saved.
+	for _, p := range next.Peers {
+		if p.ID == expected {
+			return s.saveLocked(next)
+		}
+	}
+	return ErrRemoved
 }
 
 // Propagate periodically reconciles metadata without depending on online peers
