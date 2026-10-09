@@ -4,7 +4,7 @@
 
 ## Раздельные релизы
 
-Последний опубликованный stable — v0.4.1; VERSION содержит ещё не опубликованную Windows-preview 0.5.0. Не публиковать все текущие изменения одним тегом.
+Последний stable — v0.4.1; VERSION содержит 0.5.0-beta.1. По отдельному запросу эта beta объединяет preview для ручной проверки, помечается GitHub Prerelease и не заменяет stable. Не объединять все изменения одним stable-тегом.
 
 1. Завершить приёмку Windows Fluent 0.5.0.
 2. Release A: следующий MINOR с общим UX — один root window, inline Advanced, typed status и badges, системные action icons. Код этого этапа расположен до коммита `4f856f8` (который начинает Glass). При подготовке release branch включить последующие общие исправления, не включая macOS materials.
