@@ -109,6 +109,12 @@ jobs:
         run: |
           set -euo pipefail
           previous=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            previous_published=$(gh api "repos/$GH_REPO/releases" --jq '[.[] | select(.draft == false)][0].tag_name // empty')
+            if [[ -n "$previous_published" ]]; then
+              previous="$previous_published"
+            fi
+          fi
           go run ./scripts/release-notes "${RELEASE_TAG#v}" "${previous#v}" > release-notes.md
           cd release-assets
           cat *.zip.sha256 > SHA256SUMS
