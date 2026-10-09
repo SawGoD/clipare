@@ -99,7 +99,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 -(void)action:(id)sender {
  NSInteger tag=[sender tag];
  if(tag==31){[self back];return;}
- if(tag==30){BOOL wasHome=self.view==CPHome;if(self.view==CPDiscovery)[self.events addObject:@17];[self show:CPHome];self.advancedExpanded=wasHome?!self.advancedExpanded:YES;self.advanced.hidden=!self.advancedExpanded;self.advancedButton.image=CPSymbol(self.advancedExpanded?@"chevron.down":@"chevron.right",nil);[self resizeDocument];return;}
+ if(tag==30){BOOL wasHome=self.view==CPHome;if(self.view==CPDiscovery)[self.events addObject:@17];[self show:CPHome];self.advancedExpanded=wasHome?!self.advancedExpanded:YES;self.advanced.hidden=!self.advancedExpanded;self.advancedButton.bezelColor=self.advancedExpanded?NSColor.controlAccentColor:nil;[self resizeDocument];return;}
  if(tag==32){self.additionalExpanded=!self.additionalExpanded;self.additional.hidden=!self.additionalExpanded;self.additionalButton.image=CPSymbol(self.additionalExpanded?@"chevron.down":@"chevron.right",nil);[self resizeDocument];return;}
  if(tag==9){NSAlert *a=[[[NSAlert alloc]init]autorelease];a.messageText=@"Удалить устройство?";a.informativeText=@"Синхронизация с выбранным устройством будет прекращена.";[a addButtonWithTitle:@"Удалить"];[a addButtonWithTitle:@"Отмена"];[a beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse r){if(r==NSAlertFirstButtonReturn)[self.events addObject:@9];}];return;}
  [self.events addObject:@(tag)];

@@ -24,6 +24,9 @@ func (n *nativeDesktop) sizePanel(h uintptr) {
 func (n *nativeDesktop) navigate(v ViewState) {
 	previous := n.navigation.View
 	n.navigation.Open(v)
+	if call("IsIconic", n.main) != 0 {
+		call("ShowWindow", n.main, 9) // SW_RESTORE, not SW_SHOW on a minimized HWND.
+	}
 	for _, h := range []uintptr{n.home, n.updateWindow, n.notice} {
 		visible(h, h == n.activePanel())
 	}

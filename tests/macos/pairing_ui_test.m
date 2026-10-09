@@ -38,6 +38,8 @@ int main(int argc,const char **argv) { @autoreleasepool {
  assert(desktop.peerList.hidden);assert(desktop.compactAdd.hidden);assert(!desktop.emptyDevices.hidden);
  clipare_set(0,"MacBook — тест интерфейса");clipare_set(1,"synthetic-device");clipare_set(2,"100.64.0.1");clipare_set(3,"45873");clipare_set(5,"Public key SHA-256: synthetic fingerprint");clipare_show();
  assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer==nil);
+ assert(desktop.advancedButton.imagePosition==NSImageOnly&&desktop.advancedButton.toolTip.length>0);
+ [desktop.window.contentView layoutSubtreeIfNeeded];NSRect gear=[desktop.advancedButton convertRect:desktop.advancedButton.bounds toView:desktop.window.contentView];NSRect pause=[desktop.pause convertRect:desktop.pause.bounds toView:desktop.window.contentView];assert(NSMinX(gear)>NSMaxX(pause));
  clipare_actions(0);for(NSButton *button in desktop.actionButtons)assert(!button.enabled);
  clipare_actions(1ULL<<7);for(NSButton *button in desktop.actionButtons)if(button.tag==7)assert(button.enabled);
  clipare_actions((1ULL<<7)|(1ULL<<25));

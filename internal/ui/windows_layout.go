@@ -164,7 +164,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			n.drawPlus(d.DC, r, fg, px(2))
 			label = ""
 		}
-		if c.kind == 4 || d.Window == n.advancedButton {
+		if c.kind == 4 {
 			labelRect := r
 			labelRect.Left += px(12)
 			labelRect.Right -= px(32)

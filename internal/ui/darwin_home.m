@@ -14,8 +14,9 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  self.status=CPLabel(self.statusMessage,14);self.reason=CPLabel(self.statusReason,12);self.reason.textColor=NSColor.secondaryLabelColor;
  self.statusDot=[[[CPStatusDot alloc]init]autorelease];[self.statusDot.widthAnchor constraintEqualToConstant:12].active=YES;[self.statusDot.heightAnchor constraintEqualToConstant:20].active=YES;
  self.pause=CPButton(@"Пауза",self,3);
+ self.advancedButton=CPIcon(@"gearshape",@"Расширенные параметры",self,30);
  NSView *space=[[[NSView alloc]init]autorelease];space.translatesAutoresizingMaskIntoConstraints=NO;[space.heightAnchor constraintEqualToConstant:1].active=YES;[space setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
- NSStackView *top=CPStack(@[CPLabel(@"Clipare",24),space,self.pause],YES);top.distribution=NSStackViewDistributionFill;[top.heightAnchor constraintEqualToConstant:32].active=YES;
+ NSStackView *top=CPStack(@[CPLabel(@"Clipare",24),space,self.pause,self.advancedButton],YES);top.distribution=NSStackViewDistributionFill;[top.heightAnchor constraintEqualToConstant:32].active=YES;
  NSTextField *name=CPInput(self,0,NO);name.accessibilityLabel=@"Имя этого компьютера";
  NSView *computer=CPCard(CPStack(@[CPStack(@[self.statusDot,self.status],YES),self.reason,CPLabel(@"Этот компьютер",12),CPStack(@[name,CPButton(@"Применить",self,25)],YES)],NO));
  self.peerList=[self table:NO];
@@ -39,8 +40,7 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  self.additional=CPStack(@[self.autostart,self.updates],NO);self.additional.hidden=YES;
  self.additionalButton=CPButton(@"Дополнительно",self,32);self.additionalButton.image=CPSymbol(@"chevron.right",nil);self.additionalButton.imagePosition=NSImageRight;
  self.advanced=[self buildAdvanced];self.advanced.hidden=YES;
- self.advancedButton=CPButton(@"Расширенные параметры",self,30);self.advancedButton.image=CPSymbol(@"chevron.right",nil);self.advancedButton.imagePosition=NSImageRight;
- return CPStack(@[top,computer,devices,self.additionalButton,self.additional,self.advancedButton,self.advanced,updates],NO);
+ return CPStack(@[top,computer,devices,self.additionalButton,self.additional,self.advanced,updates],NO);
 }
 -(NSStackView *)buildAdvanced {
  NSTextField *identity=CPInput(self,1,NO);identity.editable=NO;

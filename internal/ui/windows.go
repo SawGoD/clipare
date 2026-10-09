@@ -239,14 +239,12 @@ func (n *nativeDesktop) Init() error {
 			}
 			return 0
 		case 0x8001:
-			if l == 0x405 {
+			if l == 0x405 || l == 0x202 || l == 0x203 {
 				n.events = append(n.events, eventSettings)
 				return 0
 			}
-			if l == 0x205 || l == 0x202 {
+			if l == 0x205 {
 				n.menu()
-			} else if l == 0x203 {
-				n.events = append(n.events, eventSettings)
 			}
 			return 0
 		}
@@ -289,7 +287,8 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.button("Применить", 384, 116, 144, eventDeviceName)
 	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 40, 158, 312, 22, 0)
 	n.statusDot = n.control("STATIC", "", 13, 24, 158, 12, 22, 0)
-	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 144, 32, eventPause)
+	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 104, 32, eventPause)
+	n.advancedButton = n.iconButton(advancedTitle, "\ue713", 492, 152, 36, 30)
 	n.devicesHeader = n.heading(devicesTitle, 40, 224, 360, 2)
 	n.homeList = n.deviceList(40, 264, 488, 120, 120)
 	n.emptyAdd = n.control("BUTTON", addDeviceTitle, 0x10000, 244, 278, 80, 80, 11)
@@ -307,7 +306,6 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.controls[n.preferencesToggle] = c
 	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 508, 488, 28, eventAutostartPreference)
 	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 548, 488, 28, 22)
-	n.advancedButton = n.control("BUTTON", advancedTitle, 0x10000, 24, 516, 520, 32, 30)
 	n.fields[0], n.auto, n.list, n.statusLabel = n.homeName, n.homeAuto, n.homeList, n.homeStatus
 	n.updateWindow = n.panel(class, "Обновление Clipare", 520, 320, logicalRect{24, 24, 472, 216})
 	n.window = n.updateWindow
@@ -363,7 +361,7 @@ func (n *nativeDesktop) menu() {
 	var pos struct{ X, Y int32 }
 	call("GetCursorPos", uintptr(unsafe.Pointer(&pos)))
 	call("SetForegroundWindow", n.main)
-	id := call("TrackPopupMenu", menu, 0x102, uintptr(pos.X), uintptr(pos.Y), 0, n.window, 0)
+	id := call("TrackPopupMenu", menu, 0x102, uintptr(pos.X), uintptr(pos.Y), 0, n.main, 0)
 	if id != 0 {
 		n.events = append(n.events, int(id))
 	}
@@ -371,7 +369,8 @@ func (n *nativeDesktop) menu() {
 }
 func (n *nativeDesktop) Poll() int {
 	var m message
-	for call("PeekMessageW", uintptr(unsafe.Pointer(&m)), 0, 0, 0, 1) != 0 {
+	// Yield back to the application loop even under continuous input/paint.
+	for processed := 0; processed < 64 && call("PeekMessageW", uintptr(unsafe.Pointer(&m)), 0, 0, 0, 1) != 0; processed++ {
 		root := call("GetAncestor", m.Window, 2)
 		if root == n.main || root == 0 {
 			root = n.activePanel()

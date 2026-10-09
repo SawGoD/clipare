@@ -47,18 +47,21 @@ func (n *nativeDesktop) layoutPreferences() {
 		y = 604 + delta
 	}
 	c := n.controls[n.advancedButton]
-	c.bounds.y = y
+	c.kind = 0
+	if n.navigation.AdvancedExpanded {
+		c.kind = 1
+	}
 	n.controls[n.advancedButton] = c
-	footer := y + 52
+	footer := y
 	for _, h := range n.advancedControls {
 		visible(h, n.navigation.AdvancedExpanded && (n.actionButtons[h] != eventSave || n.applyVisible&(1<<eventSave) != 0))
 		c := n.controls[h]
-		c.bounds.y = n.advancedBase[h] + y + 64
+		c.bounds.y = n.advancedBase[h] + y + 16
 		n.controls[h] = c
 	}
 	if n.navigation.AdvancedExpanded {
-		v.cards = append(v.cards, logicalRect{24, y + 48, 520, 676})
-		footer = y + 744
+		v.cards = append(v.cards, logicalRect{24, y, 520, 676})
+		footer = y + 692
 	}
 	for _, h := range []uintptr{n.updateVersion, n.footerCheck} {
 		c := n.controls[h]

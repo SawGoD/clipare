@@ -55,6 +55,30 @@ func TestWindowsFluentPreview(t *testing.T) {
 	}
 	n.PairClose()
 	n.Show(f, peers, []string{"100.64.0.1"})
+	call("ShowWindow", n.main, 6)
+	if call("IsIconic", n.main) == 0 {
+		t.Fatal("fixture did not minimize the window")
+	}
+	visible(n.main, false)
+	n.Show(f, peers, []string{"100.64.0.1"})
+	if call("IsIconic", n.main) != 0 || call("IsWindowVisible", n.main) == 0 {
+		t.Fatal("opening from tray did not restore the minimized hidden window")
+	}
+	if n.controls[n.advancedButton].bounds.y != n.controls[n.pauseButton].bounds.y || n.icons[n.advancedButton] != "\ue713" {
+		t.Fatal("advanced gear is not beside pause")
+	}
+	n.events = nil
+	call("SendMessageW", n.main, 0x8001, 1, 0x202)
+	if len(n.events) != 1 || n.events[0] != eventSettings {
+		t.Fatal("left tray click did not request opening the window")
+	}
+	// Continuous messages must not starve an already queued application action.
+	for i := 0; i < 128; i++ {
+		call("PostMessageW", n.main, 0, 0, 0)
+	}
+	if n.Poll() != eventSettings {
+		t.Fatal("message burst starved tray action")
+	}
 	n.ApplyVisibility(applyMask(f, f, false))
 	nameApply := call("GetDlgItem", n.home, eventDeviceName)
 	if call("IsWindowVisible", nameApply) != 0 {
@@ -141,6 +165,7 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("platform refresh omitted")
 	}
 	n.UpdateSettings("0.5.0", true)
+	captureWindow(t, n.home, filepath.Join(dir, "home-painted.png"))
 	for _, state := range []SyncState{SyncActive, SyncDisabled, SyncDegraded, SyncActive} {
 		n.SyncStatus(SyncStatus{State: state, Message: "Тест статуса", Reason: "Синтетический preview"})
 		if n.statusIcons[state] == 0 {
@@ -359,13 +384,20 @@ func captureWindow(t *testing.T, hwnd uintptr, path string) {
 	bmp := gcall("CreateCompatibleBitmap", dc, uintptr(w), uintptr(h))
 	defer gcall("DeleteObject", bmp)
 	old := gcall("SelectObject", mem, bmp)
-	if call("PrintWindow", hwnd, mem, 2) == 0 {
+	if filepath.Base(path) == "home-painted.png" {
+		call("RedrawWindow", hwnd, 0, 0, 0x185)
+		if gcall("BitBlt", mem, 0, 0, uintptr(w), uintptr(h), dc, 0, 0, 0x00cc0020) == 0 {
+			t.Fatal("capture of actual painted controls failed")
+		}
+	} else if call("PrintWindow", hwnd, mem, 2) == 0 {
 		gcall("SelectObject", mem, old)
 		t.Fatal("PrintWindow failed")
 	}
 	// DefWindowProc's WM_PRINT path explicitly asks for background + children;
 	// it avoids a DWM first-frame black client area in headless runners.
-	call("SendMessageW", hwnd, 0x317, mem, 0x1e)
+	if filepath.Base(path) != "home-painted.png" {
+		call("SendMessageW", hwnd, 0x317, mem, 0x1e)
+	}
 	gcall("SelectObject", mem, old)
 	var header struct {
 		Size                   uint32
