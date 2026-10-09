@@ -6,8 +6,8 @@
  self.status=CPLabel(self.statusMessage,14);self.reason=CPLabel(self.statusReason,12);self.reason.textColor=NSColor.secondaryLabelColor;
  self.statusDot=[[[CPStatusDot alloc]init]autorelease];[self.statusDot.widthAnchor constraintEqualToConstant:12].active=YES;[self.statusDot.heightAnchor constraintEqualToConstant:20].active=YES;
  self.pause=CPButton(@"Пауза",self,3);
- NSView *space=[[[NSView alloc]init]autorelease];[space setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
- NSStackView *top=CPStack(@[CPLabel(@"Clipare",24),space,self.pause],YES);[top.widthAnchor constraintGreaterThanOrEqualToConstant:440].active=YES;
+ NSView *space=[[[NSView alloc]init]autorelease];space.translatesAutoresizingMaskIntoConstraints=NO;[space.heightAnchor constraintEqualToConstant:1].active=YES;[space setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
+ NSStackView *top=CPStack(@[CPLabel(@"Clipare",24),space,self.pause],YES);top.distribution=NSStackViewDistributionFill;[top.heightAnchor constraintEqualToConstant:32].active=YES;
  NSTextField *name=CPInput(self,0,NO);name.accessibilityLabel=@"Имя этого компьютера";
  NSView *computer=CPCard(CPStack(@[CPStack(@[self.statusDot,self.status],YES),self.reason,CPLabel(@"Этот компьютер",12),CPStack(@[name,CPButton(@"Применить",self,1)],YES)],NO));
  self.peerList=[self table:NO];

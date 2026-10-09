@@ -9,6 +9,9 @@
 static void opaqueCards(NSView *view) {
  if([view respondsToSelector:@selector(applyReducedTransparency:)]){
   [view applyReducedTransparency:YES];assert([view valueForKey:@"effect"]==nil);
+  NSColor *background=[[NSColor colorWithCGColor:view.layer.backgroundColor]colorUsingColorSpace:NSColorSpace.genericRGBColorSpace];
+  BOOL light=[[view.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]]isEqualToString:NSAppearanceNameAqua];
+  assert(light?background.redComponent>0.5:background.redComponent<0.5);
  }
  for(NSView *child in view.subviews)opaqueCards(child);
 }

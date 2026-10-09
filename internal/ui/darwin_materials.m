@@ -1,6 +1,16 @@
 //go:build darwin && cgo
 #import "darwin_desktop.h"
 
+// CGColor is a snapshot, unlike NSColor. Resolve it in this view's appearance,
+// not the process-wide appearance (which can differ from the window's).
+static void CPInAppearance(NSView *view,void (^draw)(void)) {
+ if(@available(macOS 11.0,*)){[view.effectiveAppearance performAsCurrentDrawingAppearance:draw];return;}
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+ NSAppearance *previous=NSAppearance.currentAppearance;NSAppearance.currentAppearance=view.effectiveAppearance;draw();NSAppearance.currentAppearance=previous;
+#pragma clang diagnostic pop
+}
+
 // One native material implementation for cards. No custom blur or fixed theme.
 @interface CPGlassSurface : NSView
 @property(retain) NSView *body;
@@ -46,8 +56,7 @@
  self.body.translatesAutoresizingMaskIntoConstraints=NO;
  self.bodyConstraints=@[[self.body.leadingAnchor constraintEqualToAnchor:host.leadingAnchor],[self.body.trailingAnchor constraintEqualToAnchor:host.trailingAnchor],[self.body.topAnchor constraintEqualToAnchor:host.topAnchor],[self.body.bottomAnchor constraintEqualToAnchor:host.bottomAnchor]];
  [NSLayoutConstraint activateConstraints:self.bodyConstraints];self.wantsLayer=YES;self.layer.cornerRadius=20;
- self.layer.backgroundColor=(opaque?NSColor.controlBackgroundColor:NSColor.clearColor).CGColor;
- self.layer.borderWidth=opaque?1:0;self.layer.borderColor=NSColor.separatorColor.CGColor;
+ CPInAppearance(self,^{self.layer.backgroundColor=(opaque?NSColor.controlBackgroundColor:NSColor.clearColor).CGColor;self.layer.borderWidth=opaque?1:0;self.layer.borderColor=NSColor.separatorColor.CGColor;});
 }
 -(void)viewDidChangeEffectiveAppearance {[super viewDidChangeEffectiveAppearance];[self refreshMaterial];}
 -(void)dealloc {
@@ -70,7 +79,7 @@ NSView *CPCard(NSStackView *stack) {
   [NSWorkspace.sharedWorkspace.notificationCenter addObserver:self selector:@selector(refreshAccessibility) name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];[self refreshAccessibility];
  }return self;
 }
--(void)refreshAccessibility {self.state=NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency?NSVisualEffectStateInactive:NSVisualEffectStateFollowsWindowActiveState;self.wantsLayer=YES;self.layer.backgroundColor=(NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency?NSColor.windowBackgroundColor:NSColor.clearColor).CGColor;}
+-(void)refreshAccessibility {self.state=NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency?NSVisualEffectStateInactive:NSVisualEffectStateFollowsWindowActiveState;self.wantsLayer=YES;CPInAppearance(self,^{self.layer.backgroundColor=(NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency?NSColor.windowBackgroundColor:NSColor.clearColor).CGColor;});}
 -(void)viewDidChangeEffectiveAppearance {[super viewDidChangeEffectiveAppearance];[self refreshAccessibility];}
 -(void)dealloc {[NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self];[super dealloc];}
 @end
