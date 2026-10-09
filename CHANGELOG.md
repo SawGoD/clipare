@@ -19,7 +19,7 @@
 
 ### Нововведения
 
-- Компактные AppKit-карточки с NSGlassEffectView на macOS 26 и NSVisualEffectView fallback на старом SDK/ОС.
+- Компактные AppKit-карточки с NSGlassEffectView на macOS 26 и NSVisualEffectView fallback на старой ОС; Glass доступен и при сборке старым SDK.
 - Системные accent color, SF Symbols, прозрачный title bar и адаптивные поверхности.
 - Reduce Transparency переключает карточки на непрозрачные системные цвета без перезапуска.
 

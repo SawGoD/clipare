@@ -1,6 +1,14 @@
 //go:build darwin && cgo
 #import "darwin_desktop.h"
 
+// Public macOS 26 selectors, declared locally so older build SDKs can produce
+// binaries that use Glass on Tahoe. No private selectors or weak class linkage.
+@protocol CPGlassEffectAPI <NSObject>
+@property(retain) NSView *contentView;
+@property CGFloat cornerRadius;
+@property NSInteger style;
+@end
+
 // CGColor is a snapshot, unlike NSColor. Resolve it in this view's appearance,
 // not the process-wide appearance (which can differ from the window's).
 static void CPInAppearance(NSView *view,void (^draw)(void)) {
@@ -38,11 +46,13 @@ static void CPInAppearance(NSView *view,void (^draw)(void)) {
  NSView *host=self;
  BOOL glassHost=NO;
  if(!opaque){
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
-  if(@available(macOS 26.0,*)){if(!self.forceFallback){
-   NSGlassEffectView *glass=[[[NSGlassEffectView alloc]init]autorelease];glass.cornerRadius=20;glass.style=NSGlassEffectViewStyleRegular;glass.contentView=self.body;self.effect=glass;glassHost=YES;
-  }}
-#endif
+  if(@available(macOS 26.0,*)){
+   Class type=NSClassFromString(@"NSGlassEffectView");
+   if(type&&!self.forceFallback&&[type instancesRespondToSelector:@selector(setContentView:)]&&[type instancesRespondToSelector:@selector(setCornerRadius:)]&&[type instancesRespondToSelector:@selector(setStyle:)]){
+    NSView<CPGlassEffectAPI> *glass=[[[type alloc]init]autorelease];glass.cornerRadius=20;glass.style=0; // NSGlassEffectViewStyleRegular
+    glass.contentView=self.body;self.effect=glass;glassHost=YES;
+   }
+  }
   if(!self.effect){
    NSVisualEffectView *material=[[[NSVisualEffectView alloc]init]autorelease];material.material=NSVisualEffectMaterialPopover;material.blendingMode=NSVisualEffectBlendingModeWithinWindow;material.state=NSVisualEffectStateFollowsWindowActiveState;
    material.wantsLayer=YES;material.layer.cornerRadius=20;material.layer.masksToBounds=YES;self.effect=material;
