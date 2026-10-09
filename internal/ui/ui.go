@@ -609,7 +609,13 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
 		case st := <-statusUpdates:
 			states[st.id] = st.online
+			if session != nil {
+				renderPlatforms(d, session)
+			}
 		case <-refresh.C:
+			if session != nil {
+				renderPlatforms(d, session)
+			}
 			if deferredUpdateOffer && !outgoing && shownIncoming == "" && available != nil {
 				deferredUpdateOffer = false
 				ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))

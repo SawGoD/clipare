@@ -61,7 +61,8 @@ int main(int argc,const char **argv) { @autoreleasepool {
  [desktop action:desktop.advancedButton];assert(!desktop.advanced.hidden);assert(desktop.window==original);capture(@"advanced");[desktop action:desktop.advancedButton];assert(desktop.advanced.hidden);
  clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_sync_status(0,"Синхронизация включена","");
  assert(desktop.emptyDevices.hidden);assert(!desktop.peerList.hidden);assert(desktop.peers.count==2);assert(desktop.syncState==0);
- const char *rows="[{\"id\":\"a\",\"name\":\"Desktop-PC\",\"detail\":\"Подключено\",\"online\":true},{\"id\":\"b\",\"name\":\"Laptop\",\"detail\":\"Не в сети\",\"online\":false}]";
+ const char *rows="[{\"id\":\"a\",\"name\":\"Desktop-PC\",\"detail\":\"Подключено\",\"online\":true,\"platform\":\"windows\"},{\"id\":\"b\",\"name\":\"Laptop\",\"detail\":\"Не в сети\",\"online\":false,\"platform\":\"darwin\"}]";
+ for(NSString *platform in @[@"windows",@"darwin",@"",@"unrecognized"])assert(CPPlatformIcon(platform)!=nil);
  clipare_device_rows(rows,0,1,1,1);NSMenu *unchangedMenu=desktop.tray.menu;NSMutableArray *unchangedPeers=desktop.peers;
  for(int i=0;i<100;i++){clipare_device_rows(rows,0,1,1,1);clipare_sync_status(0,"Синхронизация включена","");}
  assert(desktop.tray.menu==unchangedMenu);assert(desktop.peers==unchangedPeers);

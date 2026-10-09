@@ -4,6 +4,54 @@ package ui
 
 import "unsafe"
 
+func (n *nativeDesktop) drawPlatform(dc uintptr, r winRect, platform string, color uint32) {
+	brush := gcall("CreateSolidBrush", uintptr(color))
+	oldBrush := gcall("SelectObject", dc, brush)
+	defer func() { gcall("SelectObject", dc, oldBrush); gcall("DeleteObject", brush) }()
+	x := func(v int) int32 { return r.Left + int32(v)*(r.Right-r.Left)/20 }
+	y := func(v int) int32 { return r.Top + int32(v)*(r.Bottom-r.Top)/20 }
+	if platform == "windows" {
+		for i := 0; i < 2; i++ {
+			for j := 0; j < 2; j++ {
+				rect := winRect{x(2 + i*9), y(2 + j*9), x(9 + i*9), y(9 + j*9)}
+				call("FillRect", dc, uintptr(unsafe.Pointer(&rect)), brush)
+			}
+		}
+		return
+	}
+	if platform == "darwin" {
+		type point struct{ X, Y int32 }
+		curve := func(values ...int) {
+			points := make([]point, len(values)/2)
+			for i := range points {
+				points[i] = point{x(values[i*2]), y(values[i*2+1])}
+			}
+			gcall("PolyBezierTo", dc, uintptr(unsafe.Pointer(&points[0])), uintptr(len(points)))
+		}
+		gcall("BeginPath", dc)
+		gcall("MoveToEx", dc, uintptr(x(10)), uintptr(y(6)), 0)
+		curve(5, 2, 2, 7, 3, 12, 4, 17, 6, 19, 8, 18, 10, 16, 11, 17, 13, 18, 15, 19, 18, 14, 18, 12, 14, 11, 14, 7, 17, 6, 14, 3, 12, 4, 10, 6)
+		gcall("CloseFigure", dc)
+		gcall("MoveToEx", dc, uintptr(x(10)), uintptr(y(4)), 0)
+		curve(10, 1, 13, 0, 15, 0, 15, 3, 12, 5, 10, 4)
+		gcall("CloseFigure", dc)
+		gcall("EndPath", dc)
+		gcall("FillPath", dc)
+		return
+	}
+	// Unknown platforms use a neutral monitor, never a guessed brand.
+	pen := gcall("CreatePen", 0, uintptr(n.px(1)), uintptr(color))
+	oldPen := gcall("SelectObject", dc, pen)
+	gcall("SelectObject", dc, gcall("GetStockObject", 5))
+	gcall("RoundRect", dc, uintptr(x(1)), uintptr(y(2)), uintptr(x(19)), uintptr(y(15)), uintptr(n.px(2)), uintptr(n.px(2)))
+	gcall("MoveToEx", dc, uintptr(x(10)), uintptr(y(15)), 0)
+	gcall("LineTo", dc, uintptr(x(10)), uintptr(y(18)))
+	gcall("MoveToEx", dc, uintptr(x(5)), uintptr(y(18)), 0)
+	gcall("LineTo", dc, uintptr(x(15)), uintptr(y(18)))
+	gcall("SelectObject", dc, oldPen)
+	gcall("DeleteObject", pen)
+}
+
 func (n *nativeDesktop) iconButton(label, glyph string, x, y, w, id int) uintptr {
 	h := n.control("BUTTON", label, 0x10000, x, y, w, 32, id)
 	n.icons[h] = glyph

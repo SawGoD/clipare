@@ -217,6 +217,8 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	r := d.Rect
 	r.Left += px(16)
 	r.Right -= px(12)
+	n.drawPlatform(d.DC, winRect{r.Left, r.Top + px(18), r.Left + px(20), r.Top + px(38)}, row.platform, muted)
+	r.Left += px(32)
 	if d.Window == n.homeList {
 		r.Right -= px(40)
 		dot := t.muted
@@ -226,8 +228,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		if t.contrast && selected {
 			dot = fg
 		}
-		n.roundRect(d.DC, winRect{r.Left, r.Top + px(22), r.Left + px(7), r.Top + px(29)}, dot, dot, int(px(4)))
-		r.Left += px(20)
+		n.roundRect(d.DC, winRect{r.Left, r.Top + px(39), r.Left + px(6), r.Top + px(45)}, dot, dot, int(px(3)))
 	}
 	nameRect := r
 	nameRect.Top += px(8)
@@ -235,6 +236,9 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	n.drawText(d.DC, n.fontFor(c.parent, 0), row.name, nameRect, fg, 0x8020)
 	r.Top += px(32)
 	r.Bottom = r.Top + px(20)
+	if d.Window == n.homeList {
+		r.Left += px(12)
+	}
 	n.drawText(d.DC, n.fontFor(c.parent, 4), row.detail, r, muted, 0x8020)
 	if d.State&0x10 != 0 {
 		r = d.Rect
@@ -264,7 +268,7 @@ func (n *nativeDesktop) setRows(hwnd uintptr, rows []deviceRow) {
 	n.rows[hwnd] = rows
 	call("SendMessageW", hwnd, 0x184, 0, 0)
 	for _, row := range rows {
-		call("SendMessageW", hwnd, 0x180, 0, uintptr(unsafe.Pointer(wide(row.name+" — "+row.detail))))
+		call("SendMessageW", hwnd, 0x180, 0, uintptr(unsafe.Pointer(wide(platformName(row.platform)+": "+row.name+" — "+row.detail))))
 	}
 	if selection >= 0 && selection < len(rows) {
 		call("SendMessageW", hwnd, 0x186, uintptr(selection), 0)

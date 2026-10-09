@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <UserNotifications/UserNotifications.h>
+NSImage *CPPlatformIcon(NSString *platform);
 
 typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, CPNotice };
 @interface CPStatusDot : NSView

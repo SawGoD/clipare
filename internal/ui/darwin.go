@@ -15,7 +15,10 @@ import (
 	"unsafe"
 )
 
-type nativeDesktop struct{ navigation Navigation }
+type nativeDesktop struct {
+	navigation Navigation
+	platforms  map[string]string
+}
 
 func newDesktop() (desktop, error) { return &nativeDesktop{}, nil }
 func (*nativeDesktop) Init() error { C.clipare_init(); return nil }
@@ -33,7 +36,7 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	for i, v := range f.Values {
 		cstr(v, func(p *C.char) { C.clipare_set(C.int(i), p) })
 	}
-	renderDarwinRows(peers, nil)
+	renderDarwinRows(peers, nil, n.platforms)
 	auto := 0
 	if f.Autostart {
 		auto = 1
@@ -59,13 +62,14 @@ func (n *nativeDesktop) SetPeer(p config.Peer) {
 	}
 	n.Actions(actionMask(n.Read()))
 }
-func (*nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
-	renderDarwinRows(peers, states)
+func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
+	renderDarwinRows(peers, states, n.platforms)
 }
-func renderDarwinRows(peers []config.Peer, states map[string]bool) {
+func (n *nativeDesktop) Platforms(values map[string]string) { n.platforms = values }
+func renderDarwinRows(peers []config.Peer, states map[string]bool, platforms map[string]string) {
 	rows := make([]map[string]any, 0, len(peers))
-	for i, row := range pairedRows(peers, states) {
-		rows = append(rows, map[string]any{"id": peers[i].ID, "name": row.name, "detail": row.detail, "online": row.online})
+	for i, row := range pairedRows(peers, states, platforms) {
+		rows = append(rows, map[string]any{"id": peers[i].ID, "name": row.name, "detail": row.detail, "online": row.online, "platform": row.platform})
 	}
 	data, _ := json.Marshal(rows)
 	s := presentSettings(len(peers), false)

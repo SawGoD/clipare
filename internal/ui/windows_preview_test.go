@@ -91,6 +91,11 @@ func TestWindowsFluentPreview(t *testing.T) {
 	n.set(10, "")
 	n.Actions(actionMask(n.Read()))
 	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
+	n.Platforms(map[string]string{"a": "darwin", "b": "windows"})
+	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
+	if n.rows[n.homeList][0].platform != "darwin" || n.rows[n.homeList][1].platform != "windows" {
+		t.Fatal("platform refresh omitted")
+	}
 	n.UpdateSettings("0.5.0", true)
 	for _, state := range []SyncState{SyncActive, SyncDisabled, SyncDegraded, SyncActive} {
 		n.SyncStatus(SyncStatus{State: state, Message: "Тест статуса", Reason: "Синтетический preview"})

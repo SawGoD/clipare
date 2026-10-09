@@ -5,6 +5,7 @@ package ui
 import (
 	"clipare/internal/config"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -93,6 +94,7 @@ type nativeDesktop struct {
 	actionButtons                                                                      map[uintptr]int
 	applyVisible                                                                       uint64
 	helpTexts                                                                          map[int]string
+	platforms                                                                          map[string]string
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -451,7 +453,7 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	call("SendMessageW", n.auto, 0xF1, auto, 0)
 	call("SetWindowTextW", n.homeName, uintptr(unsafe.Pointer(wide(f.Values[0]))))
 	call("SendMessageW", n.homeAuto, 0xF1, auto, 0)
-	n.setRows(n.homeList, pairedRows(peers, nil))
+	n.setRows(n.homeList, pairedRows(peers, nil, n.platforms))
 	n.showDevicePresentation(len(peers))
 	n.navigate(n.navigation.View)
 	n.peerLines = ""
@@ -493,8 +495,9 @@ func (n *nativeDesktop) SetPeer(p config.Peer) {
 func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
 	n.showDevicePresentation(len(peers))
 	lines := peerStatuses(peers, states)
-	if lines != n.peerLines {
-		n.setRows(n.homeList, pairedRows(peers, states))
+	rows := pairedRows(peers, states, n.platforms)
+	if lines != n.peerLines || !reflect.DeepEqual(rows, n.rows[n.homeList]) {
+		n.setRows(n.homeList, rows)
 	}
 	n.peerLines = lines
 	text := "Возобновить"
@@ -505,6 +508,7 @@ func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer,
 		call("SetWindowTextW", n.pauseButton, uintptr(unsafe.Pointer(wide(text))))
 	}
 }
+func (n *nativeDesktop) Platforms(values map[string]string) { n.platforms = values }
 func (n *nativeDesktop) Alert(s string) {
 	call("MessageBoxW", n.main, uintptr(unsafe.Pointer(wide(s))), uintptr(unsafe.Pointer(wide("Clipare"))), 0x40)
 }

@@ -22,6 +22,22 @@ func TestDeviceRows(t *testing.T) {
 	}
 }
 
+func TestPlatformsUseMetadataNotHostname(t *testing.T) {
+	peers := []config.Peer{{ID: "win", Name: "MacBook"}, {ID: "mac", Name: "Windows-PC"}, {ID: "unknown", Name: "MacBook Pro"}}
+	rows := pairedRows(peers, nil, map[string]string{"win": "windows", "mac": "darwin", "unknown": "unrecognized"})
+	if rows[0].platform != "windows" || rows[1].platform != "darwin" || rows[2].platform != "" {
+		t.Fatal("platform guessed or invalid metadata accepted")
+	}
+	for _, row := range pairedRows(peers, nil) {
+		if row.platform != "" {
+			t.Fatal("hostname inferred platform")
+		}
+	}
+	if platformName("") != "Устройство" {
+		t.Fatal("unknown lacks accessible fallback")
+	}
+}
+
 func TestAccentContrast(t *testing.T) {
 	if contrastRatio(0xffffff, 0) < 20 {
 		t.Fatal("black and white contrast")

@@ -19,6 +19,15 @@ NSImage *CPSymbol(NSString *symbol,NSString *label) {
  return [NSImage imageNamed:name];
 }
 
+NSImage *CPPlatformIcon(NSString *platform) {
+ if([platform isEqual:@"darwin"]){NSImage *image=CPSymbol(@"apple.logo",@"macOS");if(image)return image;}
+ if([platform isEqual:@"windows"]){
+  NSImage *image=[NSImage imageWithSize:NSMakeSize(20,20) flipped:NO drawingHandler:^BOOL(NSRect rect){[NSColor.blackColor setFill];for(int x=0;x<2;x++)for(int y=0;y<2;y++)NSRectFill(NSMakeRect(2+x*9,2+y*9,7,7));return YES;}];image.template=YES;return image;
+ }
+ if(@available(macOS 11.0,*)){NSImage *image=CPSymbol(@"desktopcomputer",@"Устройство");if(image)return image;}
+ return [NSImage imageNamed:NSImageNameComputer];
+}
+
 NSTextField *CPLabel(NSString *text,CGFloat size) {
  NSTextField *v=[NSTextField wrappingLabelWithString:text];v.font=[NSFont systemFontOfSize:size];v.translatesAutoresizingMaskIntoConstraints=NO;v.lineBreakMode=NSLineBreakByWordWrapping;return v;
 }
