@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"clipare/internal/update"
+	"clipare/internal/releaseversion"
 )
 
 func notes(changelog, version, previous string) (string, error) {
-	if _, err := update.StableVersion(version); err != nil {
+	if _, err := releaseversion.Parse(version); err != nil {
 		return "", err
 	}
 	heading := "## " + version
@@ -39,7 +39,7 @@ func notes(changelog, version, previous string) (string, error) {
 	}
 	body = strings.ReplaceAll(body, "### ", "## ")
 	if previous != "" {
-		if _, err := update.StableVersion(previous); err != nil {
+		if _, err := releaseversion.Parse(previous); err != nil {
 			return "", err
 		}
 		body += "\n\nИзменения относительно v" + previous + ".\n\n[Сравнение версий](https://github.com/SawGoD/clipare/compare/v" + previous + "...v" + version + ")"

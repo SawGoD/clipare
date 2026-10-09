@@ -3,17 +3,18 @@ package main
 import (
 	"archive/zip"
 	"clipare"
+	"clipare/internal/releaseversion"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestVersion(t *testing.T) {
-	if !semver.MatchString(clipare.Version()) {
-		t.Fatal("VERSION must be stable SemVer")
+	if _, err := releaseversion.Parse(clipare.Version()); err != nil {
+		t.Fatal(err)
 	}
 	for _, s := range []string{"01.2.3", "v1.2.3", "1.2", "1.2.3; command"} {
-		if semver.MatchString(s) {
+		if _, err := releaseversion.Parse(s); err == nil {
 			t.Fatal(s)
 		}
 	}

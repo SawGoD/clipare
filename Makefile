@@ -1,12 +1,13 @@
 .PHONY: mac windows windows-console release-mac release-windows test test-macos-ui
 
 VERSION := $(strip $(shell sed -n '1p' VERSION))
+VERSION_CORE := $(word 1,$(subst -, ,$(VERSION)))
 COMMIT := $(shell git rev-parse HEAD)
 LDFLAGS := -X clipare.Commit=$(COMMIT)
 
 mac:
 	mkdir -p dist/Clipare.app/Contents/MacOS
-	sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@BUILD@/$(VERSION)/g' assets/Info.plist > dist/Clipare.app/Contents/Info.plist
+	sed -e 's/@VERSION@/$(VERSION_CORE)/g' -e 's/@BUILD@/$(VERSION_CORE)/g' -e 's/@RELEASE_VERSION@/$(VERSION)/g' assets/Info.plist > dist/Clipare.app/Contents/Info.plist
 	CGO_ENABLED=1 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
 
 windows:

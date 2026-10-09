@@ -4,6 +4,7 @@ package main
 import (
 	"archive/zip"
 	"clipare"
+	"clipare/internal/releaseversion"
 	"clipare/internal/update"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,8 +21,6 @@ import (
 	"strings"
 )
 
-var semver = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-
 func main() {
 	if e := run(); e != nil {
 		fmt.Fprintln(os.Stderr, e)
@@ -34,8 +33,9 @@ func run() error {
 	out := flag.String("out", "dist", "output directory")
 	flag.Parse()
 	version := clipare.Version()
-	if !semver.MatchString(version) {
-		return errors.New("VERSION must be MAJOR.MINOR.PATCH")
+	parsedVersion, err := releaseversion.Parse(version)
+	if err != nil {
+		return err
 	}
 	if (*targetOS != "darwin" && *targetOS != "windows") || (*arch != "amd64" && *arch != "arm64") {
 		return errors.New("unsupported target")
@@ -78,7 +78,9 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		plist := strings.ReplaceAll(strings.ReplaceAll(string(b), "@VERSION@", version), "@BUILD@", version)
+		// Apple's bundle version fields require numeric components. The binary,
+		// release metadata and human-readable bundle info retain the full SemVer.
+		plist := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(string(b), "@VERSION@", parsedVersion.Core), "@BUILD@", parsedVersion.Core), "@RELEASE_VERSION@", version)
 		if e = os.WriteFile(filepath.Join(bundle, "Info.plist"), []byte(plist), 0644); e != nil {
 			return e
 		}

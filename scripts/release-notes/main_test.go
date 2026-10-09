@@ -20,3 +20,14 @@ func TestNotes(t *testing.T) {
 		t.Fatal("invalid comparison version")
 	}
 }
+
+func TestBetaNotes(t *testing.T) {
+	c := "## 0.5.0-beta.1\n\n### Нововведения\n\n- Preview интерфейса.\n"
+	n, err := notes(c, "0.5.0-beta.1", "0.4.1")
+	if err != nil || !strings.Contains(n, "v0.4.1...v0.5.0-beta.1") {
+		t.Fatalf("%q %v", n, err)
+	}
+	if _, err = notes(c, "0.5.0-beta.01", "0.4.1"); err == nil {
+		t.Fatal("accepted invalid prerelease")
+	}
+}

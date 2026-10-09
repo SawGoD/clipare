@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(tr -d '\r\n' < VERSION)
-          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
           [[ "$RELEASE_TAG" == "v$VERSION" ]]
       - name: Race tests
         if: runner.os != 'Windows'
@@ -108,11 +108,17 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          previous=$(gh release view --json tagName --jq .tagName)
+          previous=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)
           go run ./scripts/release-notes "${RELEASE_TAG#v}" "${previous#v}" > release-notes.md
           cd release-assets
           cat *.zip.sha256 > SHA256SUMS
           test "$(find . -maxdepth 1 -name '*.zip' | wc -l)" -eq 4
           sha256sum --check SHA256SUMS
+          release_flags=()
+          release_title="Clipare $RELEASE_TAG"
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_flags+=(--prerelease --latest=false)
+            release_title+=" (Prerelease)"
+          fi
           gh release create "$RELEASE_TAG" ./*.zip SHA256SUMS \
-            --verify-tag --notes-file ../release-notes.md --title "Clipare $RELEASE_TAG"
+            --verify-tag --notes-file ../release-notes.md --title "$release_title" "${release_flags[@]}"
