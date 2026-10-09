@@ -43,10 +43,11 @@ func (Security) String() string   { return "[redacted]" }
 func (Security) GoString() string { return "[redacted]" }
 
 type Config struct {
-	Removed       []string          `yaml:"removed,omitempty"`
-	SchemaVersion int               `yaml:"schema_version,omitempty"`
-	Identity      identity.Identity `yaml:"identity,omitempty"`
-	Group         struct {
+	Removed            []string          `yaml:"removed,omitempty"`
+	MembershipVersions map[string]uint64 `yaml:"membership_versions,omitempty"`
+	SchemaVersion      int               `yaml:"schema_version,omitempty"`
+	Identity           identity.Identity `yaml:"identity,omitempty"`
+	Group              struct {
 		ID string `yaml:"id"`
 	} `yaml:"group,omitempty"`
 	Autostart bool `yaml:"autostart"`
@@ -105,6 +106,14 @@ func (c Config) ListenAddress() string {
 	return net.JoinHostPort(c.Listen.Address, strconv.Itoa(c.Listen.Port))
 }
 func (c Config) Validate() error {
+	if len(c.MembershipVersions) > 256 {
+		return errors.New("membership version limit exceeded")
+	}
+	for id, revision := range c.MembershipVersions {
+		if id == "" || len(id) > 128 || revision == 0 || revision >= 1<<63 {
+			return errors.New("invalid membership revision")
+		}
+	}
 	if c.SchemaVersion != 0 && c.SchemaVersion != 2 {
 		return errors.New("unsupported configuration schema")
 	}

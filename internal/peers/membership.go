@@ -18,16 +18,17 @@ type Member struct {
 	PublicKey string `json:"public_key"`
 }
 type Membership struct {
-	Group   string   `json:"group"`
-	Members []Member `json:"members"`
-	Removed []string `json:"removed,omitempty"`
+	Group    string            `json:"group"`
+	Members  []Member          `json:"members"`
+	Removed  []string          `json:"removed,omitempty"`
+	Versions map[string]uint64 `json:"versions,omitempty"`
 }
 
 func Local(c config.Config) Member {
 	return Member{ID: c.Device.ID, Name: c.Device.Name, IP: c.Listen.Address, Port: c.Listen.Port, PublicKey: c.Identity.PublicKey}
 }
 func Export(c config.Config) Membership {
-	v := Membership{Group: c.Group.ID, Members: []Member{Local(c)}, Removed: append([]string(nil), c.Removed...)}
+	v := Membership{Group: c.Group.ID, Members: []Member{Local(c)}, Removed: append([]string(nil), c.Removed...), Versions: CloneVersions(c.MembershipVersions)}
 	for _, p := range c.Peers {
 		if p.Legacy {
 			continue
@@ -66,20 +67,15 @@ func Merge(c config.Config, v Membership) (config.Config, error) {
 			return c, errors.New("identity substitution")
 		}
 	}
-	revoked := map[string]bool{}
-	for _, id := range c.Removed {
-		revoked[id] = true
-	}
-	for _, id := range v.Removed {
-		if id == c.Device.ID || id == "" || len(id) > 128 {
-			return c, errors.New("invalid removal")
-		}
-		revoked[id] = true
+	revoked, versions, err := mergeRevisions(c, v, seen)
+	if err != nil {
+		return c, err
 	}
 	if len(revoked) > 256 {
 		return c, errors.New("removal list full")
 	}
 	c.Peers = append([]config.Peer(nil), c.Peers...)
+	c.MembershipVersions = versions
 	c.Removed = nil
 	for id := range revoked {
 		c.Removed = append(c.Removed, id)
