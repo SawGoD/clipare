@@ -56,6 +56,17 @@ type updateDesktop interface {
 	UpdatePrompt(updatePrompt)
 	UpdateClose()
 }
+
+// Restore native toggles after rejected or failed persistence, without replacing
+// technical drafts or changing the current navigation view.
+type preferenceDesktop interface{ Preferences(bool, bool) }
+
+func renderPreferences(d desktop, autostart, updates bool) {
+	if p, ok := d.(preferenceDesktop); ok {
+		p.Preferences(autostart, updates)
+	}
+}
+
 type updateResult struct {
 	release *update.Release
 	plan    *update.Plan
@@ -327,6 +338,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	var session *app.Session
 	done := make(chan result, 1)
 	busy := false
+	preferenceAuto, preferenceUpdates := c.Autostart, c.Updates.Enabled
 	status := "Настройте подключение"
 	var retryAt time.Time
 	exe, e := os.Executable()
@@ -334,6 +346,8 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		return e
 	}
 	apply := func(next config.Config, persist bool) {
+		preferenceAuto, preferenceUpdates = next.Autostart, next.Updates.Enabled
+		renderPreferences(d, preferenceAuto, preferenceUpdates)
 		busy = true
 		retryAt = time.Time{}
 		status = "Применение настроек…"
@@ -587,6 +601,8 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			}
 			d.Update(status, session != nil && c.Mode() != "disabled", c.Peers, states)
 			renderStatus(d, status, c.Mode() != "disabled", session != nil, c.Listen.Address == "127.0.0.1", busy)
+			preferenceAuto, preferenceUpdates = c.Autostart, c.Updates.Enabled
+			renderPreferences(d, preferenceAuto, preferenceUpdates)
 		case st := <-statusUpdates:
 			states[st.id] = st.online
 		case <-refresh.C:
@@ -638,10 +654,14 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			}
 			if busy {
 				if action != eventSettings {
+					if action == eventAutostartPreference || action == eventUpdatePreference {
+						renderPreferences(d, preferenceAuto, preferenceUpdates)
+					}
 					continue
 				}
 			}
 			if (outgoing || shownIncoming != "") && (action == eventSave || action == eventPause || action == eventGenerate || action == eventImport || action == eventUpsert || action == eventRemove || action == eventAutostartPreference || action == eventUpdatePreference) {
+				renderPreferences(d, c.Autostart, c.Updates.Enabled)
 				d.Alert("Завершите или отмените подключение, прежде чем изменять настройки")
 				continue
 			}
@@ -654,6 +674,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 			case eventUpdatePreference:
 				if !hasUpdateUI || needsSetup {
+					renderPreferences(d, c.Autostart, c.Updates.Enabled)
 					continue
 				}
 				next := c
@@ -662,6 +683,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				apply(next, true)
 			case eventAutostartPreference:
 				if needsSetup {
+					renderPreferences(d, c.Autostart, c.Updates.Enabled)
 					d.Alert("Сначала настройте подключение в расширенных параметрах")
 					continue
 				}

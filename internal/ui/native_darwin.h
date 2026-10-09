@@ -9,6 +9,7 @@ void clipare_set(int index,const char *text);
 char *clipare_get(int index);
 void clipare_auto(int enabled);
 int clipare_is_auto(void);
+void clipare_preferences(int autostart,int updates);
 void clipare_addresses(const char *lines);
 void clipare_peers(const char *lines);
 int clipare_selected(void);

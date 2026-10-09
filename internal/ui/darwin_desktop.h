@@ -22,6 +22,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property BOOL pairIncoming, additionalExpanded, advancedExpanded;
 @property BOOL devicesEmpty, canRemove, compactVisible, listVisible;
 @property BOOL closed;
+@property NSUInteger notificationGeneration;
 -(void)build;
 -(void)action:(id)sender;
 -(void)show:(NSInteger)view;

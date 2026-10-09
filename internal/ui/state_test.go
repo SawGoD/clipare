@@ -2,6 +2,25 @@ package ui
 
 import "testing"
 
+type preferenceRecorder struct {
+	desktop
+	autostart, updates bool
+}
+
+func (p *preferenceRecorder) Preferences(autostart, updates bool) {
+	p.autostart, p.updates = autostart, updates
+}
+func TestRestorePreferencesWithoutReplacingDraftOrView(t *testing.T) {
+	p := &preferenceRecorder{}
+	// The nil desktop intentionally fails if restoration calls Read/Show.
+	for _, values := range [][2]bool{{true, false}, {false, true}, {false, false}} {
+		renderPreferences(p, values[0], values[1])
+		if p.autostart != values[0] || p.updates != values[1] {
+			t.Fatal("preferences not restored")
+		}
+	}
+}
+
 func TestSyncState(t *testing.T) {
 	for _, test := range []struct {
 		requested, running, local, applying bool

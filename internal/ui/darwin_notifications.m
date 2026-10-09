@@ -9,9 +9,10 @@
  // CLI and synthetic UI tests never ask for notification authorization.
  if(![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"io.clipare.app"])return;
  UNUserNotificationCenter *center=[UNUserNotificationCenter currentNotificationCenter];
+ NSUInteger generation=++self.notificationGeneration;
  [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert completionHandler:^(BOOL granted,NSError *error){
   dispatch_async(dispatch_get_main_queue(),^{
-   if(!granted||self.closed||!self.pairIncoming)return;
+   if(!granted||self.closed||!self.pairIncoming||generation!=self.notificationGeneration)return;
    UNMutableNotificationContent *content=[[[UNMutableNotificationContent alloc]init]autorelease];content.title=@"Новое устройство хочет подключиться";content.body=name;content.categoryIdentifier=@"clipare.pairing";
    [center addNotificationRequest:[UNNotificationRequest requestWithIdentifier:@"clipare.pairing" content:content trigger:nil] withCompletionHandler:nil];
   });
@@ -19,6 +20,7 @@
 }
 -(void)clearPairNotification {
  self.pairIncoming=NO;
+ self.notificationGeneration++;
  if(![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"io.clipare.app"])return;
  UNUserNotificationCenter *center=[UNUserNotificationCenter currentNotificationCenter];[center removePendingNotificationRequestsWithIdentifiers:@[@"clipare.pairing"]];[center removeDeliveredNotificationsWithIdentifiers:@[@"clipare.pairing"]];
 }

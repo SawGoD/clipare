@@ -585,6 +585,16 @@ func (n *nativeDesktop) UpdateSettings(version string, enabled bool) {
 func (n *nativeDesktop) UpdateEnabled() bool {
 	return call("SendMessageW", n.updateCheck, 0xF0, 0, 0) == 1
 }
+func (n *nativeDesktop) Preferences(autostart, updates bool) {
+	for h, on := range map[uintptr]bool{n.homeAuto: autostart, n.updateCheck: updates} {
+		v := uintptr(0)
+		if on {
+			v = 1
+		}
+		call("SendMessageW", h, 0xf1, v, 0)
+		call("InvalidateRect", h, 0, 1)
+	}
+}
 func (n *nativeDesktop) UpdatePrompt(v updatePrompt) {
 	call("SetWindowTextW", n.updateText, uintptr(unsafe.Pointer(wide(v.Text))))
 	call("SetWindowTextW", n.updateInstall, uintptr(unsafe.Pointer(wide(v.Primary))))

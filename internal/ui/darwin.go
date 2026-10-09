@@ -81,7 +81,16 @@ func (*nativeDesktop) SyncStatus(s SyncStatus) {
 	cstr(s.Message, func(m *C.char) { cstr(s.Reason, func(r *C.char) { C.clipare_sync_status(C.int(s.State), m, r) }) })
 }
 func (*nativeDesktop) Alert(s string) { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
-func (*nativeDesktop) Close()         { C.clipare_close() }
+func (*nativeDesktop) Preferences(autostart, updates bool) {
+	flag := func(v bool) C.int {
+		if v {
+			return 1
+		}
+		return 0
+	}
+	C.clipare_preferences(flag(autostart), flag(updates))
+}
+func (*nativeDesktop) Close() { C.clipare_close() }
 func (*nativeDesktop) Discovered(lines, status string) {
 	cstr(lines, func(l *C.char) { cstr(status, func(s *C.char) { C.clipare_discovered(l, s) }) })
 }

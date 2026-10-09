@@ -24,6 +24,7 @@ void clipare_set(int i,const char *text) { @autoreleasepool {if(i>=0&&i<11&&desk
 char *clipare_get(int i) { @autoreleasepool {if(i<0||i>=11||desktop.fields[i]==NSNull.null)return strdup("");return strdup([[desktop.fields[i]stringValue]UTF8String]);} }
 void clipare_auto(int enabled) {desktop.autostart.state=enabled?NSControlStateValueOn:NSControlStateValueOff;}
 int clipare_is_auto(void) {return desktop.autostart.state==NSControlStateValueOn;}
+void clipare_preferences(int autostart,int updates) {clipare_auto(autostart);desktop.updates.state=updates?NSControlStateValueOn:NSControlStateValueOff;}
 void clipare_addresses(const char *s) { @autoreleasepool {NSComboBox *box=desktop.fields[2];[box removeAllItems];for(NSString *line in lines(s))if(line.length)[box addItemWithObjectValue:line];} }
 void clipare_peers(const char *s) { @autoreleasepool {[desktop.peers removeAllObjects];for(NSString *line in lines(s))if(line.length)[desktop.peers addObject:@{@"name":line,@"detail":@"Не в сети",@"online":@NO}];desktop.devicesEmpty=!desktop.peers.count;desktop.canRemove=desktop.compactVisible=desktop.listVisible=desktop.peers.count>0;[desktop refreshDevices];} }
 int clipare_selected(void) {return (int)desktop.peerTable.selectedRow;}
@@ -50,7 +51,7 @@ void clipare_discovered(const char *s,const char *status) { @autoreleasepool {
 } }
 int clipare_discovered_selected(void) {return (int)desktop.foundTable.selectedRow;}
 void clipare_pair(const char *name,const char *sas,int mode) { @autoreleasepool {
- if(mode==1&&desktop.view!=CPPairing)[desktop notifyPair:str(name)];
+ if(mode==1&&!desktop.pairIncoming)[desktop notifyPair:str(name)];
  desktop.pairIncoming=mode==1;desktop.pairName.stringValue=str(name);desktop.sas.stringValue=str(sas);
  desktop.pairHelp.stringValue=mode==2?@"Сравните коды на обоих компьютерах и нажмите «Код совпадает». На другом устройстве также разрешите подключение.":mode==1?@"Сравните коды на обоих компьютерах. Если они отличаются — отклоните подключение.":@"Сравните код на другом компьютере и разрешите подключение там. Ожидание подтверждения…";
  desktop.approve.hidden=mode==0;desktop.approve.title=mode==2?@"Код совпадает":@"Разрешить";desktop.approve.tag=mode==2?18:14;desktop.reject.title=mode==1?@"Отклонить":@"Отменить";desktop.reject.tag=mode==1?15:16;[desktop show:CPPairing];
