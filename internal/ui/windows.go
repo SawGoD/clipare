@@ -89,6 +89,7 @@ type nativeDesktop struct {
 	tooltipText                                                                        []*uint16
 	statusIcons                                                                        [3]uintptr
 	actionButtons                                                                      map[uintptr]int
+	applyVisible                                                                       uint64
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -117,6 +118,9 @@ func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, i
 			n.actionButtons = map[uintptr]int{}
 		}
 		n.actionButtons[handle] = id
+		if id == eventSave || id == eventDeviceName {
+			visible(handle, false)
+		}
 	}
 	call("SendMessageW", handle, 0x30, n.fontFor(n.window, 0), 1)
 	if class == "EDIT" || class == "COMBOBOX" || class == "BUTTON" && style&15 == 3 {
@@ -513,6 +517,18 @@ func (n *nativeDesktop) Actions(mask uint64) {
 		}
 		if call("IsWindowEnabled", h) != value {
 			call("EnableWindow", h, value)
+		}
+	}
+}
+
+func (n *nativeDesktop) ApplyVisibility(mask uint64) {
+	if n.applyVisible == mask {
+		return
+	}
+	n.applyVisible = mask
+	for h, id := range n.actionButtons {
+		if id == eventSave || id == eventDeviceName {
+			visible(h, mask&(1<<id) != 0 && (id != eventSave || n.navigation.AdvancedExpanded))
 		}
 	}
 }

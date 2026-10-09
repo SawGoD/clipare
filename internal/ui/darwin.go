@@ -82,8 +82,9 @@ func renderDarwinRows(peers []config.Peer, states map[string]bool) {
 func (*nativeDesktop) SyncStatus(s SyncStatus) {
 	cstr(s.Message, func(m *C.char) { cstr(s.Reason, func(r *C.char) { C.clipare_sync_status(C.int(s.State), m, r) }) })
 }
-func (*nativeDesktop) Alert(s string)      { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
-func (*nativeDesktop) Actions(mask uint64) { C.clipare_actions(C.ulonglong(mask)) }
+func (*nativeDesktop) Alert(s string)              { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
+func (*nativeDesktop) Actions(mask uint64)         { C.clipare_actions(C.ulonglong(mask)) }
+func (*nativeDesktop) ApplyVisibility(mask uint64) { C.clipare_apply_visibility(C.ulonglong(mask)) }
 func (*nativeDesktop) Preferences(autostart, updates bool) {
 	flag := func(v bool) C.int {
 		if v {

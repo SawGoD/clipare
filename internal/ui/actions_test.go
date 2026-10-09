@@ -93,3 +93,38 @@ func TestEmptyInputsDisableActions(t *testing.T) {
 		t.Fatal("nonempty import disabled")
 	}
 }
+
+func TestApplyVisibilityTracksOnlyRelatedChanges(t *testing.T) {
+	saved := form{Values: [11]string{"MacBook", "id", "100.64.0.1", "45873", "test-secret"}}
+	if applyMask(saved, saved, false) != 0 {
+		t.Fatal("unchanged form shows apply")
+	}
+	for _, index := range []int{0, 2, 3, 4} {
+		current := saved
+		current.Values[index] += "x"
+		want := uint64(1 << eventSave)
+		if index == 0 {
+			want |= 1 << eventDeviceName
+		}
+		if got := applyMask(current, saved, false); got != want {
+			t.Fatalf("field %d: got %x want %x", index, got, want)
+		}
+		if applyMask(current, current, false) != 0 {
+			t.Fatal("successful save retains apply")
+		}
+		current.Values[index] = saved.Values[index]
+		if applyMask(current, saved, false) != 0 {
+			t.Fatal("reverted edit retains apply")
+		}
+	}
+	for _, index := range []int{1, 5, 6, 7, 8, 9, 10} {
+		current := saved
+		current.Values[index] += "x"
+		if applyMask(current, saved, false) != 0 {
+			t.Fatalf("unrelated field %d shows apply", index)
+		}
+	}
+	if applyMask(saved, saved, true) != 1<<eventSave {
+		t.Fatal("pending legacy peer/setup cannot be saved")
+	}
+}

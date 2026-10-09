@@ -44,6 +44,39 @@ func TestWindowsFluentPreview(t *testing.T) {
 	f.Values[5] = "Протокол 1 · Тест интерфейса"
 	f.Values[9] = "45873"
 	n.Show(f, peers, []string{"100.64.0.1"})
+	n.ApplyVisibility(applyMask(f, f, false))
+	nameApply := call("GetDlgItem", n.home, eventDeviceName)
+	if call("IsWindowVisible", nameApply) != 0 {
+		t.Fatal("unchanged name shows apply")
+	}
+	n.set(0, "Changed name")
+	n.ApplyVisibility(applyMask(n.Read(), f, false))
+	if call("IsWindowVisible", nameApply) == 0 {
+		t.Fatal("changed name hides apply")
+	}
+	n.set(0, f.Values[0])
+	n.ApplyVisibility(applyMask(n.Read(), f, false))
+	if call("IsWindowVisible", nameApply) != 0 {
+		t.Fatal("reverted name shows apply")
+	}
+	n.navigation.AdvancedExpanded = true
+	n.layoutPreferences()
+	advancedApply := call("GetDlgItem", n.home, eventSave)
+	if call("IsWindowVisible", advancedApply) != 0 {
+		t.Fatal("advanced expansion shows unchanged apply")
+	}
+	n.set(3, "45874")
+	n.ApplyVisibility(applyMask(n.Read(), f, false))
+	if call("IsWindowVisible", advancedApply) == 0 {
+		t.Fatal("changed port hides apply")
+	}
+	n.set(3, f.Values[3])
+	n.ApplyVisibility(applyMask(n.Read(), f, false))
+	if call("IsWindowVisible", advancedApply) != 0 {
+		t.Fatal("reverted port shows apply")
+	}
+	n.navigation.AdvancedExpanded = false
+	n.layoutPreferences()
 	if len(n.rowTrash) != len(peers) {
 		t.Fatal("missing per-device removal buttons")
 	}

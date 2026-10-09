@@ -28,6 +28,34 @@ func actionReady(action int, f form) bool {
 
 type actionDesktop interface{ Actions(uint64) }
 
+type applyDesktop interface{ ApplyVisibility(uint64) }
+
+// Only persisted settings participate: typing a manual peer/code is not an
+// edit to the installation until that separate action updates the draft.
+func applyMask(current, saved form, pending bool) uint64 {
+	var mask uint64
+	if strings.TrimSpace(current.Values[0]) != saved.Values[0] {
+		mask |= 1 << eventDeviceName
+	}
+	if pending || mask != 0 {
+		mask |= 1 << eventSave
+	}
+	for _, i := range []int{2, 3, 4} {
+		if current.Values[i] != saved.Values[i] {
+			mask |= 1 << eventSave
+		}
+	}
+	return mask
+}
+
+func renderApply(d desktop, current, saved form, pending bool) uint64 {
+	mask := applyMask(current, saved, pending)
+	if n, ok := d.(applyDesktop); ok {
+		n.ApplyVisibility(mask)
+	}
+	return mask
+}
+
 func actionMask(f form) uint64 {
 	var mask uint64
 	for _, id := range []int{eventSave, eventImport, eventUpsert, eventCopy, eventDeviceName} {

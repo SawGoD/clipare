@@ -45,6 +45,10 @@ void clipare_alert(const char *text) { @autoreleasepool {
  [desktop.window makeKeyAndOrderFront:nil];[alert beginSheetModalForWindow:desktop.window completionHandler:nil];
 } }
 void clipare_actions(unsigned long long mask) {for(NSButton *button in desktop.actionButtons)button.enabled=(mask&(1ULL<<button.tag))!=0;}
+void clipare_apply_visibility(unsigned long long mask) { @autoreleasepool {
+ BOOL changed=NO;for(NSButton *button in desktop.actionButtons)if(button.tag==1||button.tag==25){BOOL hidden=(mask&(1ULL<<button.tag))==0;if(button.hidden!=hidden){button.hidden=hidden;changed=YES;}}
+ if(changed)[desktop resizeDocument];
+} }
 void clipare_close(void) { @autoreleasepool {
  desktop.closed=YES;[desktop clearPairNotification];if([NSBundle.mainBundle.bundleIdentifier isEqualToString:@"io.clipare.app"])[UNUserNotificationCenter currentNotificationCenter].delegate=nil;
  if(desktop.window.attachedSheet)[desktop.window endSheet:desktop.window.attachedSheet];

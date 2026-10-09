@@ -427,6 +427,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	defer refresh.Stop()
 	d.Update(status, false, c.Peers, states)
 	renderStatus(d, status, c.Mode() != "disabled", false, c.Listen.Address == "127.0.0.1", busy)
+	renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
 	for {
 		select {
 		case <-ctx.Done():
@@ -605,6 +606,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			renderStatus(d, status, c.Mode() != "disabled", session != nil, c.Listen.Address == "127.0.0.1", busy)
 			preferenceAuto, preferenceUpdates = c.Autostart, c.Updates.Enabled
 			renderPreferences(d, preferenceAuto, preferenceUpdates)
+			renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
 		case st := <-statusUpdates:
 			states[st.id] = st.online
 		case <-refresh.C:
@@ -649,6 +651,10 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				return nil
 			}
 			if action == eventNone {
+				continue
+			}
+			changes := renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
+			if (action == eventSave || action == eventDeviceName) && changes&(1<<action) == 0 {
 				continue
 			}
 			if action == eventFormChanged {
@@ -968,6 +974,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			default:
 				d.Alert(fmt.Sprintf("Unknown action %d", action))
 			}
+			renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
 		}
 	}
 }

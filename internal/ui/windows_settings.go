@@ -50,7 +50,7 @@ func (n *nativeDesktop) layoutPreferences() {
 	n.controls[n.advancedButton] = c
 	footer := y + 52
 	for _, h := range n.advancedControls {
-		visible(h, n.navigation.AdvancedExpanded)
+		visible(h, n.navigation.AdvancedExpanded && (n.actionButtons[h] != eventSave || n.applyVisible&(1<<eventSave) != 0))
 		c := n.controls[h]
 		c.bounds.y = n.advancedBase[h] + y + 64
 		n.controls[h] = c

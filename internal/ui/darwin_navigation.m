@@ -33,6 +33,7 @@ NSButton *CPButton(NSString *title,CPDesktop *d,NSInteger tag) {
  NSButton *b=[NSButton buttonWithTitle:title target:d action:@selector(action:)];b.tag=tag;b.translatesAutoresizingMaskIntoConstraints=NO;[b.heightAnchor constraintEqualToConstant:32].active=YES;
  if(tag==1||tag==8||tag==13||tag==14||tag==18||tag==20||tag==25)b.bezelColor=NSColor.controlAccentColor;
  if(tag==1||tag==6||tag==7||tag==8||tag==25)[d.actionButtons addObject:b];
+ if(tag==1||tag==25)b.hidden=YES;
  return b;
 }
 NSButton *CPIcon(NSString *symbol,NSString *label,CPDesktop *d,NSInteger tag) {
