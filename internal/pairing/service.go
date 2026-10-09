@@ -129,7 +129,22 @@ func (s *Service) persistPair(remote Hello, group string) error {
 	}
 	c.Group.ID = group
 	v := peers.Export(c)
-	v.Members = append(v.Members, member(remote))
+	// A peer may have lost its local relationship while we still trust its
+	// identity. Approval repairs metadata, not a second membership entry.
+	found := false
+	for i, existing := range v.Members {
+		if existing.ID == remote.ID {
+			if existing.PublicKey != remote.PublicKey {
+				return errors.New("Ключ устройства изменился. Подключение отклонено: используйте устройство с новой identity")
+			}
+			v.Members[i] = member(remote)
+			found = true
+			break
+		}
+	}
+	if !found {
+		v.Members = append(v.Members, member(remote))
+	}
 	next, err := peers.Merge(c, v)
 	if err != nil {
 		return ErrInvalid
