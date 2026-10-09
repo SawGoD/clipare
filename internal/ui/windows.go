@@ -280,7 +280,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.updateDismiss = n.control("BUTTON", "Понятно", 0x10000, 24, 264, 164, 36, 21)
 	n.found = n.panel(class, "Добавить устройство", 568, 420, logicalRect{24, 64, 520, 248})
 	n.window = n.found
-	n.heading("Найденные устройства", 24, 16, 520, 1)
+	n.heading("Найденные устройства", 24, 16, 456, 1)
 	n.iconButton("Вернуться к устройствам", "\ue72b", 496, 16, 48, 31)
 	n.foundList = n.deviceList(40, 80, 488, 180, 132)
 	n.foundStatus = n.control("STATIC", "Поиск устройств…", 0, 40, 268, 488, 38, 0)
@@ -291,7 +291,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.button("Не нашли? Добавить по коду…", 24, 376, 340, 30)
 	n.pair = n.panel(class, "Подключение устройства", 520, 380, logicalRect{24, 112, 472, 96})
 	n.window = n.pair
-	n.heading("Подключение устройства", 24, 16, 472, 1)
+	n.heading("Подключение устройства", 24, 16, 408, 1)
 	n.iconButton("Вернуться к устройствам", "\ue72b", 448, 16, 48, 31)
 	n.pairName = n.control("STATIC", "", 0x4000, 24, 60, 472, 28, 0)
 	n.heading("Код проверки", 40, 122, 440, 2)

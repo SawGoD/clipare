@@ -80,24 +80,35 @@ func (n *nativeDesktop) updateScroll(hwnd uintptr) {
 	}
 	n.layingOut = true
 	defer func() { n.layingOut = false }()
+	// A previous tall view can leave both bars visible. Measure the unscrolled
+	// client first, otherwise each old bar makes the other appear necessary.
+	call("ShowScrollBar", hwnd, 3, 0) // SB_BOTH
 	var client winRect
 	call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
 	content := n.scaledRect(hwnd, logicalRect{w: window.width, h: window.height})
+	dpi := call("GetDpiForWindow", hwnd)
+	vertical := content.Bottom > client.Bottom
+	width := client.Right
+	if vertical {
+		width -= int32(call("GetSystemMetricsForDpi", 2, dpi))
+	}
+	horizontal := content.Right > width
+	if horizontal && content.Bottom > client.Bottom-int32(call("GetSystemMetricsForDpi", 3, dpi)) {
+		vertical = true
+	}
+	if vertical {
+		call("ShowScrollBar", hwnd, 1, 1)
+	}
+	call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
+	horizontal = content.Right > client.Right
+	if horizontal {
+		call("ShowScrollBar", hwnd, 0, 1)
+	}
+	call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
 	for axis := uintptr(0); axis < 2; axis++ {
 		extent, page, pos := content.Right, client.Right, window.scrollX
 		if axis == 1 {
 			extent, page, pos = content.Bottom, client.Bottom, window.scrollY
-		}
-		show := uintptr(0)
-		if extent > page {
-			show = 1
-		}
-		call("ShowScrollBar", hwnd, axis, show)
-		call("GetClientRect", hwnd, uintptr(unsafe.Pointer(&client)))
-		if axis == 0 {
-			page = client.Right
-		} else {
-			page = client.Bottom
 		}
 		pos = clampScroll(pos, extent, page)
 		info := scrollInfo{Size: uint32(unsafe.Sizeof(scrollInfo{})), Mask: 7, Max: extent - 1, Page: uint32(page), Pos: pos}

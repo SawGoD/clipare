@@ -127,6 +127,9 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("peer arrival did not restore list actions")
 	}
 	n.Discovered("Desktop-PC — 100.64.0.2\nLaptop — laptop.netbird.cloud", "Выберите устройство и нажмите «Подключить»")
+	if call("GetWindowLongPtrW", n.found, ^uintptr(15))&0x00100000 != 0 {
+		t.Fatal("switching from a tall home view left a horizontal scrollbar")
+	}
 	if len(n.rows[n.foundList]) != 2 {
 		t.Fatal("discovery rows missing")
 	}

@@ -168,17 +168,17 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			labelRect.Left += px(12)
 			labelRect.Right -= px(32)
 			n.drawText(d.DC, n.fontFor(c.parent, role), label, labelRect, fg, 0x8024)
-			arrow := "›"
+			arrow := "\uE76C" // Fluent ChevronRight.
 			expanded := n.preferencesExpanded
 			if d.Window == n.advancedButton {
 				expanded = n.navigation.AdvancedExpanded
 			}
 			if expanded {
-				arrow = "˅"
+				arrow = "\uE70D" // Fluent ChevronDown.
 			}
 			arrowRect := r
 			arrowRect.Left = arrowRect.Right - px(32)
-			n.drawText(d.DC, n.fontFor(c.parent, 2), arrow, arrowRect, fg, 0x25)
+			n.drawText(d.DC, n.fontFor(c.parent, 5), arrow, arrowRect, fg, 0x25)
 		} else {
 			n.drawText(d.DC, n.fontFor(c.parent, role), label, r, fg, 0x25|0x8000)
 		}
