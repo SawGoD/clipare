@@ -5,6 +5,7 @@ import (
 	"clipare/internal/discovery"
 	"clipare/internal/peers"
 	"context"
+	"errors"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -62,13 +63,24 @@ func TestRepairDoesNotReplacePinnedIdentityOrRevokedPeer(t *testing.T) {
 	s := NewService(filepath.Join(t.TempDir(), "b.yaml"), b)
 	other, _ := config.Default()
 	remote.PublicKey = other.Identity.PublicKey
-	if err := s.persistPair(remote, b.Group.ID); err == nil {
+	if err := s.persistPair(remote, b.Group.ID); !errors.Is(err, ErrIdentityChanged) {
 		t.Fatal("changed identity accepted")
 	}
 	remote.PublicKey = a.Identity.PublicKey
 	b.Removed = []string{a.Device.ID}
 	s = NewService(filepath.Join(t.TempDir(), "revoked.yaml"), b)
-	if err := s.persistPair(remote, b.Group.ID); err == nil {
+	if err := s.persistPair(remote, b.Group.ID); !errors.Is(err, ErrRemoved) {
 		t.Fatal("revoked identity restored")
+	}
+}
+
+func TestPairingRecoveryErrorsReachInitiator(t *testing.T) {
+	for status, want := range map[int]error{422: ErrIdentityChanged, 423: ErrRemoved} {
+		client := &http.Client{Transport: directTransport{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+		}), "100.64.0.1"}}
+		if err := post(context.Background(), client, "http://100.64.0.2", "/api/v1/pair/confirm", Confirmation{}, nil); !errors.Is(err, want) {
+			t.Fatalf("status %d lost actionable error: %v", status, err)
+		}
 	}
 }

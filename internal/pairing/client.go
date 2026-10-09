@@ -39,6 +39,18 @@ func post(ctx context.Context, client *http.Client, url, path string, v, out any
 	if res.StatusCode == 412 {
 		return ErrGroupMerge
 	}
+	if res.StatusCode == 422 {
+		return ErrIdentityChanged
+	}
+	if res.StatusCode == 423 {
+		return ErrRemoved
+	}
+	if res.StatusCode == 409 {
+		return errors.New("Другое подключение уже выполняется или pairing приостановлен. Завершите подключение и включите синхронизацию на другом компьютере")
+	}
+	if res.StatusCode == 429 {
+		return errors.New("Слишком много запросов подключения. Подождите несколько секунд и повторите")
+	}
 	if res.StatusCode != 200 {
 		return errors.New("Не удалось подключиться. Попробуйте ещё раз")
 	}

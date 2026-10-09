@@ -120,7 +120,7 @@ func (s *Service) persistPair(remote Hello, group string) error {
 	defer s.mu.Unlock()
 	for _, removed := range s.c.Removed {
 		if removed == remote.ID {
-			return errors.New("Это устройство удалено из группы. Повторное добавление этой identity пока не поддерживается")
+			return ErrRemoved
 		}
 	}
 	c := s.c
@@ -135,7 +135,7 @@ func (s *Service) persistPair(remote Hello, group string) error {
 	for i, existing := range v.Members {
 		if existing.ID == remote.ID {
 			if existing.PublicKey != remote.PublicKey {
-				return errors.New("Ключ устройства изменился. Подключение отклонено: используйте устройство с новой identity")
+				return ErrIdentityChanged
 			}
 			v.Members[i] = member(remote)
 			found = true
@@ -225,6 +225,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, ErrGroupMerge) {
 			code = 412
+		}
+		if errors.Is(err, ErrIdentityChanged) {
+			code = 422
+		}
+		if errors.Is(err, ErrRemoved) {
+			code = 423
 		}
 		http.Error(w, "pairing unavailable", code)
 	}
