@@ -51,7 +51,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
  for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]) {
   desktop.window.appearance=[NSAppearance appearanceNamed:appearance];[desktop.window.contentView setNeedsDisplay:YES];capture([appearance isEqualToString:NSAppearanceNameAqua]?@"home-light":@"home-dark");
   opaqueCards(desktop.views[@0]);capture([appearance isEqualToString:NSAppearanceNameAqua]?@"opaque-light":@"opaque-dark");
-  for(NSInteger row=0;row<2;row++){NSView *cell=[desktop.peerTable viewAtColumn:0 row:row makeIfNecessary:YES];NSUInteger buttons=0;for(NSView *view in cell.subviews)if([view isKindOfClass:NSButton.class]){buttons++;NSRect bounds=[view convertRect:view.bounds toView:desktop.peerTable];assert(NSMaxX(bounds)<=desktop.peerTable.visibleRect.size.width+1);}assert(buttons==1);}
+  for(NSInteger row=0;row<2;row++){NSView *cell=[desktop.peerTable viewAtColumn:0 row:row makeIfNecessary:YES];NSUInteger buttons=0;for(NSView *view in cell.subviews)if([view isKindOfClass:NSButton.class]){buttons++;NSRect bounds=[view convertRect:view.bounds toView:desktop.peerTable];if(NSMaxX(bounds)>NSMaxX(desktop.peerTable.visibleRect)+1)fprintf(stderr,"row bounds=%s viewport=%s\n",NSStringFromRect(bounds).UTF8String,NSStringFromRect(desktop.peerTable.visibleRect).UTF8String);assert(NSMaxX(bounds)<=NSMaxX(desktop.peerTable.visibleRect)+1);}assert(buttons==1);}
   [NSWorkspace.sharedWorkspace.notificationCenter postNotificationName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
  }
  desktop.window.appearance=nil;

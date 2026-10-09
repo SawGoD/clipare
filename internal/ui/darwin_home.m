@@ -42,6 +42,7 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
 -(NSView *)table:(BOOL)discovery {
  NSScrollView *scroll=[[[NSScrollView alloc]init]autorelease];scroll.hasVerticalScroller=YES;scroll.drawsBackground=NO;scroll.borderType=NSNoBorder;scroll.translatesAutoresizingMaskIntoConstraints=NO;NSLayoutConstraint *height=[scroll.heightAnchor constraintEqualToConstant:180];height.identifier=@"deviceListHeight";height.active=YES;
  NSTableView *table=[[[NSTableView alloc]initWithFrame:NSMakeRect(0,0,480,180)]autorelease];NSTableColumn *column=[[[NSTableColumn alloc]initWithIdentifier:@"device"]autorelease];column.width=480;column.editable=NO;column.resizingMask=NSTableColumnAutoresizingMask;[table addTableColumn:column];table.headerView=nil;table.rowHeight=52;table.dataSource=self;table.delegate=self;table.backgroundColor=NSColor.clearColor;table.autoresizingMask=NSViewWidthSizable;scroll.documentView=table;
+ if(@available(macOS 11.0,*))table.style=NSTableViewStyleFullWidth;
  if(discovery)self.foundTable=table;else self.peerTable=table;return scroll;
 }
 -(NSInteger)numberOfRowsInTableView:(NSTableView *)table {return table==self.foundTable?self.found.count:self.peers.count;}
