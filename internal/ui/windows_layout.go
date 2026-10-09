@@ -93,6 +93,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	px := func(v int) int32 { return int32(v * dpi / 96) }
 	t := n.theme
 	if d.Window == n.statusDot {
+		call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), n.surfaceBrush)
 		r := d.Rect
 		r.Top += px(6)
 		r.Bottom = r.Top + px(10)
@@ -264,6 +265,8 @@ func (n *nativeDesktop) deviceList(x, y, w, h, id int) uintptr {
 
 func (n *nativeDesktop) setRows(hwnd uintptr, rows []deviceRow) {
 	selection := int(int32(call("SendMessageW", hwnd, 0x188, 0, 0)))
+	// WM_SETREDRAW(TRUE) restores WS_VISIBLE even for a hidden list.
+	wasVisible := call("GetWindowLongPtrW", hwnd, ^uintptr(15))&0x10000000 != 0
 	call("SendMessageW", hwnd, 0xb, 0, 0)
 	n.rows[hwnd] = rows
 	call("SendMessageW", hwnd, 0x184, 0, 0)
@@ -274,6 +277,7 @@ func (n *nativeDesktop) setRows(hwnd uintptr, rows []deviceRow) {
 		call("SendMessageW", hwnd, 0x186, uintptr(selection), 0)
 	}
 	call("SendMessageW", hwnd, 0xb, 1, 0)
+	visible(hwnd, wasVisible)
 	call("InvalidateRect", hwnd, 0, 1)
 	if hwnd == n.homeList {
 		n.updateRowTrash()
@@ -294,6 +298,9 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 		if c.parent != hwnd {
 			continue
 		}
+		if id := call("GetDlgCtrlID", h); id >= 9000 && id < 9000+uintptr(len(n.rowTrash)) {
+			continue // Positioned from the list's actual item rectangles below.
+		}
 		r := n.scaledRect(hwnd, c.bounds)
 		r.Left -= window.scrollX
 		r.Right -= window.scrollX
@@ -312,5 +319,7 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 	if hwnd == n.home {
 		n.updateRowTrash()
 	}
-	call("RedrawWindow", hwnd, 0, 0, 0x81)
+	// Card geometry is drawn in WM_ERASEBKGND. Invalidation alone leaves
+	// obsolete card edges and stripes behind moved controls.
+	call("RedrawWindow", hwnd, 0, 0, 0x85)
 }

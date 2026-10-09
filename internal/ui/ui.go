@@ -198,6 +198,12 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		}
 	}
 	draft := c
+	// Pairing can expose home before settings have ever been opened.
+	if prepared, ok := d.(interface {
+		Prepare(form, []config.Peer, []string)
+	}); ok {
+		prepared.Prepare(toForm(c), c.Peers, config.Addresses())
+	}
 	if ready != nil {
 		if e = ready(); e != nil {
 			return e

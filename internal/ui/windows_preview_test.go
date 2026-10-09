@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -43,6 +44,16 @@ func TestWindowsFluentPreview(t *testing.T) {
 	f.Values[3] = "45873"
 	f.Values[5] = "Протокол 1 · Тест интерфейса"
 	f.Values[9] = "45873"
+	// Production can receive pairing before the first settings/open action.
+	n.Prepare(f, peers, []string{"100.64.0.1"})
+	if call("IsWindowVisible", n.main) != 0 || n.Read().Values != f.Values {
+		t.Fatal("tray startup must bind fields without opening the window")
+	}
+	n.Pair("MacBook", "482 731", 1)
+	if windowText(n.homeName) != f.Values[0] {
+		t.Fatal("incoming pairing opened uninitialized fields")
+	}
+	n.PairClose()
 	n.Show(f, peers, []string{"100.64.0.1"})
 	n.ApplyVisibility(applyMask(f, f, false))
 	nameApply := call("GetDlgItem", n.home, eventDeviceName)
@@ -80,6 +91,39 @@ func TestWindowsFluentPreview(t *testing.T) {
 	if len(n.rowTrash) != len(peers) {
 		t.Fatal("missing per-device removal buttons")
 	}
+	// Test hit testing, not just existence: the list must not cover trash.
+	n.Update("Синхронизация включена", true, peers, map[string]bool{"a": true})
+	call("UpdateWindow", n.home)
+	var trashRect winRect
+	trash := n.rowTrash[0]
+	call("GetWindowRect", trash, uintptr(unsafe.Pointer(&trashRect)))
+	x, y := (trashRect.Left+trashRect.Right)/2, (trashRect.Top+trashRect.Bottom)/2
+	point := uintptr(uint32(x)) | uintptr(uint32(y))<<32
+	if call("WindowFromPoint", point) != trash {
+		t.Fatal("device list covers the removal button")
+	}
+	// Answer the real modal confirmation while its nested message loop runs.
+	answered := make(chan bool, 1)
+	go func() {
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			dialog := call("FindWindowW", uintptr(unsafe.Pointer(wide("#32770"))), uintptr(unsafe.Pointer(wide("Удалить устройство?"))))
+			if dialog != 0 && call("GetWindow", dialog, 4) == n.main {
+				call("PostMessageW", dialog, 0x111, 6, 0)
+				answered <- true
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		answered <- false
+	}()
+	n.events = nil
+	call("SendMessageW", trash, 0x201, 1, 8|(8<<16))
+	call("SendMessageW", trash, 0x202, 0, 8|(8<<16))
+	if !<-answered || n.Selected() != 0 || len(n.events) == 0 || n.events[len(n.events)-1] != eventRemove {
+		t.Fatal("mouse click did not confirm removal of the correct device")
+	}
+	n.events = nil
 	if call("IsWindowEnabled", call("GetDlgItem", n.home, eventImport)) != 0 {
 		t.Fatal("empty connection code enabled import")
 	}
@@ -221,6 +265,15 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("incoming pairing controls")
 	}
 	captureWindow(t, n.pair, filepath.Join(dir, "pairing.png"))
+	card := n.scaledRect(n.home, n.windows[n.home].cards[1])
+	for _, h := range []uintptr{n.pairReject, n.pairAllow} {
+		var rect winRect
+		call("GetWindowRect", h, uintptr(unsafe.Pointer(&rect)))
+		call("MapWindowPoints", 0, n.home, uintptr(unsafe.Pointer(&rect)), 2)
+		if rect.Top < card.Top || rect.Bottom > card.Bottom {
+			t.Fatal("pairing action escaped device card")
+		}
+	}
 	n.Pair("MacBook", "482 731", 2)
 	if call("GetDlgCtrlID", n.pairAllow) != eventConfirmLocal {
 		t.Fatal("local confirmation action changed")

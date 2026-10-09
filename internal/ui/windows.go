@@ -116,7 +116,7 @@ func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, i
 		}
 	}
 	r := n.scaledRect(n.window, logicalRect{x, y, w, h})
-	handle := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), style|0x50000000, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), n.window, uintptr(id), n.instance, 0)
+	handle := call("CreateWindowExW", 0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), style|0x54000000, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), n.window, uintptr(id), n.instance, 0)
 	n.controls[handle] = winControl{parent: n.window, class: class, bounds: logicalRect{x, y, w, h}, kind: kind}
 	if class == "BUTTON" && (id == eventSave || id == eventCopy || id == eventImport || id == eventUpsert || id == eventDeviceName) {
 		if n.actionButtons == nil {
@@ -197,7 +197,9 @@ func (n *nativeDesktop) Init() error {
 				return 0
 			}
 			if id >= 9000 && id < 9000+len(n.rowTrash) {
-				n.confirmRowRemoval(id - 9000)
+				if w>>16 == 0 { // BN_CLICKED, not focus notifications.
+					n.confirmRowRemoval(id - 9000)
+				}
 				return 0
 			}
 			if (w>>16 == 0x300 && (id >= 100 && id <= 110 || id == 130)) || (id == 102 && (w>>16 == 5 || w>>16 == 1)) {
@@ -438,7 +440,7 @@ func (n *nativeDesktop) Poll() int {
 func (n *nativeDesktop) set(i int, s string) {
 	call("SetWindowTextW", n.fields[i], uintptr(unsafe.Pointer(wide(s))))
 }
-func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
+func (n *nativeDesktop) Prepare(f form, peers []config.Peer, addresses []string) {
 	call("SendMessageW", n.fields[2], 0x14B, 0, 0)
 	for _, a := range addresses {
 		call("SendMessageW", n.fields[2], 0x143, 0, uintptr(unsafe.Pointer(wide(a))))
@@ -455,9 +457,12 @@ func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	call("SendMessageW", n.homeAuto, 0xF1, auto, 0)
 	n.setRows(n.homeList, pairedRows(peers, nil, n.platforms))
 	n.showDevicePresentation(len(peers))
-	n.navigate(n.navigation.View)
 	n.peerLines = ""
 	n.Actions(actionMask(f))
+}
+func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
+	n.Prepare(f, peers, addresses)
+	n.navigate(n.navigation.View)
 }
 func (n *nativeDesktop) Read() form {
 	var f form
