@@ -23,6 +23,11 @@ func (n *nativeDesktop) fitWindow(hwnd uintptr) {
 		n.sizePanel(hwnd)
 		return
 	}
+	if hwnd == n.main {
+		// Only content panels scroll. The initial root creation happens before
+		// n.main is assigned, so explicitly clear any provisional root bars.
+		call("ShowScrollBar", hwnd, 3, 0)
+	}
 	var monitor struct {
 		Size          uint32
 		Monitor, Work winRect
