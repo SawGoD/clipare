@@ -26,7 +26,7 @@ func (n *nativeDesktop) SyncStatus(s SyncStatus) {
 	if n.statusIcons[s.State] != 0 {
 		n.icon = n.statusIcons[s.State]
 	}
-	data := notifyIcon{Window: n.main, ID: 1, Flags: 3, Icon: n.icon}
+	data := notifyIcon{Window: n.main, ID: 1, Flags: 0x86, Icon: n.icon} // icon, tooltip, version-4 standard tooltip.
 	data.Size = uint32(unsafe.Sizeof(data))
 	copy(data.Tip[:], syscall.StringToUTF16("Clipare — "+n.state))
 	data.Tip[len(data.Tip)-1] = 0

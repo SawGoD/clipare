@@ -4,6 +4,9 @@ package ui
 
 import (
 	"clipare/internal/config"
+	"clipare/internal/instance"
+	"context"
+	"fmt"
 	"image"
 	"image/png"
 	"os"
@@ -27,6 +30,13 @@ func TestWindowsFluentPreview(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	n := &nativeDesktop{scale: 1}
+	profile := filepath.Join(t.TempDir(), "config.yaml")
+	guard, err := instance.Acquire(context.Background(), profile)
+	if err != nil || !guard.Primary {
+		t.Fatal("fixture did not acquire primary GUI", err)
+	}
+	defer guard.Close()
+	n.Instance(profile)
 	if err := n.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,11 +78,49 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("advanced gear is not beside pause")
 	}
 	n.events = nil
-	call("SendMessageW", n.main, 0x8001, 1, 0x202)
-	if len(n.events) != 1 || n.events[0] != eventSettings {
-		t.Fatal("left tray click did not request opening the window")
+	for _, notification := range []uintptr{0x202, 0x400 | (1 << 16), 0x401 | (1 << 16)} {
+		visible(n.main, false)
+		call("PostMessageW", n.main, 0x8001, 0, notification)
+		n.Poll()
+		if call("IsWindowVisible", n.main) == 0 || windowText(n.homeName) != f.Values[0] {
+			t.Fatal("queued tray activation failed or reset device name", notification)
+		}
+	}
+	// Repeat launch must activate this hidden GUI, without another listener.
+	visible(n.main, false)
+	activation := make(chan error, 1)
+	go func() {
+		second, e := instance.Acquire(context.Background(), profile)
+		if e == nil {
+			if second.Primary {
+				e = fmt.Errorf("second instance became primary")
+			}
+			second.Close()
+		}
+		activation <- e
+	}()
+	deadline := time.Now().Add(6 * time.Second)
+	activated := false
+	for time.Now().Before(deadline) {
+		n.Poll()
+		select {
+		case e := <-activation:
+			if e != nil {
+				t.Fatal(e)
+			}
+			activated = true
+		default:
+		}
+		if activated {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !activated || call("IsWindowVisible", n.main) == 0 {
+		t.Fatal("repeat launch did not activate the existing window")
 	}
 	// Continuous messages must not starve an already queued application action.
+	n.events = append(n.events, eventSettings)
 	for i := 0; i < 128; i++ {
 		call("PostMessageW", n.main, 0, 0, 0)
 	}

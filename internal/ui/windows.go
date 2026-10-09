@@ -47,6 +47,9 @@ type notifyIcon struct {
 	BalloonIcon         uintptr
 }
 type nativeDesktop struct {
+	activation                                                                         uintptr
+	instanceKey                                                                        string
+	prepared                                                                           bool
 	updateWindow, updateCheck, updateVersion, updateText, updateInstall, updateDismiss uintptr
 	window, instance, callback, icon                                                   uintptr
 	fields                                                                             [11]uintptr
@@ -168,6 +171,10 @@ func (n *nativeDesktop) Init() error {
 	}
 	n.taskbar = uint32(call("RegisterWindowMessageW", uintptr(unsafe.Pointer(wide("TaskbarCreated")))))
 	n.callback = syscall.NewCallback(func(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
+		if n.activation != 0 && uintptr(msg) == n.activation {
+			n.requestOpen()
+			return 1
+		}
 		if msg == n.taskbar && n.taskbar != 0 {
 			n.addTray()
 			return 0
@@ -239,11 +246,12 @@ func (n *nativeDesktop) Init() error {
 			}
 			return 0
 		case 0x8001:
-			if l == 0x405 || l == 0x202 || l == 0x203 {
-				n.events = append(n.events, eventSettings)
+			event := l & 0xffff // NOTIFYICON_VERSION_4 also packs the icon ID here.
+			if event == 0x405 || event == 0x202 || event == 0x203 || event == 0x400 || event == 0x401 {
+				n.requestOpen()
 				return 0
 			}
-			if l == 0x205 {
+			if event == 0x205 || event == 0x7b {
 				n.menu()
 			}
 			return 0
@@ -259,6 +267,9 @@ func (n *nativeDesktop) Init() error {
 	n.main = n.panel(class, "Clipare", 568, 688)
 	if n.main == 0 {
 		return errors.New("Не удалось создать окно Clipare")
+	}
+	if n.instanceKey != "" {
+		call("SetPropW", n.main, uintptr(unsafe.Pointer(wide(n.instanceKey))), 1)
 	}
 	n.state = "Настройте подключение"
 	n.installHome(class)
@@ -322,10 +333,12 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.window = n.home
 }
 func (n *nativeDesktop) addTray() {
-	data := notifyIcon{Window: n.main, ID: 1, Flags: 7, Callback: 0x8001, Icon: n.icon}
+	data := notifyIcon{Window: n.main, ID: 1, Flags: 0x87, Callback: 0x8001, Icon: n.icon} // NIF_SHOWTIP for version 4.
 	data.Size = uint32(unsafe.Sizeof(data))
 	copy(data.Tip[:], syscall.StringToUTF16("Clipare"))
 	shell.NewProc("Shell_NotifyIconW").Call(0, uintptr(unsafe.Pointer(&data)))
+	data.Timeout = 4 // NIM_SETVERSION uses the union as uVersion.
+	shell.NewProc("Shell_NotifyIconW").Call(4, uintptr(unsafe.Pointer(&data)))
 }
 func (n *nativeDesktop) menu() {
 	menu := call("CreatePopupMenu")
@@ -362,7 +375,9 @@ func (n *nativeDesktop) menu() {
 	call("GetCursorPos", uintptr(unsafe.Pointer(&pos)))
 	call("SetForegroundWindow", n.main)
 	id := call("TrackPopupMenu", menu, 0x102, uintptr(pos.X), uintptr(pos.Y), 0, n.main, 0)
-	if id != 0 {
+	if id == eventSettings {
+		n.requestOpen()
+	} else if id != 0 {
 		n.events = append(n.events, int(id))
 	}
 	call("PostMessageW", n.main, 0, 0, 0)
@@ -423,7 +438,9 @@ func (n *nativeDesktop) Poll() int {
 			}
 			continue
 		}
-		if call("IsDialogMessageW", root, uintptr(unsafe.Pointer(&m))) == 0 {
+		// Dialog navigation is for keyboard input only. Shell/activation and
+		// window messages must reach the actual recipient, not a hidden panel.
+		if m.ID < 0x100 || m.ID > 0x109 || call("IsDialogMessageW", root, uintptr(unsafe.Pointer(&m))) == 0 {
 			call("TranslateMessage", uintptr(unsafe.Pointer(&m)))
 			call("DispatchMessageW", uintptr(unsafe.Pointer(&m)))
 		}
@@ -458,6 +475,7 @@ func (n *nativeDesktop) Prepare(f form, peers []config.Peer, addresses []string)
 	n.showDevicePresentation(len(peers))
 	n.peerLines = ""
 	n.Actions(actionMask(f))
+	n.prepared = true
 }
 func (n *nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	n.Prepare(f, peers, addresses)

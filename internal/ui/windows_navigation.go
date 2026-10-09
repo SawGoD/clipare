@@ -2,7 +2,22 @@
 
 package ui
 
-import "unsafe"
+import (
+	"clipare/internal/instance"
+	"unsafe"
+)
+
+func (n *nativeDesktop) Instance(path string) {
+	n.instanceKey = instance.Key(path)
+	n.activation = call("RegisterWindowMessageW", uintptr(unsafe.Pointer(wide(n.instanceKey))))
+}
+func (n *nativeDesktop) requestOpen() {
+	if n.prepared {
+		n.navigate(n.navigation.View)
+	} else {
+		n.events = append(n.events, eventSettings)
+	}
+}
 
 func (n *nativeDesktop) activePanel() uintptr {
 	switch n.navigation.Container() {

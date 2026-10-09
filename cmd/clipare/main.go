@@ -5,6 +5,7 @@ import (
 	"clipare/internal/app"
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
+	"clipare/internal/instance"
 	"clipare/internal/pairing"
 	"clipare/internal/transport"
 	"clipare/internal/ui"
@@ -70,6 +71,15 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if !status && !*headless {
+		guard, err := instance.Acquire(ctx, *path)
+		if err != nil {
+			instance.NotifyFailure(err)
+			return err
+		}
+		defer guard.Close()
+		if !guard.Primary {
+			return nil
+		}
 		return ui.RunWithReady(ctx, *path, log, func() error {
 			if *ready != "" {
 				return update.Acknowledge(*ready, *updateToken)
