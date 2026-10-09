@@ -9,6 +9,7 @@ func (n *nativeDesktop) iconButton(label, glyph string, x, y, w, id int) uintptr
 	n.icons[h] = glyph
 	if n.tooltip == 0 {
 		n.tooltip = call("CreateWindowExW", 8, uintptr(unsafe.Pointer(wide("tooltips_class32"))), 0, 0x80000003, 0, 0, 0, 0, n.main, 0, n.instance, 0)
+		call("SendMessageW", n.tooltip, 0x418, 0, n.px(360)) // TTM_SETMAXTIPWIDTH: wrap longer explanations.
 	}
 	text := wide(label)
 	n.tooltipText = append(n.tooltipText, text)

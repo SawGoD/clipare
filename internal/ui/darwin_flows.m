@@ -10,7 +10,7 @@
 -(NSStackView *)buildPair {
  self.pairName=CPLabel(@"",18);self.sas=CPLabel(@"",38);self.sas.font=[NSFont monospacedDigitSystemFontOfSize:38 weight:NSFontWeightMedium];self.sas.alignment=NSTextAlignmentCenter;self.pairHelp=CPLabel(@"",14);self.approve=CPButton(@"Разрешить",self,14);self.reject=CPButton(@"Отклонить",self,15);
  self.pairHelp.font=[NSFont systemFontOfSize:12];self.pairHelp.textColor=NSColor.secondaryLabelColor;self.pairName.lineBreakMode=NSLineBreakByTruncatingTail;self.pairName.maximumNumberOfLines=1;
- return CPStack(@[CPStack(@[CPIcon(@"chevron.left",@"Отменить подключение",self,31),CPLabel(@"Подключение устройства",16)],YES),self.pairName,self.sas,self.pairHelp,CPStack(@[self.reject,self.approve],YES)],NO);
+ NSStackView *content=CPStack(@[CPStack(@[CPIcon(@"chevron.left",@"Отменить подключение",self,31),CPLabel(@"Подключение устройства",16)],YES),self.pairName,self.sas,self.pairHelp,CPStack(@[self.reject,self.approve],YES)],NO);content.spacing=8;return content;
 }
 -(void)buildFlows {
  self.updateText=CPLabel(@"",15);self.install=CPButton(@"Обновить",self,20);self.dismiss=CPButton(@"Понятно",self,21);

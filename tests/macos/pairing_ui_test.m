@@ -98,6 +98,9 @@ int main(int argc,const char **argv) { @autoreleasepool {
  [desktop action:desktop.advancedButton];NSButton *help=nil;NSMutableArray *pending=[NSMutableArray arrayWithObject:desktop.advanced];NSUInteger helpCount=0;
  while(pending.count){NSView *view=[pending.lastObject retain];[pending removeLastObject];if([view isKindOfClass:NSButton.class]&&[(NSButton *)view tag]==40){helpCount++;help=(NSButton *)view;assert(help.toolTip.length&&help.accessibilityLabel.length);} [pending addObjectsFromArray:view.subviews];[view release];}
  assert(helpCount==4);[desktop showHelp:help];assert(desktop.window.attachedSheet&&desktop.view==CPHome);[desktop.window endSheet:desktop.window.attachedSheet];for(int i=0;i<10;i++)clipare_poll();[desktop action:desktop.advancedButton];
+ [desktop action:desktop.advancedButton];[desktop resizeDocument];NSRect technical=[desktop.advanced convertRect:desktop.advanced.bounds toView:desktop.scroll.documentView];
+ [desktop.scroll.contentView scrollToPoint:NSMakePoint(0,MAX(0,technical.origin.y-12))];[desktop.scroll reflectScrolledClipView:desktop.scroll.contentView];opaqueCards(desktop.views[@0]);capture(@"advanced-fields");
+ [desktop.scroll.contentView scrollToPoint:NSZeroPoint];[desktop action:desktop.advancedButton];
  clipare_update_prompt("Установлена последняя версия Clipare\n\nТекущая версия: 0.6.0","","Понятно",0);assert(desktop.view==CPUpdate);assert(desktop.install.hidden);assert(!desktop.dismiss.hidden);capture(@"update-latest");
  clipare_update_prompt("Доступна новая версия","Обновить","Позже",20);assert(desktop.install.tag==20);capture(@"update-available");
  clipare_update_prompt("Загрузка обновления…","","",0);assert(desktop.install.hidden&&desktop.dismiss.hidden);[desktop back];assert(desktop.view==CPUpdate);capture(@"update-download");
