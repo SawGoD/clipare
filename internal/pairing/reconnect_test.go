@@ -54,7 +54,7 @@ func TestPairingRepairsOneSidedRelationship(t *testing.T) {
 	}
 }
 
-func TestRepairDoesNotReplacePinnedIdentityOrRevokedPeer(t *testing.T) {
+func TestRepairKeepsIdentityPinnedAndRequiresApprovalForRevokedPeer(t *testing.T) {
 	a, _ := config.Default()
 	b, _ := config.Default()
 	a.Listen.Address, b.Listen.Address = "100.64.0.1", "100.64.0.2"
@@ -69,12 +69,6 @@ func TestRepairDoesNotReplacePinnedIdentityOrRevokedPeer(t *testing.T) {
 	remote.PublicKey = a.Identity.PublicKey
 	b.Removed = []string{a.Device.ID}
 	s = NewService(filepath.Join(t.TempDir(), "revoked.yaml"), b)
-	if err := s.persistPair(remote, b.Group.ID); !errors.Is(err, ErrRemoved) {
-		t.Fatal("revoked identity restored")
-	}
-	if err := s.Connect(context.Background(), discovery.Device{Peer: discovery.Peer{IP: a.Listen.Address}, Info: discovery.Info{DeviceID: a.Device.ID}}, func(string) {}); !errors.Is(err, ErrRemoved) {
-		t.Fatal("locally removed peer reached pairing network flow", err)
-	}
 	if err := s.Adopt(peers.Membership{Group: b.Group.ID, Members: []peers.Member{peers.Local(a), peers.Local(b)}}, a.Device.ID); !errors.Is(err, ErrRemoved) {
 		t.Fatal("pairing reported success without saving the revoked peer", err)
 	}

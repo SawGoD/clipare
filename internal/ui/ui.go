@@ -8,6 +8,7 @@ import (
 	"clipare/internal/config"
 	"clipare/internal/discovery"
 	"clipare/internal/pairing"
+	"clipare/internal/peers"
 	"clipare/internal/update"
 	"context"
 	"errors"
@@ -169,6 +170,9 @@ func runDesktop(parent context.Context, path string, log *slog.Logger, d desktop
 func runDesktopReady(parent context.Context, path string, log *slog.Logger, d desktop, b clipboard.Backend, start sessionStarter, timing loopTiming, ready func() error, restored bool) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
+	if local, ok := d.(interface{ Instance(string) }); ok {
+		local.Instance(path)
+	}
 	if e := d.Init(); e != nil {
 		return e
 	}
@@ -539,6 +543,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			draft.Peers = c.Peers
 			draft.Group = c.Group
 			draft.Removed = c.Removed
+			draft.MembershipVersions = peers.CloneVersions(c.MembershipVersions)
 			d.Show(f, draft.Peers, config.Addresses())
 			apply(c, false)
 		case sr := <-scanDone:
@@ -1002,7 +1007,7 @@ func removeDevice(c config.Config, id string) config.Config {
 			continue
 		}
 		if !peer.Legacy {
-			next.Removed = append(append([]string(nil), c.Removed...), id)
+			next = peers.Remove(next, id)
 		}
 	}
 	return next

@@ -52,6 +52,7 @@ func (s *Service) Config() config.Config {
 	c := s.c
 	c.Peers = append([]config.Peer(nil), c.Peers...)
 	c.Removed = append([]string(nil), c.Removed...)
+	c.MembershipVersions = peers.CloneVersions(c.MembershipVersions)
 	return c
 }
 
@@ -118,12 +119,10 @@ func (s *Service) Decide(id string, allow bool) error {
 func (s *Service) persistPair(remote Hello, group string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, removed := range s.c.Removed {
-		if removed == remote.ID {
-			return ErrRemoved
-		}
+	c, err := peers.Reinstate(s.c, peers.Membership{}, remote.ID)
+	if err != nil {
+		return err
 	}
-	c := s.c
 	if c.Group.ID != group && len(c.Peers) > 0 {
 		return ErrGroupMerge
 	}
@@ -389,9 +388,19 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) Adopt(v peers.Membership, expected string, fqdn ...string) error {
+	return s.adopt(v, expected, false, fqdn...)
+}
+func (s *Service) adopt(v peers.Membership, expected string, approved bool, fqdn ...string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.c
+	if approved {
+		var err error
+		c, err = peers.Reinstate(c, v, expected)
+		if err != nil {
+			return err
+		}
+	}
 	// Joining a different established group requires a separate explicit merge
 	// UX. Never silently discard an existing group's relationships.
 	if c.Group.ID != v.Group {
