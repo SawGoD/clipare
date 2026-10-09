@@ -32,7 +32,7 @@ test:
 # Runs in an interactive macOS session; briefly opens a test window.
 test-macos-ui:
 	mkdir -p dist
-	clang -fblocks -framework AppKit -o dist/edit-menu-test tests/macos/edit_menu_test.m
+	clang -fblocks -framework AppKit -framework UserNotifications -o dist/edit-menu-test tests/macos/edit_menu_test.m internal/ui/darwin_navigation.m internal/ui/darwin_home.m internal/ui/darwin_flows.m internal/ui/darwin_status.m internal/ui/darwin_notifications.m
 	./dist/edit-menu-test
-	clang -fblocks -framework AppKit -o dist/pairing-ui-test tests/macos/pairing_ui_test.m
+	clang -fblocks -framework AppKit -framework UserNotifications -o dist/pairing-ui-test tests/macos/pairing_ui_test.m internal/ui/darwin_navigation.m internal/ui/darwin_home.m internal/ui/darwin_flows.m internal/ui/darwin_status.m internal/ui/darwin_notifications.m
 	./dist/pairing-ui-test verify

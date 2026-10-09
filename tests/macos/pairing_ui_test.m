@@ -1,26 +1,47 @@
-// A synthetic UI fixture: no clipboard access, config files, networking or keys.
+// Synthetic native UI fixture: no clipboard, networking, keys or user config.
 #import <AppKit/AppKit.h>
 #include <assert.h>
 #include "../../internal/ui/native_darwin.m"
-// Compatibility wrapper for the synthetic fixture; production passes explicit actions.
-static void fixture_update_prompt(const char *text,int available){clipare_update_prompt(text,available?"Обновить":"",available?"Позже":"",available?20:0);}
-#define clipare_update_prompt fixture_update_prompt
-int main(int argc,const char **argv){@autoreleasepool{
- clipare_init();clipare_set(0,"MacBook — тест интерфейса");clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_show();
- assert(homeWindow.visible);assert(!window.visible);assert(homeName.stringValue.length>0);
- clipare_update_settings("0.4.0",1);assert(clipare_update_enabled());assert([updateVersion.stringValue isEqualToString:@"Версия: 0.4.0"]);assert(updateCheck.tag==22);
- #undef clipare_update_prompt
- clipare_update_prompt("Установлена последняя версия Clipare\n\nТекущая версия: 0.4.1","","Понятно",0);assert(updateInstall.hidden);assert(!updateDismiss.hidden);assert([updateDismiss.title isEqualToString:@"Понятно"]);assert([updateText.stringValue containsString:@"0.4.1"]);
- clipare_update_prompt("Не удалось обновить Clipare","Повторить","Закрыть",19);assert(!updateInstall.hidden);assert(updateInstall.tag==19);assert([updateDismiss.title isEqualToString:@"Закрыть"]);
- #define clipare_update_prompt fixture_update_prompt
- if(argc>1 && !strcmp(argv[1],"update")){clipare_update_prompt("Доступна новая версия Clipare 0.5.0\n\nУстановлена: 0.4.0\n\nClipare загрузит обновление и перезапустится. Настройки и устройства сохранятся.",1);assert(updateWindow.visible);assert(!updateInstall.hidden);assert(updateInstall.tag==20);}
- if(argc>1 && !strcmp(argv[1],"discovery")){clipare_discovered("Desktop-PC — 100.64.0.2\nLaptop — 100.64.0.3","Выберите устройство и нажмите «Подключить»");assert(foundRows.count==2);}
- if(argc>1 && !strcmp(argv[1],"pair")){clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(!approveButton.hidden);assert(rejectButton.tag==15);assert([pairCode.stringValue isEqualToString:@"482 731"]);}
- [NSApp updateWindows];
- NSWindow *target=argc>1&&!strcmp(argv[1],"update")?updateWindow:argc>1&&!strcmp(argv[1],"pair")?pairWindow:argc>1&&!strcmp(argv[1],"discovery")?discoveryWindow:homeWindow;
- NSBitmapImageRep *bitmap=[target.contentView bitmapImageRepForCachingDisplayInRect:target.contentView.bounds];[target.contentView cacheDisplayInRect:target.contentView.bounds toBitmapImageRep:bitmap];
- [[bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:@"/private/tmp/clipare-pairing-ui.png" atomically:YES];
- NSDate *until=[NSDate dateWithTimeIntervalSinceNow:argc>1&&!strcmp(argv[1],"verify")?0.1:40];while([until timeIntervalSinceNow]>0){int action=clipare_poll();if(action==19)clipare_update_prompt("Доступна новая версия Clipare 0.5.0\n\nУстановлена: 0.4.0\n\nClipare загрузит обновление и перезапустится. Настройки и устройства сохранятся.",1);if(action==20)clipare_update_prompt("Загрузка обновления… (синтетический тест)",0);if(action==21)clipare_update_close();if(action==11||action==12)clipare_discovered("Desktop-PC — 100.64.0.2\nLaptop — 100.64.0.3","Выберите устройство и нажмите «Подключить»");if(action==13)clipare_pair("Проверьте код на Desktop-PC","482 731",0);if(action==14||action==15||action==16)clipare_pair_close();if(action==2)clipare_show();if(action==4)break;[NSThread sleepForTimeInterval:0.02];}
- clipare_update_prompt("Загрузка обновления…",0);assert(updateInstall.hidden);clipare_update_close();assert(!updateWindow.visible);clipare_update_settings("0.4.0",0);assert(!clipare_update_enabled());
- clipare_pair("Desktop-PC","482 731",0);assert(approveButton.hidden);assert(rejectButton.tag==16);clipare_pair("Laptop","482 731",2);assert(!approveButton.hidden);assert(approveButton.tag==18);assert([approveButton.title isEqualToString:@"Код совпадает"]);clipare_pair_close();clipare_close();return 0;
-}}
+
+static void capture(NSString *name) {
+ for(int i=0;i<10;i++){clipare_poll();}
+ [desktop resizeDocument];[desktop.window.contentView layoutSubtreeIfNeeded];[NSApp updateWindows];
+ NSView *view=desktop.window.contentView;
+ NSBitmapImageRep *image=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
+ [view cacheDisplayInRect:view.bounds toBitmapImageRep:image];
+ NSString *dir=@"/private/tmp/clipare-native-ux";
+ [[NSFileManager defaultManager]createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+ [[image representationUsingType:NSBitmapImageFileTypePNG properties:@{}]writeToFile:[dir stringByAppendingPathComponent:[name stringByAppendingString:@".png"]] atomically:YES];
+}
+int main(int argc,const char **argv) { @autoreleasepool {
+ clipare_init();NSWindow *original=desktop.window;
+ clipare_set(0,"MacBook — тест интерфейса");clipare_set(1,"synthetic-device");clipare_set(2,"100.64.0.1");clipare_set(3,"45873");clipare_set(5,"Public key SHA-256: synthetic fingerprint");clipare_peers("");clipare_show();
+ assert(desktop.view==CPHome);assert(!desktop.emptyDevices.hidden);assert(desktop.peerList.hidden);assert(desktop.removePeer.hidden);
+ clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
+ capture(@"empty");
+ [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
+ [desktop action:desktop.advancedButton];assert(!desktop.advanced.hidden);assert(desktop.window==original);capture(@"advanced");[desktop action:desktop.advancedButton];assert(desktop.advanced.hidden);
+ clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_sync_status(0,"Синхронизация включена","");
+ assert(desktop.emptyDevices.hidden);assert(!desktop.peerList.hidden);assert(desktop.peers.count==2);assert(desktop.syncState==0);
+ for(NSString *appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]) {
+  desktop.window.appearance=[NSAppearance appearanceNamed:appearance];[desktop.window.contentView setNeedsDisplay:YES];capture([appearance isEqualToString:NSAppearanceNameAqua]?@"home-light":@"home-dark");
+ }
+ desktop.window.appearance=nil;
+ clipare_sync_status(1,"Синхронизация приостановлена","");capture(@"paused");
+ clipare_sync_status(2,"Синхронизация недоступна","Ожидание NetBird");assert(desktop.syncState==2);capture(@"degraded");
+ clipare_discovered("Desktop-PC — 100.64.0.2\nLaptop — 100.64.0.3","Выберите устройство");assert(desktop.view==CPDiscovery);assert(desktop.found.count==2);assert(desktop.window==original);capture(@"discovery");
+ [desktop back];assert(desktop.view==CPHome);
+ clipare_discovered("","Автоматическое обнаружение недоступно");assert(desktop.foundList.hidden);assert(!desktop.connect.enabled);capture(@"discovery-empty");
+ clipare_pair("Desktop-PC хочет подключиться","482 731",1);assert(desktop.view==CPPairing);assert(desktop.reject.tag==15);assert(!desktop.approve.hidden);assert([desktop.sas.stringValue isEqualToString:@"482 731"]);capture(@"pairing");
+ clipare_pair_close();assert(desktop.view==CPHome);assert(desktop.window==original);
+ clipare_pair("Laptop","482 731",2);assert(desktop.approve.tag==18);clipare_pair_close();
+ clipare_update_prompt("Установлена последняя версия Clipare\n\nТекущая версия: 0.6.0","","Понятно",0);assert(desktop.view==CPUpdate);assert(desktop.install.hidden);assert(!desktop.dismiss.hidden);capture(@"update-latest");
+ clipare_update_prompt("Доступна новая версия","Обновить","Позже",20);assert(desktop.install.tag==20);capture(@"update-available");
+ clipare_update_prompt("Загрузка обновления…","","",0);assert(desktop.install.hidden&&desktop.dismiss.hidden);[desktop back];assert(desktop.view==CPUpdate);capture(@"update-download");
+ clipare_update_prompt("Не удалось обновить Clipare","Повторить","Закрыть",19);assert(desktop.install.tag==19);capture(@"update-error");
+ clipare_update_close();assert(desktop.view==CPHome);
+ clipare_alert("Настройки сохранены");assert(desktop.view==CPNotice);assert(desktop.window==original);[desktop back];assert(desktop.view==CPHome);
+ NSUInteger topLevel=0;for(NSWindow *w in NSApp.windows)if(w==original||([w.title isEqualToString:@"Clipare"]&&w.visible))topLevel++;assert(topLevel==1);
+ if(argc>1&&!strcmp(argv[1],"preview")){NSDate *until=[NSDate dateWithTimeIntervalSinceNow:120];while(until.timeIntervalSinceNow>0){int event=clipare_poll();if(event==4)break;if(event==11||event==12)clipare_discovered("Desktop-PC — 100.64.0.2","Выберите устройство");if(event==13)clipare_pair("Desktop-PC","482 731",1);if(event==14||event==15||event==16)clipare_pair_close();[NSThread sleepForTimeInterval:0.02];}}
+ clipare_close();puts("PASS: single-window navigation, typed status, empty state, disclosures, pairing, updates");return 0;
+} }

@@ -47,6 +47,7 @@ const (
 	eventInstallUpdate
 	eventLaterUpdate
 	eventUpdatePreference
+	eventAutostartPreference
 )
 
 type updateDesktop interface {
@@ -625,7 +626,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					continue
 				}
 			}
-			if (outgoing || shownIncoming != "") && (action == eventSave || action == eventPause || action == eventGenerate || action == eventImport || action == eventUpsert || action == eventRemove) {
+			if (outgoing || shownIncoming != "") && (action == eventSave || action == eventPause || action == eventGenerate || action == eventImport || action == eventUpsert || action == eventRemove || action == eventAutostartPreference || action == eventUpdatePreference) {
 				d.Alert("Завершите или отмените подключение, прежде чем изменять настройки")
 				continue
 			}
@@ -642,6 +643,15 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 				next := c
 				next.Updates.Enabled = ud.UpdateEnabled()
+				draft = next
+				apply(next, true)
+			case eventAutostartPreference:
+				if needsSetup {
+					d.Alert("Сначала настройте подключение в расширенных параметрах")
+					continue
+				}
+				next := c
+				next.Autostart = d.Read().Autostart
 				draft = next
 				apply(next, true)
 			case eventInstallUpdate:

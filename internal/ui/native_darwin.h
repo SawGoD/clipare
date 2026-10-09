@@ -1,5 +1,9 @@
 void clipare_init(void);
 int clipare_poll(void);
+int clipare_view(void);
+int clipare_disclosures(void);
+void clipare_sync_status(int state,const char *message,const char *reason);
+void clipare_device_rows(const char *json,int empty,int list,int remove,int compact);
 void clipare_show(void);
 void clipare_set(int index,const char *text);
 char *clipare_get(int index);

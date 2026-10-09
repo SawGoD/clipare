@@ -3,33 +3,37 @@
 package ui
 
 /*
-#cgo LDFLAGS: -framework AppKit
+#cgo LDFLAGS: -framework AppKit -framework UserNotifications
 #include <stdlib.h>
 #include "native_darwin.h"
 */
 import "C"
 import (
 	"clipare/internal/config"
+	"encoding/json"
 	"strings"
 	"unsafe"
 )
 
-type nativeDesktop struct{}
+type nativeDesktop struct{ navigation Navigation }
 
-func newDesktop() (desktop, error)    { return &nativeDesktop{}, nil }
-func (*nativeDesktop) Init() error    { C.clipare_init(); return nil }
-func (*nativeDesktop) Poll() int      { return int(C.clipare_poll()) }
+func newDesktop() (desktop, error) { return &nativeDesktop{}, nil }
+func (*nativeDesktop) Init() error { C.clipare_init(); return nil }
+func (n *nativeDesktop) Poll() int {
+	event := int(C.clipare_poll())
+	n.navigation.View = ViewState(C.clipare_view())
+	disclosures := int(C.clipare_disclosures())
+	n.navigation.AdditionalExpanded = disclosures&1 != 0
+	n.navigation.AdvancedExpanded = disclosures&2 != 0
+	return event
+}
 func cstr(s string, fn func(*C.char)) { p := C.CString(s); defer C.free(unsafe.Pointer(p)); fn(p) }
 func (*nativeDesktop) Show(f form, peers []config.Peer, addresses []string) {
 	cstr(strings.Join(addresses, "\n"), func(p *C.char) { C.clipare_addresses(p) })
 	for i, v := range f.Values {
 		cstr(v, func(p *C.char) { C.clipare_set(C.int(i), p) })
 	}
-	var names []string
-	for _, p := range peers {
-		names = append(names, peerLabel(p))
-	}
-	cstr(strings.Join(names, "\n"), func(p *C.char) { C.clipare_peers(p) })
+	renderDarwinRows(peers, nil)
 	auto := 0
 	if f.Autostart {
 		auto = 1
@@ -54,13 +58,27 @@ func (*nativeDesktop) SetPeer(p config.Peer) {
 	}
 }
 func (*nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
-	n := 0
-	if enabled {
-		n = 1
+	renderDarwinRows(peers, states)
+}
+func renderDarwinRows(peers []config.Peer, states map[string]bool) {
+	rows := make([]map[string]any, 0, len(peers))
+	for _, row := range pairedRows(peers, states) {
+		rows = append(rows, map[string]any{"name": row.name, "detail": row.detail, "online": row.online})
 	}
-	cstr(status, func(s *C.char) {
-		cstr(peerStatuses(peers, states), func(p *C.char) { C.clipare_status(s, C.int(n), p) })
+	data, _ := json.Marshal(rows)
+	s := presentSettings(len(peers), false)
+	flag := func(value bool) C.int {
+		if value {
+			return 1
+		}
+		return 0
+	}
+	cstr(string(data), func(p *C.char) {
+		C.clipare_device_rows(p, flag(s.EmptyDevices), flag(s.ShowPeerList), flag(s.ShowRemove), flag(s.ShowCompactAdd))
 	})
+}
+func (*nativeDesktop) SyncStatus(s SyncStatus) {
+	cstr(s.Message, func(m *C.char) { cstr(s.Reason, func(r *C.char) { C.clipare_sync_status(C.int(s.State), m, r) }) })
 }
 func (*nativeDesktop) Alert(s string) { cstr(s, func(p *C.char) { C.clipare_alert(p) }) }
 func (*nativeDesktop) Close()         { C.clipare_close() }

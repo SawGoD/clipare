@@ -196,7 +196,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= 22 {
+			} else if id >= 1 && id <= eventAutostartPreference {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -269,7 +269,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	c = n.controls[n.preferencesToggle]
 	c.kind = 4
 	n.controls[n.preferencesToggle] = c
-	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 612, 488, 28, 131)
+	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 612, 488, 28, eventAutostartPreference)
 	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 652, 488, 28, 22)
 	n.advancedButton = n.control("BUTTON", advancedTitle, 0x10000, 24, 620, 520, 32, 30)
 	n.fields[0], n.auto, n.list, n.statusLabel = n.homeName, n.homeAuto, n.homeList, n.homeStatus
