@@ -192,6 +192,10 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		}
 		return
 	}
+	if d.Window == n.historyList && d.Type == 2 {
+		n.drawHistoryItem(d, px)
+		return
+	}
 	if d.Type != 2 {
 		return
 	}
@@ -246,6 +250,54 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		r.Left += 2
 		r.Right -= 2
 		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&r)))
+	}
+}
+
+// drawHistoryItem renders one history row: group label, source header and a
+// short preview (masked for hidden secrets, accent-colored for links).
+func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
+	t := n.theme
+	selected := d.State&1 != 0
+	fill := t.surface
+	if selected {
+		fill = blendColor(t.surface, t.accent, .13)
+	}
+	if t.contrast && selected {
+		fill = t.accent
+	}
+	brush := gcall("CreateSolidBrush", uintptr(fill))
+	call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
+	gcall("DeleteObject", brush)
+	if d.Item == 0xffffffff || int(d.Item) >= len(n.historyRows) {
+		return
+	}
+	row := n.historyRows[d.Item]
+	fg, muted := t.text, t.muted
+	if t.contrast && selected {
+		fg, muted = t.onAccent, t.onAccent
+	}
+	r := d.Rect
+	r.Left += px(16)
+	r.Right -= px(150) // keep clear of the per-row icon actions
+	if row.group {
+		r.Top += px(32)
+		n.drawText(d.DC, n.fontFor(n.home, 4), row.header, r, muted, 0x25)
+		return
+	}
+	headerRect := r
+	headerRect.Top += px(10)
+	headerRect.Bottom = headerRect.Top + px(20)
+	n.drawText(d.DC, n.fontFor(n.home, 4), row.header, headerRect, muted, 0x8020)
+	previewColor := fg
+	if row.url {
+		previewColor = t.accent
+	}
+	previewRect := r
+	previewRect.Top += px(32)
+	previewRect.Bottom = d.Rect.Bottom - px(10)
+	n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x10)
+	if d.State&0x10 != 0 && n.keyboardFocusVisible() {
+		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
 	}
 }
 
@@ -321,8 +373,12 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 			call("SendMessageW", h, 0x153, ^uintptr(0), uintptr(n.scaledRect(hwnd, logicalRect{h: 26}).Bottom))
 			call("SendMessageW", h, 0x153, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 32}).Bottom))
 		}
-		if fontChanged && (h == n.homeList || h == n.foundList) {
-			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 60}).Bottom))
+		if fontChanged && (h == n.homeList || h == n.foundList || h == n.historyList) {
+			logical := 60
+			if h == n.historyList {
+				logical = historyRowHeight
+			}
+			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: logical}).Bottom))
 		}
 	}
 	// Commit positions together, without intermediate erase/font redraws.
@@ -342,6 +398,9 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 	}
 	if hwnd == n.home {
 		n.updateRowTrash()
+		if len(n.historyButtons) > 0 || n.navigation.View == ViewHistory {
+			n.updateHistoryButtons()
+		}
 	}
 	// Card geometry is drawn in WM_ERASEBKGND. Invalidation alone leaves
 	// obsolete card edges and stripes behind moved controls.

@@ -29,7 +29,6 @@ func (n *nativeDesktop) activePanel() uintptr {
 		return n.home
 	}
 }
-
 func (n *nativeDesktop) sizePanel(h uintptr) {
 	var r winRect
 	call("GetClientRect", n.main, uintptr(unsafe.Pointer(&r)))

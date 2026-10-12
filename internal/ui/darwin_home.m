@@ -28,16 +28,24 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  // Apply the empty state before the first cached render (which may be a no-op).
  self.compactAdd.hidden=YES;self.peerList.hidden=YES;
  NSStackView *actions=CPStack(@[self.compactAdd],YES);
- NSStackView *deviceContent=CPStack(@[CPLabel(@"Устройства",18),self.emptyDevices,self.peerList,actions],NO);
+ NSView *deviceSpace=[[[NSView alloc]init]autorelease];deviceSpace.translatesAutoresizingMaskIntoConstraints=NO;[deviceSpace.heightAnchor constraintEqualToConstant:1].active=YES;[deviceSpace setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
+ NSStackView *deviceHeader=CPStack(@[CPLabel(@"Устройства",18),deviceSpace,CPIcon(@"clock.arrow.circlepath",@"История буфера обмена",self,33)],YES);deviceHeader.distribution=NSStackViewDistributionFill;
+ NSStackView *deviceContent=CPStack(@[deviceHeader,self.emptyDevices,self.peerList,actions],NO);
  [self.emptyDevices.heightAnchor constraintEqualToConstant:116].active=YES;
  self.deviceHome=deviceContent;self.deviceDiscovery=[self buildDiscovery];self.deviceDiscovery.hidden=YES;
  self.devicePair=[self buildPair];self.devicePair.hidden=YES;
- NSView *devices=CPCard(CPStack(@[self.deviceHome,self.deviceDiscovery,self.devicePair],NO));
+ self.deviceHistory=[self buildHistory];self.deviceHistory.hidden=YES;
+ NSView *devices=CPCard(CPStack(@[self.deviceHome,self.deviceDiscovery,self.devicePair,self.deviceHistory],NO));
  self.version=CPLabel(@"",12);self.version.textColor=NSColor.secondaryLabelColor;
  NSStackView *updates=CPStack(@[self.version,CPIcon(@"arrow.clockwise",@"Проверить обновления",self,19)],YES);updates.distribution=NSStackViewDistributionFill;[self.version setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
  self.autostart=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:self action:@selector(action:)];self.autostart.tag=23;
  self.updates=[NSButton checkboxWithTitle:@"Автоматически проверять обновления" target:self action:@selector(action:)];self.updates.tag=22;
- self.additional=CPStack(@[self.autostart,self.updates],NO);self.additional.hidden=YES;
+ self.historyEnable=[NSButton checkboxWithTitle:@"Сохранять историю" target:self action:@selector(action:)];self.historyEnable.tag=38;
+ NSComboBox *retention=[[[NSComboBox alloc]init]autorelease];retention.font=[NSFont systemFontOfSize:14];retention.delegate=self;retention.editable=NO;retention.completes=NO;self.historyRetention=retention;
+ self.historyMax=CPInput(self,11,NO);
+ NSStackView *historyOptions=CPStack(@[CPStack(@[CPLabel(@"Хранить",12),retention],NO),CPStack(@[CPLabel(@"Максимум записей",12),self.historyMax],NO)],YES);historyOptions.distribution=NSStackViewDistributionFillEqually;
+ self.historyClear=CPButton(@"Очистить историю",self,37);
+ self.additional=CPStack(@[self.autostart,self.updates,self.historyEnable,historyOptions,self.historyClear],NO);self.additional.hidden=YES;
  self.additionalButton=CPButton(@"Дополнительно",self,32);self.additionalButton.image=CPSymbol(@"chevron.right",nil);self.additionalButton.imagePosition=NSImageRight;
  self.advanced=[self buildAdvanced];self.advanced.hidden=YES;
  return CPStack(@[top,computer,devices,self.additionalButton,self.additional,self.advanced,updates],NO);
@@ -51,16 +59,18 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
 -(void)showHelp:(NSButton *)sender {
  if(self.window.attachedSheet)return;NSAlert *alert=[[[NSAlert alloc]init]autorelease];alert.messageText=@"Clipare";alert.informativeText=sender.toolTip;[alert addButtonWithTitle:@"Понятно"];[alert beginSheetModalForWindow:self.window completionHandler:nil];
 }
--(void)controlTextDidChange:(NSNotification *)notification { [self.events addObject:@24]; }
--(void)comboBoxSelectionDidChange:(NSNotification *)notification { [self.events addObject:@24]; }
+-(void)controlTextDidChange:(NSNotification *)notification { if(notification.object==self.historyMax){[self.events addObject:@39];return;} [self.events addObject:@24]; }
+-(void)controlTextDidEndEditing:(NSNotification *)notification { if(notification.object==self.historyMax)[self.events addObject:@39]; }
+-(void)comboBoxSelectionDidChange:(NSNotification *)notification { if(notification.object==self.historyRetention){[self.events addObject:@39];return;} [self.events addObject:@24]; }
 -(NSView *)table:(BOOL)discovery {
  NSScrollView *scroll=[[[NSScrollView alloc]init]autorelease];scroll.hasVerticalScroller=YES;scroll.drawsBackground=NO;scroll.borderType=NSNoBorder;scroll.translatesAutoresizingMaskIntoConstraints=NO;NSLayoutConstraint *height=[scroll.heightAnchor constraintEqualToConstant:180];height.identifier=@"deviceListHeight";height.active=YES;
  NSTableView *table=[[[NSTableView alloc]initWithFrame:NSMakeRect(0,0,480,180)]autorelease];NSTableColumn *column=[[[NSTableColumn alloc]initWithIdentifier:@"device"]autorelease];column.width=480;column.editable=NO;column.resizingMask=NSTableColumnAutoresizingMask;[table addTableColumn:column];table.headerView=nil;table.rowHeight=52;table.dataSource=self;table.delegate=self;table.backgroundColor=NSColor.clearColor;table.autoresizingMask=NSViewWidthSizable;scroll.documentView=table;
  if(@available(macOS 11.0,*))table.style=NSTableViewStyleFullWidth;
  if(discovery)self.foundTable=table;else self.peerTable=table;return scroll;
 }
--(NSInteger)numberOfRowsInTableView:(NSTableView *)table {return table==self.foundTable?self.found.count:self.peers.count;}
+-(NSInteger)numberOfRowsInTableView:(NSTableView *)table {return table==self.foundTable?self.found.count:table==self.historyTable?self.historyData.count:self.peers.count;}
 -(NSView *)tableView:(NSTableView *)table viewForTableColumn:(NSTableColumn *)column row:(NSInteger)row {
+ if(table==self.historyTable)return [self historyCellForColumn:column row:row];
  NSDictionary *device=(table==self.foundTable?self.found:self.peers)[row];
  NSTableCellView *cell=[[[NSTableCellView alloc]initWithFrame:NSMakeRect(0,0,column.width,52)]autorelease];
  NSString *platform=device[@"platform"]?:@"";NSString *platformLabel=[platform isEqual:@"windows"]?@"Windows":[platform isEqual:@"darwin"]?@"macOS":@"Устройство";

@@ -129,19 +129,25 @@ func (c Config) Mode() string {
 
 // HistoryRetention normalizes the stored retention into the allowed range;
 // zero or invalid values fall back to the default.
-func (c Config) HistoryRetention() time.Duration {
-	d, e := time.ParseDuration(c.History.Retention)
+func (c Config) HistoryRetention() time.Duration { return c.History.NormalizedRetention() }
+
+func (c Config) HistoryMaxItems() int { return c.History.NormalizedMaxItems() }
+
+// NormalizedRetention clamps the retention setting; invalid values fall back
+// to the default.
+func (h History) NormalizedRetention() time.Duration {
+	d, e := time.ParseDuration(h.Retention)
 	if e != nil || d < HistoryMinRetention || d > HistoryMaxRetention {
 		return HistoryDefaultRetention
 	}
 	return d
 }
 
-func (c Config) HistoryMaxItems() int {
-	if c.History.MaxItems < HistoryMinItems || c.History.MaxItems > HistoryMaxItems {
+func (h History) NormalizedMaxItems() int {
+	if h.MaxItems < HistoryMinItems || h.MaxItems > HistoryMaxItems {
 		return HistoryDefaultItems
 	}
-	return c.History.MaxItems
+	return h.MaxItems
 }
 func (c Config) ListenAddress() string {
 	return net.JoinHostPort(c.Listen.Address, strconv.Itoa(c.Listen.Port))

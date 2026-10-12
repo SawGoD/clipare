@@ -8,6 +8,7 @@ const (
 	ViewPairing
 	ViewUpdate
 	ViewNotice
+	ViewHistory
 )
 
 type Navigation struct {
@@ -38,7 +39,7 @@ func (n *Navigation) Home() { n.View = ViewHome }
 
 // Device workflows stay inside the home device card.
 func (n Navigation) Container() ViewState {
-	if n.View == ViewDiscovery || n.View == ViewPairing {
+	if n.View == ViewDiscovery || n.View == ViewPairing || n.View == ViewHistory {
 		return ViewHome
 	}
 	return n.View

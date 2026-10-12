@@ -2,7 +2,7 @@
 #import <UserNotifications/UserNotifications.h>
 NSImage *CPPlatformIcon(NSString *platform);
 
-typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, CPNotice };
+typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, CPNotice, CPHistory };
 @interface CPStatusDot : NSView
 @property NSInteger state;
 @end
@@ -10,16 +10,18 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSWindow *window;
 @property(retain) NSScrollView *scroll;
 @property(retain) NSMutableDictionary *views;
-@property(retain) NSMutableArray *fields, *events, *peers, *found;
+@property(retain) NSMutableArray *fields, *events, *peers, *found, *historyData;
 @property(retain) NSMutableArray *actionButtons;
 @property(retain) NSStatusItem *tray;
 @property(retain) CPStatusDot *statusDot;
-@property(retain) NSButton *autostart,*updates,*additionalButton,*advancedButton,*pause,*emptyAdd,*compactAdd,*removePeer,*connect,*approve,*reject,*install,*dismiss;
+@property(retain) NSButton *autostart,*updates,*additionalButton,*advancedButton,*pause,*emptyAdd,*compactAdd,*removePeer,*connect,*approve,*reject,*install,*dismiss,*historyEnable,*historyClear;
 @property(retain) NSStackView *additional,*advanced;
-@property(retain) NSTableView *peerTable,*foundTable;
-@property(retain) NSView *emptyDevices,*peerList,*foundList;
-@property(retain) NSTextField *emptyFound;
-@property(retain) NSView *deviceHome,*deviceDiscovery,*devicePair;
+@property(retain) NSTableView *peerTable,*foundTable,*historyTable;
+@property(retain) NSView *emptyDevices,*peerList,*foundList,*historyList;
+@property(retain) NSTextField *emptyFound,*emptyHistory;
+@property(retain) NSComboBox *historyRetention;
+@property(retain) NSTextField *historyMax;
+@property(retain) NSView *deviceHome,*deviceDiscovery,*devicePair,*deviceHistory;
 @property(retain) NSTextField *status,*reason,*version,*discoveryStatus,*pairName,*sas,*pairHelp,*updateText,*noticeText;
 @property(retain) NSString *statusMessage,*statusReason;
 @property NSInteger view, syncState, noticeOrigin;
@@ -47,6 +49,15 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 -(NSStackView *)buildDiscovery;
 -(NSStackView *)buildPair;
 -(void)buildFlows;
+@end
+@interface CPDesktop (History) 
+-(NSStackView *)buildHistory;
+-(void)refreshHistory;
+-(NSInteger)historyRowCount;
+-(NSView *)historyCellForColumn:(NSTableColumn *)column row:(NSInteger)row;
+-(void)selectHistoryRow:(NSButton *)sender;
+-(void)historyAction:(NSButton *)sender;
+-(void)historyLink:(NSButton *)sender;
 @end
 @interface CPDesktop (Status)
 -(void)refreshTray;

@@ -11,6 +11,7 @@ import "C"
 import (
 	"clipare/internal/config"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -127,3 +128,35 @@ func (*nativeDesktop) UpdatePrompt(v updatePrompt) {
 	})
 }
 func (*nativeDesktop) UpdateClose() { C.clipare_update_close() }
+
+func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
+	payload := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		payload = append(payload, map[string]any{
+			"id": row.id, "header": row.header, "preview": row.preview, "link": row.link,
+			"sensitive": row.sensitive, "revealed": row.revealed, "url": row.url, "group": row.group,
+		})
+	}
+	data, _ := json.Marshal(payload)
+	empty := historyEmptyTitle + "\n" + historyEmptyHint
+	if keyLost {
+		empty = historyKeyLostText
+	}
+	cstr(string(data), func(p *C.char) { cstr(empty, func(e *C.char) { C.clipare_history_rows(p, e) }) })
+}
+func (*nativeDesktop) HistoryEnabled() bool { return C.clipare_history_enabled() != 0 }
+func (*nativeDesktop) HistoryPrefs(c config.History) {
+	flag := func(v bool) C.int {
+		if v {
+			return 1
+		}
+		return 0
+	}
+	cstr(strings.Join(RetentionLabels, "\n"), func(l *C.char) {
+		cstr(RetentionToLabel(c.Retention), func(s *C.char) {
+			cstr(strconv.Itoa(c.NormalizedMaxItems()), func(m *C.char) {
+				C.clipare_history_prefs(flag(c.Enabled), l, s, m)
+			})
+		})
+	})
+}
