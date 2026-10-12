@@ -76,8 +76,8 @@ type Config struct {
 		Enabled bool `yaml:"enabled"`
 	} `yaml:"updates"`
 	History History `yaml:"history,omitempty"`
-	Device Device `yaml:"device"`
-	Listen struct {
+	Device  Device  `yaml:"device"`
+	Listen  struct {
 		Address string `yaml:"address"`
 		Port    int    `yaml:"port"`
 	} `yaml:"listen"`

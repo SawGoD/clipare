@@ -3,8 +3,8 @@ package history
 import (
 	"clipare/internal/config"
 	"context"
-	"io"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
