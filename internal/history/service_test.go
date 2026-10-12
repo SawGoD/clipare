@@ -245,7 +245,8 @@ func TestServiceRunPeriodicCleanup(t *testing.T) {
 }
 
 func TestDefaultPath(t *testing.T) {
-	if got := DefaultPath("/home/user/.config/Clipare/config.yaml"); got != "/home/user/.config/Clipare/history.db" {
+	dir := t.TempDir()
+	if got := DefaultPath(filepath.Join(dir, "config.yaml")); got != filepath.Join(dir, HistoryFile) {
 		t.Fatal(got)
 	}
 }
