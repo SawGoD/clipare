@@ -15,7 +15,7 @@ func visible(h uintptr, show bool) {
 
 func (n *nativeDesktop) showDevicePresentation(count int) {
 	s := presentSettings(count, n.preferencesExpanded)
-	home := n.navigation.View != ViewDiscovery && n.navigation.View != ViewPairing
+	home := n.navigation.View != ViewDiscovery && n.navigation.View != ViewPairing && n.navigation.View != ViewHistory
 	visible(n.devicesHeader, home)
 	visible(n.emptyAdd, home && s.EmptyDevices)
 	visible(n.emptyDevices, home && s.EmptyDevices)
@@ -27,6 +27,10 @@ func (n *nativeDesktop) layoutPreferences() {
 	s := presentSettings(len(n.rows[n.homeList]), n.preferencesExpanded)
 	visible(n.homeAuto, s.ShowPreferences)
 	visible(n.updateCheck, s.ShowPreferences)
+	for _, h := range n.historySettings {
+		visible(h, s.ShowPreferences)
+	}
+	visible(n.historyOpen, n.navigation.View == ViewHome)
 	v := n.windows[n.home]
 	if len(v.cards) > 3 {
 		v.cards = v.cards[:3]
@@ -34,6 +38,7 @@ func (n *nativeDesktop) layoutPreferences() {
 	v.cards[2].h = 48
 	delta := n.layoutDiscovery()
 	delta += n.layoutPairing()
+	delta += n.layoutHistory()
 	v.cards[1].h = 228 + delta
 	v.cards[2].y = 452 + delta
 	for h, y := range map[uintptr]int{n.preferencesToggle: 460, n.homeAuto: 508, n.updateCheck: 548} {
@@ -41,10 +46,17 @@ func (n *nativeDesktop) layoutPreferences() {
 		c.bounds.y = y + delta
 		n.controls[h] = c
 	}
+	for _, h := range n.historySettings {
+		c := n.controls[h]
+		c.bounds.y = n.historyBase[h] + delta
+		n.controls[h] = c
+	}
 	y := 516 + delta
 	if s.ShowPreferences {
-		v.cards[2].h = 136
-		y = 604 + delta
+		// The expanded card covers preferences and history settings; it ends
+		// below the clear button, before the advanced section.
+		v.cards[2].h = 270
+		y = 722 + delta
 	}
 	c := n.controls[n.advancedButton]
 	c.kind = 0

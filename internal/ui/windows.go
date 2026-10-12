@@ -52,7 +52,7 @@ type nativeDesktop struct {
 	prepared                                                                           bool
 	updateWindow, updateCheck, updateVersion, updateText, updateInstall, updateDismiss uintptr
 	window, instance, callback, icon                                                   uintptr
-	fields                                                                             [11]uintptr
+	fields                                                                             [13]uintptr
 	auto, list                                                                         uintptr
 	statusLabel                                                                        uintptr
 	events                                                                             []int
@@ -98,6 +98,13 @@ type nativeDesktop struct {
 	applyVisible                                                                       uint64
 	helpTexts                                                                          map[int]string
 	platforms                                                                          map[string]string
+	historyList, emptyHistory, historyStatus                                           uintptr
+	historyCheck, historyRetention, historyClear                                       uintptr
+	historyControls, historySettings                                                   []uintptr
+	historyBase                                                                        map[uintptr]int
+	historyButtons                                                                     []uintptr
+	historyRows                                                                        []historyRow
+	historyOpen, historyListCallback                                                   uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -203,6 +210,14 @@ func (n *nativeDesktop) Init() error {
 				n.Alert(help)
 				return 0
 			}
+			if id >= 9400 && id < 9400+len(n.historyButtons) {
+				if w>>16 == 0 { // BN_CLICKED, not focus notifications.
+					index := id - 9400
+					call("SendMessageW", n.historyList, 0x186, uintptr(index/4), 0)
+					n.historyRowAction(index/4, index%4)
+				}
+				return 0
+			}
 			if id >= 9000 && id < 9000+len(n.rowTrash) {
 				if w>>16 == 0 { // BN_CLICKED, not focus notifications.
 					n.confirmRowRemoval(id - 9000)
@@ -211,6 +226,20 @@ func (n *nativeDesktop) Init() error {
 			}
 			if (w>>16 == 0x300 && (id >= 100 && id <= 110 || id == 130)) || (id == 102 && (w>>16 == 5 || w>>16 == 1)) {
 				n.events = append(n.events, eventFormChanged)
+				return 0
+			}
+			if id == historyComboID && w>>16 == 1 { // CBN_SELCHANGE.
+				n.events = append(n.events, eventHistorySettings)
+				return 0
+			}
+			if id == historyMaxID && w>>16 == 2 { // EN_KILLFOCUS.
+				n.events = append(n.events, eventHistorySettings)
+				return 0
+			}
+			if id == eventHistoryClear {
+				if call("MessageBoxW", n.main, uintptr(unsafe.Pointer(wide(historyClearConfirm))), uintptr(unsafe.Pointer(wide(historyClearTitle))), 0x124) == 6 {
+					n.events = append(n.events, eventHistoryClear)
+				}
 				return 0
 			}
 			if id == 32 {
@@ -241,7 +270,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= eventDeviceName {
+			} else if id >= 1 && id <= eventHistoryExpand {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -274,6 +303,8 @@ func (n *nativeDesktop) Init() error {
 	n.state = "Настройте подключение"
 	n.installHome(class)
 	n.installAdvanced()
+	n.installHistory()
+	n.installHistorySettings()
 	n.layoutPreferences()
 	n.showDevicePresentation(0)
 	n.applyTheme()
@@ -301,6 +332,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 104, 32, eventPause)
 	n.advancedButton = n.iconButton(advancedTitle, "\ue713", 492, 152, 36, 30)
 	n.devicesHeader = n.heading(devicesTitle, 40, 224, 360, 2)
+	n.historyOpen = n.iconButton("История буфера обмена", "\ue81c", 492, 220, 36, eventHistoryOpen)
 	n.homeList = n.deviceList(40, 264, 488, 120, 120)
 	n.emptyAdd = n.control("BUTTON", addDeviceTitle, 0x10000, 244, 278, 80, 80, 11)
 	c := n.controls[n.emptyAdd]
@@ -468,6 +500,10 @@ func (n *nativeDesktop) Prepare(f form, peers []config.Peer, addresses []string)
 		call("SendMessageW", n.fields[2], 0x143, 0, uintptr(unsafe.Pointer(wide(a))))
 	}
 	for i, v := range f.Values {
+		if i == 12 {
+			n.selectRetention(RetentionFromLabel(v))
+			continue
+		}
 		n.set(i, v)
 	}
 	auto := uintptr(0)
@@ -509,6 +545,9 @@ func (n *nativeDesktop) Read() form {
 }
 func (n *nativeDesktop) Selected() int {
 	list := n.homeList
+	if n.navigation.View == ViewHistory {
+		return int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0)))
+	}
 	if call("IsWindowVisible", n.window) != 0 {
 		list = n.list
 	}

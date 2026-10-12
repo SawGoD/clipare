@@ -95,7 +95,7 @@ func TestEmptyInputsDisableActions(t *testing.T) {
 }
 
 func TestApplyVisibilityTracksOnlyRelatedChanges(t *testing.T) {
-	saved := form{Values: [11]string{"MacBook", "id", "100.64.0.1", "45873", "test-secret"}}
+	saved := form{Values: [13]string{"MacBook", "id", "100.64.0.1", "45873", "test-secret"}}
 	if applyMask(saved, saved, false) != 0 {
 		t.Fatal("unchanged form shows apply")
 	}

@@ -26,3 +26,6 @@ void clipare_update_settings(const char *version,int enabled);
 int clipare_update_enabled(void);
 void clipare_update_prompt(const char *text,const char *primary,const char *dismiss,int action);
 void clipare_update_close(void);
+void clipare_history_rows(const char *json,const char *empty);
+void clipare_history_prefs(int enabled,const char *labels,const char *selected,const char *max);
+int clipare_history_enabled(void);

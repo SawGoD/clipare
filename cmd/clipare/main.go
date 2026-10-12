@@ -5,6 +5,7 @@ import (
 	"clipare/internal/app"
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
+	"clipare/internal/history"
 	"clipare/internal/instance"
 	"clipare/internal/pairing"
 	"clipare/internal/transport"
@@ -100,12 +101,23 @@ func run(args []string) error {
 	if e != nil {
 		return e
 	}
+	var hist *history.Service
 	control := pairing.NewService(*path, c)
 	control.DisablePairing()
 	controlDone := make(chan struct{})
 	go func() { defer close(controlDone); control.Propagate(ctx) }()
 	defer func() { cancel(); <-controlDone }()
-	s, e := app.StartWithControl(ctx, c, b, log, nil, control)
+	var opts []app.Option
+	if c.History.Enabled {
+		if h, e := history.Open(history.DefaultPath(*path), c, log); e == nil {
+			defer h.Close()
+			hist = h
+			opts = append(opts, app.WithHistory(h))
+		} else {
+			log.Warn("clipboard history unavailable", "reason", "key storage error")
+		}
+	}
+	s, e := app.StartWithControl(ctx, c, b, log, nil, control, opts...)
 	if e != nil {
 		return e
 	}
@@ -119,7 +131,10 @@ func run(args []string) error {
 			if e = s.Stop(); e != nil {
 				return e
 			}
-			s, e = app.StartWithControl(ctx, next, b, log, nil, control)
+			if hist != nil {
+				hist.UpdateSettings(next)
+			}
+			s, e = app.StartWithControl(ctx, next, b, log, nil, control, opts...)
 			if e != nil {
 				return e
 			}

@@ -44,10 +44,30 @@ func (s *Session) Platforms() map[string]string {
 	return s.client.Platforms()
 }
 
+// HistoryRecorder persists clipboard events for the local history UI.
+// Implemented by history.Service; nil simply disables recording.
+type HistoryRecorder interface {
+	Record(msgID, source, text string, timestamp int64, local bool)
+	Run(context.Context)
+}
+
+type sessionOptions struct {
+	history HistoryRecorder
+}
+
+type Option func(*sessionOptions)
+
+// WithHistory attaches clipboard history recording to the session.
+func WithHistory(r HistoryRecorder) Option { return func(o *sessionOptions) { o.history = r } }
+
 func Start(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool)) (*Session, error) {
 	return StartWithControl(parent, c, b, log, health, nil)
 }
-func StartWithControl(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool), control http.Handler) (*Session, error) {
+func StartWithControl(parent context.Context, c config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool), control http.Handler, opts ...Option) (*Session, error) {
+	var options sessionOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	listener, e := net.Listen("tcp", c.ListenAddress())
 	if e != nil {
 		return nil, listenError(e)
@@ -56,6 +76,13 @@ func StartWithControl(parent context.Context, c config.Config, b clipboard.Backe
 	client := transport.NewPeerClient(c)
 	workers := transport.StartWorkersWithStatus(ctx, client, c.Peers, log, health)
 	manager := clipsync.NewManager(b, c.Device.ID, c.Mode(), log, workers.Broadcast)
+	if options.history != nil {
+		recorder := options.history
+		manager.SetObserver(func(msg clipsync.Message, local bool) {
+			recorder.Record(msg.ID, msg.Source, msg.Data, msg.Timestamp, local)
+		})
+		go recorder.Run(ctx)
+	}
 	if e = manager.Initialize(); e != nil {
 		cancel()
 		listener.Close()

@@ -7,6 +7,7 @@ import (
 	"clipare/internal/clipboard"
 	"clipare/internal/config"
 	"clipare/internal/discovery"
+	"clipare/internal/history"
 	"clipare/internal/pairing"
 	"clipare/internal/peers"
 	"clipare/internal/update"
@@ -14,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -51,6 +53,34 @@ const (
 	eventAutostartPreference
 	eventFormChanged
 	eventDeviceName
+
+	// Values 26-32 are reserved: native adapters already use those tags for
+	// the advanced gearshape (30), back/notice (31) and "Дополнительно" (32).
+	eventReserved26
+	eventReserved27
+	eventReserved28
+	eventReserved29
+	eventReserved30
+	eventReserved31
+	eventReserved32
+
+	eventHistoryOpen
+	eventHistoryCopy
+	eventHistoryEye
+	eventHistoryDelete
+	eventHistoryClear
+	eventHistoryEnabled
+	eventHistorySettings
+
+	// Values 40-44 are reserved: native adapters use those tags for help
+	// buttons, so the expand action starts at 45.
+	eventReserved40
+	eventReserved41
+	eventReserved42
+	eventReserved43
+	eventReserved44
+
+	eventHistoryExpand
 )
 
 type updateDesktop interface {
@@ -91,7 +121,7 @@ type scanResult struct {
 }
 
 type form struct {
-	Values    [11]string
+	Values    [13]string
 	Autostart bool
 }
 type desktop interface {
@@ -107,7 +137,8 @@ type desktop interface {
 }
 
 func toForm(c config.Config) form {
-	return form{Values: [11]string{c.Device.Name, c.Device.ID, c.Listen.Address, strconv.Itoa(c.Listen.Port), c.Security.Secret, "Протокол 1 · Public key SHA-256: " + c.Identity.Fingerprint(), "", "", "", "45873", ""}, Autostart: c.Autostart}
+	maxItems, retention := historyFormValues(c)
+	return form{Values: [13]string{c.Device.Name, c.Device.ID, c.Listen.Address, strconv.Itoa(c.Listen.Port), c.Security.Secret, "Протокол 1 · Public key SHA-256: " + c.Identity.Fingerprint(), "", "", "", "45873", "", maxItems, retention}, Autostart: c.Autostart}
 }
 func fromForm(f form, c config.Config) (config.Config, error) {
 	c.Device.Name = f.Values[0]
@@ -128,6 +159,18 @@ func fromForm(f form, c config.Config) (config.Config, error) {
 	}
 	c.Security.Secret = f.Values[4]
 	c.Autostart = f.Autostart
+	// History settings arrive from their own controls; untouched combos fall
+	// back to the draft so unrelated saves never invalidate them.
+	if v, e := strconv.Atoi(strings.TrimSpace(f.Values[11])); e == nil {
+		c.History.MaxItems = v
+	} else if strings.TrimSpace(f.Values[11]) == "" {
+		c.History.MaxItems = 0
+	}
+	if retention := RetentionFromLabel(f.Values[12]); retention != "" {
+		c.History.Retention = retention
+	} else if strings.TrimSpace(f.Values[12]) == "" {
+		c.History.Retention = ""
+	}
 	return c, nil
 }
 
@@ -202,6 +245,26 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		}
 	}
 	draft := c
+	// History keeps only local, encrypted data; open it lazily so disabled
+	// installations never create keys or files.
+	var hist *history.Service
+	openHistory := func(next config.Config) {
+		if hist != nil || !next.History.Enabled {
+			return
+		}
+		h, e := history.Open(history.DefaultPath(path), next, log)
+		if e != nil {
+			log.Warn("clipboard history unavailable")
+			return
+		}
+		hist = h
+	}
+	openHistory(c)
+	defer func() {
+		if hist != nil {
+			hist.Close()
+		}
+	}()
 	// Pairing can expose home before settings have ever been opened.
 	if prepared, ok := d.(interface {
 		Prepare(form, []config.Peer, []string)
@@ -241,10 +304,15 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	}
 	if start == nil {
 		start = func(ctx context.Context, next config.Config, b clipboard.Backend, log *slog.Logger, health func(string, bool)) (*app.Session, error) {
-			if service == nil {
-				return app.Start(ctx, next, b, log, health)
+			var controlHandler http.Handler
+			if service != nil {
+				controlHandler = service
 			}
-			return app.StartWithControl(ctx, next, b, log, health, service)
+			var opts []app.Option
+			if hist != nil {
+				opts = append(opts, app.WithHistory(hist))
+			}
+			return app.StartWithControl(ctx, next, b, log, health, controlHandler, opts...)
 		}
 	}
 	ud, hasUpdateUI := d.(updateDesktop)
@@ -350,6 +418,39 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	var session *app.Session
 	done := make(chan result, 1)
 	busy := false
+	// Clipboard history rendering state; row IDs map list selections to items.
+	// Reveal and expansion are runtime-only and reset when the view is opened.
+	historyItems := map[string]history.Item{}
+	historyRowIDs := []string{}
+	revealed := map[string]bool{}
+	expanded := map[string]bool{}
+	var renderHistory func()
+	renderHistory = func() {
+		hd, ok := d.(historyDesktop)
+		if !ok {
+			return
+		}
+		var items []history.Item
+		keyLost := false
+		if hist != nil {
+			var e error
+			items, e = hist.Items()
+			keyLost = errors.Is(e, history.ErrKeyLost)
+			if e != nil {
+				items = nil
+			}
+		}
+		historyItems = map[string]history.Item{}
+		for _, item := range items {
+			historyItems[item.ID] = item
+		}
+		rows := historyRows(items, time.Now(), revealed, expanded)
+		historyRowIDs = historyRowIDs[:0]
+		for _, row := range rows {
+			historyRowIDs = append(historyRowIDs, row.id)
+		}
+		hd.ShowHistory(rows, keyLost)
+	}
 	preferenceAuto, preferenceUpdates := c.Autostart, c.Updates.Enabled
 	status := "Настройте подключение"
 	var retryAt time.Time
@@ -360,6 +461,11 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	apply := func(next config.Config, persist bool) {
 		preferenceAuto, preferenceUpdates = next.Autostart, next.Updates.Enabled
 		renderPreferences(d, preferenceAuto, preferenceUpdates)
+		openHistory(next)
+		if hist != nil {
+			hist.UpdateSettings(next)
+		}
+		renderHistoryPrefs(d, next.History)
 		busy = true
 		retryAt = time.Time{}
 		status = "Применение настроек…"
@@ -435,6 +541,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	}()
 	refresh := time.NewTicker(timing.refresh)
 	defer refresh.Stop()
+	historyDirty := false
 	d.Update(status, false, c.Peers, states)
 	renderStatus(d, status, c.Mode() != "disabled", false, c.Listen.Address == "127.0.0.1", busy)
 	renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
@@ -627,6 +734,14 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			if session != nil {
 				renderPlatforms(d, session)
 			}
+			if historyDirty {
+				historyDirty = false
+				renderHistory()
+			}
+			// An open History section refreshes itself as events are recorded.
+			if v, ok := d.(viewDesktop); ok && v.CurrentView() == ViewHistory {
+				renderHistory()
+			}
 			if deferredUpdateOffer && !outgoing && shownIncoming == "" && available != nil {
 				deferredUpdateOffer = false
 				ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))
@@ -707,6 +822,84 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				next.Device.Name = strings.TrimSpace(d.Read().Values[0])
 				if err := next.Validate(); err != nil {
 					d.Alert(err.Error())
+					continue
+				}
+				draft = next
+				apply(next, true)
+			case eventHistoryOpen:
+				// Secrets and expansion never survive a fresh view switch.
+				for id := range revealed {
+					delete(revealed, id)
+				}
+				for id := range expanded {
+					delete(expanded, id)
+				}
+				renderHistory()
+			case eventHistoryCopy:
+				item, ok := selectedHistoryItem(historyRowIDs, historyItems, d.Selected())
+				if !ok {
+					continue
+				}
+				if e := b.Write(item.Text); e != nil {
+					d.Alert("Не удалось скопировать запись")
+					continue
+				}
+				// The watcher re-records the copy; the row moves to the top on
+				// the next refresh instead of duplicating.
+				historyDirty = true
+			case eventHistoryEye:
+				id, ok := selectedHistoryID(historyRowIDs, d.Selected())
+				if !ok {
+					continue
+				}
+				if revealed[id] {
+					delete(revealed, id)
+				} else {
+					revealed[id] = true
+				}
+				renderHistory()
+			case eventHistoryExpand:
+				id, ok := selectedHistoryID(historyRowIDs, d.Selected())
+				if !ok {
+					continue
+				}
+				if expanded[id] {
+					delete(expanded, id)
+				} else {
+					expanded[id] = true
+				}
+				renderHistory()
+			case eventHistoryDelete:
+				if item, ok := selectedHistoryItem(historyRowIDs, historyItems, d.Selected()); ok && hist != nil {
+					if e := hist.Delete(item.ID); e != nil {
+						d.Alert("Не удалось удалить запись")
+					}
+				}
+				renderHistory()
+			case eventHistoryClear:
+				if hist != nil {
+					if e := hist.Clear(); e != nil {
+						d.Alert("Не удалось очистить историю")
+					}
+				}
+				renderHistory()
+			case eventHistoryEnabled:
+				hd, ok := d.(historyDesktop)
+				if !ok {
+					continue
+				}
+				next := c
+				next.History.Enabled = hd.HistoryEnabled()
+				draft = next
+				apply(next, true)
+			case eventHistorySettings:
+				next, err := fromForm(d.Read(), draft)
+				if err == nil {
+					err = next.Validate()
+				}
+				if err != nil {
+					d.Alert("Проверьте настройки истории: " + err.Error())
+					renderHistoryPrefs(d, c.History)
 					continue
 				}
 				draft = next

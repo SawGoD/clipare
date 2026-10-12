@@ -143,6 +143,28 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		if d.State&4 != 0 {
 			fill, border, fg = t.surface, t.border, t.muted
 		}
+		if c.kind == 5 || c.kind == 6 { // ghost row actions: card-colored, no frame.
+			call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), n.surfaceBrush)
+			if d.State&4 != 0 {
+				fg = t.muted
+			} else if c.kind == 6 {
+				fg = t.danger
+			}
+			if d.State&0x1000 != 0 { // ODS_HOT
+				brush := gcall("CreateSolidBrush", uintptr(blendColor(t.surface, t.text, .08)))
+				call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
+				gcall("DeleteObject", brush)
+			}
+			label := n.icons[d.Window]
+			if label == "" {
+				label = windowText(d.Window)
+			}
+			n.drawText(d.DC, n.fontFor(c.parent, 5), label, d.Rect, fg, 0x25)
+			if d.State&0x10 != 0 && n.keyboardFocusVisible() {
+				call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
+			}
+			return
+		}
 		if d.State&1 != 0 {
 			fill = blendColor(fill, t.text, .1)
 		}
@@ -190,6 +212,10 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			r.Bottom -= px(4)
 			call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&r)))
 		}
+		return
+	}
+	if d.Window == n.historyList && d.Type == 2 {
+		n.drawHistoryItem(d, px)
 		return
 	}
 	if d.Type != 2 {
@@ -246,6 +272,57 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		r.Left += 2
 		r.Right -= 2
 		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&r)))
+	}
+}
+
+// drawHistoryItem renders one history row: group label, source header and a
+// short preview (masked for hidden secrets, accent-colored for links).
+func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
+	t := n.theme
+	selected := d.State&1 != 0
+	fill := t.surface
+	if selected {
+		fill = blendColor(t.surface, t.accent, .13)
+	}
+	if t.contrast && selected {
+		fill = t.accent
+	}
+	brush := gcall("CreateSolidBrush", uintptr(fill))
+	call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
+	gcall("DeleteObject", brush)
+	if d.Item == 0xffffffff || int(d.Item) >= len(n.historyRows) {
+		return
+	}
+	row := n.historyRows[d.Item]
+	fg, muted := t.text, t.muted
+	if t.contrast && selected {
+		fg, muted = t.onAccent, t.onAccent
+	}
+	r := d.Rect
+	r.Left += px(16)
+	r.Right -= px(150) // keep clear of the per-row icon actions
+	if row.group {
+		// Center the label within the compact group row deterministically.
+		lineH := px(18)
+		top := r.Top + ((r.Bottom-r.Top)-lineH)/2
+		n.drawText(d.DC, n.fontFor(n.home, 4), row.header, winRect{r.Left, top, r.Right, top + lineH}, muted, 0x25)
+		return
+	}
+	headerRect := r
+	headerRect.Top += px(8)
+	headerRect.Bottom = headerRect.Top + px(18)
+	n.drawText(d.DC, n.fontFor(n.home, 4), row.header, headerRect, muted, 0x8020)
+	previewColor := fg
+	if row.url {
+		previewColor = t.accent
+	}
+	previewRect := r
+	previewRect.Top += px(26)
+	previewRect.Bottom = d.Rect.Bottom - px(4)
+	// Word wrap over two lines; DT_END_ELLIPSIS cuts the last line.
+	n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x8010)
+	if d.State&0x10 != 0 && n.keyboardFocusVisible() {
+		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
 	}
 }
 
@@ -342,6 +419,9 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 	}
 	if hwnd == n.home {
 		n.updateRowTrash()
+		if len(n.historyButtons) > 0 || n.navigation.View == ViewHistory {
+			n.updateHistoryButtons()
+		}
 	}
 	// Card geometry is drawn in WM_ERASEBKGND. Invalidation alone leaves
 	// obsolete card edges and stripes behind moved controls.

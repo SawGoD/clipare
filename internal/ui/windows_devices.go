@@ -27,7 +27,7 @@ func (n *nativeDesktop) updateRowTrash() {
 		index := len(n.rowTrash)
 		h := n.iconButton("Удалить устройство", "\ue74d", 0, 0, 32, 9000+index)
 		c := n.controls[h]
-		c.kind = 2
+		c.kind = 6 // ghost: card-colored fill, danger glyph, no frame.
 		n.controls[h] = c
 		n.rowTrash = append(n.rowTrash, h)
 	}
@@ -39,7 +39,9 @@ func (n *nativeDesktop) positionRowTrash() {
 	var client winRect
 	call("GetClientRect", n.homeList, uintptr(unsafe.Pointer(&client)))
 	for i, h := range n.rowTrash {
-		if n.navigation.View == ViewDiscovery || n.navigation.View == ViewPairing {
+		if n.navigation.View != ViewHome {
+			// Row actions belong to the device list only; never float over
+			// discovery, pairing or history content.
 			visible(h, false)
 			continue
 		}
@@ -56,6 +58,9 @@ func (n *nativeDesktop) positionRowTrash() {
 		x, y := client.Right-size-8, r.Top+(r.Bottom-r.Top-size)/2
 		point := struct{ X, Y int32 }{x, y}
 		call("MapWindowPoints", n.homeList, n.home, uintptr(unsafe.Pointer(&point)), 1)
+		window := n.windows[n.home]
+		point.X -= window.scrollX
+		point.Y -= window.scrollY
 		// Row buttons overlap the list's HWND: keep them above it for painting
 		// and hit testing, including after selection/health refresh.
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(size), uintptr(size), 0x10)

@@ -20,14 +20,14 @@ int clipare_poll(void) { @autoreleasepool {
 int clipare_view(void) {return (int)desktop.view;}
 int clipare_disclosures(void) {return (desktop.additionalExpanded?1:0)|(desktop.advancedExpanded?2:0);}
 void clipare_show(void) { @autoreleasepool {[desktop show:desktop.view];} }
-void clipare_set(int i,const char *text) { @autoreleasepool {if(i>=0&&i<11&&desktop.fields[i]!=NSNull.null)[desktop.fields[i]setStringValue:str(text)];} }
-char *clipare_get(int i) { @autoreleasepool {if(i<0||i>=11||desktop.fields[i]==NSNull.null)return strdup("");return strdup([[desktop.fields[i]stringValue]UTF8String]);} }
+void clipare_set(int i,const char *text) { @autoreleasepool {if(i>=0&&i<13&&desktop.fields[i]!=NSNull.null){if(i==12){[desktop.historyRetention selectItemWithObjectValue:str(text)];return;}[desktop.fields[i]setStringValue:str(text)];}} }
+char *clipare_get(int i) { @autoreleasepool {if(i<0||i>=13||desktop.fields[i]==NSNull.null)return strdup("");return strdup([[desktop.fields[i]stringValue]UTF8String]);} }
 void clipare_auto(int enabled) {desktop.autostart.state=enabled?NSControlStateValueOn:NSControlStateValueOff;}
 int clipare_is_auto(void) {return desktop.autostart.state==NSControlStateValueOn;}
 void clipare_preferences(int autostart,int updates) {clipare_auto(autostart);desktop.updates.state=updates?NSControlStateValueOn:NSControlStateValueOff;}
 void clipare_addresses(const char *s) { @autoreleasepool {NSComboBox *box=desktop.fields[2];[box removeAllItems];for(NSString *line in lines(s))if(line.length)[box addItemWithObjectValue:line];} }
 void clipare_peers(const char *s) { @autoreleasepool {[desktop.peers removeAllObjects];for(NSString *line in lines(s))if(line.length)[desktop.peers addObject:@{@"name":line,@"detail":@"Не в сети",@"online":@NO}];desktop.devicesEmpty=!desktop.peers.count;desktop.canRemove=desktop.compactVisible=desktop.listVisible=desktop.peers.count>0;[desktop refreshDevices];} }
-int clipare_selected(void) {return (int)desktop.peerTable.selectedRow;}
+int clipare_selected(void) {return (int)(desktop.view==CPHistory?desktop.historyTable.selectedRow:desktop.peerTable.selectedRow);}
 void clipare_status(const char *status,int enabled,const char *s) { @autoreleasepool {
  [desktop.peers removeAllObjects];for(NSString *line in lines(s)){
   if(![line hasPrefix:@"● "]&&![line hasPrefix:@"○ "])continue;
@@ -74,3 +74,16 @@ void clipare_update_prompt(const char *text,const char *primary,const char *dism
  desktop.install.keyEquivalent=str(primary).length?@"\r":@"";desktop.dismiss.keyEquivalent=!str(primary).length&&str(dismiss).length?@"\r":@"\033";[desktop show:CPUpdate];
 } }
 void clipare_update_close(void) { @autoreleasepool {if(desktop.noticeOrigin==CPUpdate)desktop.noticeOrigin=CPHome;if(desktop.view==CPUpdate)[desktop show:CPHome];} }
+void clipare_history_rows(const char *json,const char *empty) { @autoreleasepool {
+ NSData *data=[str(json)dataUsingEncoding:NSUTF8StringEncoding];id rows=[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];if(![rows isKindOfClass:NSArray.class])return;
+ desktop.historyData=[NSMutableArray arrayWithArray:rows];
+ desktop.emptyHistory.stringValue=empty&&*empty?str(empty):@"История пуста";
+ [desktop refreshHistory];
+ if(desktop.view!=CPHistory)[desktop show:CPHistory];
+} }void clipare_history_prefs(int enabled,const char *labels,const char *selected,const char *max) { @autoreleasepool {
+ desktop.historyEnable.state=enabled?NSControlStateValueOn:NSControlStateValueOff;
+ [desktop.historyRetention removeAllItems];for(NSString *line in lines(labels))if(line.length)[desktop.historyRetention addItemWithObjectValue:line];
+ [desktop.historyRetention selectItemWithObjectValue:str(selected)];
+ desktop.historyMax.stringValue=str(max);
+} }
+int clipare_history_enabled(void) {return desktop.historyEnable.state==NSControlStateValueOn;}

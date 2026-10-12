@@ -51,6 +51,8 @@ func Default() (Config, error) {
 	c.Listen.Port = 45873
 	c.Sync.Enabled = true
 	c.Sync.Mode = "bidirectional"
+	c.History.Retention = HistoryDefaultRetentionS
+	c.History.MaxItems = HistoryDefaultItems
 	c.Listen.Address = "127.0.0.1"
 	for _, a := range Addresses() {
 		ip := net.ParseIP(a).To4()

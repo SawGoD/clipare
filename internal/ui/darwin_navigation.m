@@ -56,8 +56,8 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 
 @implementation CPDesktop
 -(void)build {
- self.actionButtons=[NSMutableArray array];
- self.views=[NSMutableDictionary dictionary];self.events=[NSMutableArray array];self.fields=[NSMutableArray array];self.peers=[NSMutableArray array];self.found=[NSMutableArray array];for(int i=0;i<11;i++)[self.fields addObject:NSNull.null];
+  self.actionButtons=[NSMutableArray array];
+  self.views=[NSMutableDictionary dictionary];self.events=[NSMutableArray array];self.fields=[NSMutableArray array];self.peers=[NSMutableArray array];self.found=[NSMutableArray array];for(int i=0;i<13;i++)[self.fields addObject:NSNull.null];
  self.syncState=2;self.devicesEmpty=YES;self.statusMessage=@"Синхронизация недоступна";self.statusReason=@"Ожидание NetBird";
  self.window=[[[CPWindow alloc]initWithContentRect:NSMakeRect(0,0,560,600) styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskResizable backing:NSBackingStoreBuffered defer:NO]autorelease];self.window.title=@"Clipare";self.window.releasedWhenClosed=NO;self.window.delegate=self;self.window.contentMinSize=NSMakeSize(500,480);[self.window center];
  self.window.titlebarAppearsTransparent=YES;
@@ -77,14 +77,14 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
  NSView *v=self.scroll.documentView;if(!v)return;
  for(NSLayoutConstraint *c in v.constraints)if([c.identifier isEqualToString:@"documentWidth"])c.constant=self.scroll.contentSize.width;
  CGFloat height=v.fittingSize.height;[v setFrameSize:NSMakeSize(self.scroll.contentSize.width,MAX(height,1))];[v layoutSubtreeIfNeeded];
- for(NSScrollView *list in [NSArray arrayWithObjects:self.peerList,self.foundList,nil]){NSTableView *table=(NSTableView *)list.documentView;CGFloat width=MAX(list.contentSize.width,1);[table setFrameSize:NSMakeSize(width,table.frame.size.height)];table.tableColumns.firstObject.width=MAX(width-table.intercellSpacing.width,1);}
+  for(NSScrollView *list in [NSArray arrayWithObjects:self.peerList,self.foundList,self.historyList,nil]){NSTableView *table=(NSTableView *)list.documentView;CGFloat width=MAX(list.contentSize.width,1);[table setFrameSize:NSMakeSize(width,table.frame.size.height)];table.tableColumns.firstObject.width=MAX(width-table.intercellSpacing.width,1);}
 }
 -(void)windowDidResize:(NSNotification *)n { [self resizeDocument]; }
 -(void)show:(NSInteger)view {
- if(view==CPNotice&&self.view!=CPNotice)self.noticeOrigin=self.view;
- BOOL changed=self.view!=view;self.view=view;
- self.deviceHome.hidden=view==CPDiscovery||view==CPPairing;self.deviceDiscovery.hidden=view!=CPDiscovery;self.devicePair.hidden=view!=CPPairing;
- NSView *document=self.views[@((view==CPDiscovery||view==CPPairing)?CPHome:view)];
+  if(view==CPNotice&&self.view!=CPNotice)self.noticeOrigin=self.view;
+  BOOL changed=self.view!=view;self.view=view;
+  self.deviceHome.hidden=view==CPDiscovery||view==CPPairing||view==CPHistory;self.deviceDiscovery.hidden=view!=CPDiscovery;self.devicePair.hidden=view!=CPPairing;self.deviceHistory.hidden=view!=CPHistory;
+  NSView *document=self.views[@((view==CPDiscovery||view==CPPairing||view==CPHistory)?CPHome:view)];
  if(self.scroll.documentView!=document){[self.window makeFirstResponder:nil];self.scroll.documentView=document;[self.scroll.contentView scrollToPoint:NSZeroPoint];[self.scroll reflectScrolledClipView:self.scroll.contentView];}
  if(changed)[self.window makeFirstResponder:nil];[self resizeDocument];[self.window makeKeyAndOrderFront:nil];[NSApp activateIgnoringOtherApps:YES];
 }
@@ -113,7 +113,8 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
 }
 -(void)dealloc {
  [_actionButtons release];
- [_deviceHome release];[_deviceDiscovery release];[_devicePair release];
+ [_deviceHome release];[_deviceDiscovery release];[_devicePair release];[_deviceHistory release];
+ [_historyData release];[_historyIds release];[_historyHeights release];[_historyTable release];[_historyList release];[_emptyHistory release];[_historyEnable release];[_historyClear release];[_historyRetention release];[_historyMax release];
  [_statusDot release];
  self.window.delegate=nil;[_window release];[_scroll release];[_views release];[_fields release];[_events release];[_peers release];[_found release];[_tray release];
  [_autostart release];[_updates release];[_additionalButton release];[_advancedButton release];[_pause release];[_emptyAdd release];[_compactAdd release];[_removePeer release];[_connect release];[_approve release];[_reject release];[_install release];[_dismiss release];[_additional release];[_advanced release];[_peerTable release];[_foundTable release];[_emptyDevices release];[_peerList release];[_foundList release];[_emptyFound release];[_status release];[_reason release];[_version release];[_discoveryStatus release];[_pairName release];[_sas release];[_pairHelp release];[_updateText release];[_noticeText release];[_statusMessage release];[_statusReason release];[super dealloc];
