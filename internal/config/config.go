@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -42,6 +43,26 @@ type Security struct {
 func (Security) String() string   { return "[redacted]" }
 func (Security) GoString() string { return "[redacted]" }
 
+// History retention bounds: 30 minutes to 3 days, default 1 day.
+const (
+	HistoryMinRetention      = 30 * time.Minute
+	HistoryMaxRetention      = 72 * time.Hour
+	HistoryDefaultRetention  = 24 * time.Hour
+	HistoryDefaultRetentionS = "24h"
+	HistoryMinItems          = 3
+	HistoryMaxItems          = 50
+	HistoryDefaultItems      = 10
+)
+
+// HistoryRetentions lists the user-facing retention presets, shortest first.
+var HistoryRetentions = []string{"30m", "1h", "6h", "12h", "24h", "48h", "72h"}
+
+type History struct {
+	Enabled   bool   `yaml:"enabled"`
+	Retention string `yaml:"retention,omitempty"`
+	MaxItems  int    `yaml:"max_items,omitempty"`
+}
+
 type Config struct {
 	Removed            []string          `yaml:"removed,omitempty"`
 	MembershipVersions map[string]uint64 `yaml:"membership_versions,omitempty"`
@@ -54,6 +75,7 @@ type Config struct {
 	Updates   struct {
 		Enabled bool `yaml:"enabled"`
 	} `yaml:"updates"`
+	History History `yaml:"history,omitempty"`
 	Device Device `yaml:"device"`
 	Listen struct {
 		Address string `yaml:"address"`
@@ -81,6 +103,8 @@ func Parse(r io.Reader) (Config, error) {
 	c.Listen.Port = 45873
 	c.Sync.Enabled = true
 	c.Sync.Mode = "bidirectional"
+	c.History.Retention = HistoryDefaultRetentionS
+	c.History.MaxItems = HistoryDefaultItems
 	b, err := io.ReadAll(io.LimitReader(r, (1<<20)+1))
 	if err != nil || len(b) > 1<<20 {
 		return Config{}, errors.New("cannot read configuration or size exceeds 1 MiB")
@@ -101,6 +125,23 @@ func (c Config) Mode() string {
 		return "disabled"
 	}
 	return c.Sync.Mode
+}
+
+// HistoryRetention normalizes the stored retention into the allowed range;
+// zero or invalid values fall back to the default.
+func (c Config) HistoryRetention() time.Duration {
+	d, e := time.ParseDuration(c.History.Retention)
+	if e != nil || d < HistoryMinRetention || d > HistoryMaxRetention {
+		return HistoryDefaultRetention
+	}
+	return d
+}
+
+func (c Config) HistoryMaxItems() int {
+	if c.History.MaxItems < HistoryMinItems || c.History.MaxItems > HistoryMaxItems {
+		return HistoryDefaultItems
+	}
+	return c.History.MaxItems
 }
 func (c Config) ListenAddress() string {
 	return net.JoinHostPort(c.Listen.Address, strconv.Itoa(c.Listen.Port))
@@ -144,6 +185,15 @@ func (c Config) Validate() error {
 	case "bidirectional", "disabled", "send-only", "receive-only":
 	default:
 		return errors.New("invalid sync.mode")
+	}
+	// Zero values mean "unset" for configs built outside Parse; use defaults.
+	if c.History.Retention != "" {
+		if d, e := time.ParseDuration(c.History.Retention); e != nil || d < HistoryMinRetention || d > HistoryMaxRetention {
+			return errors.New("history.retention must be between 30m and 72h")
+		}
+	}
+	if c.History.MaxItems != 0 && (c.History.MaxItems < HistoryMinItems || c.History.MaxItems > HistoryMaxItems) {
+		return errors.New("history.max_items must be between 3 and 50")
 	}
 	ids := map[string]bool{c.Device.ID: true}
 	keys := map[string]bool{c.Identity.PublicKey: true}
