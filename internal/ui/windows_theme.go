@@ -92,7 +92,8 @@ func (n *nativeDesktop) setTheme(t winTheme) {
 		call("RedrawWindow", hwnd, 0, 0, 0x185)
 	}
 	for hwnd, c := range n.controls {
-		if c.class == "EDIT" || c.class == "COMBOBOX" {
+		if c.class == "EDIT" || c.class == "COMBOBOX" || c.class == "LISTBOX" {
+			// DarkMode_Explorer also themes the list scrollbar.
 			name := "Explorer"
 			if n.theme.dark {
 				name = "DarkMode_Explorer"

@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	historyListID     = 121
-	historyComboID    = 142
-	historyMaxID      = 141
+	historyListID  = 121
+	historyComboID = 142
+	// n.input numbers fields as 100+index; the max-items field is fields[11].
+	historyMaxID      = 111
 	historyButtonBase = 9400
 	// Per-row action slots: expand, link, eye, trash, copy (copy rightmost).
 	historyKindsPerRow = 5
@@ -51,10 +52,14 @@ func (n *nativeDesktop) installHistorySettings() {
 	}
 	n.historyCheck = n.control("BUTTON", "Сохранять историю", 0x10003, 40, 588, 488, 28, eventHistoryEnabled)
 	n.label("Хранить", 40, 622, 236)
-	n.historyRetention = n.control("COMBOBOX", "", 0x00210213, 40, 640, 236, 200, historyComboID)
+	// Same style as the address combo: identical theming and frame rendering.
+	n.historyRetention = n.control("COMBOBOX", "", 0x00210252, 40, 640, 236, 200, historyComboID)
 	n.styleCombo(n.historyRetention)
+	for _, label := range RetentionLabels {
+		call("SendMessageW", n.historyRetention, 0x143, 0, uintptr(unsafe.Pointer(wide(label)))) // CB_ADDSTRING
+	}
 	n.label("Максимум записей", 292, 622, 236)
-	n.fields[11] = n.control("EDIT", "", 0x00810080, 292, 640, 236, 26, historyMaxID)
+	n.input(11, 292, 640, 236, false)
 	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 678, 444, 32, eventHistoryClear)
 	n.helpButton(144, 492, 684, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
 	n.historyBase = map[uintptr]int{}
@@ -129,7 +134,7 @@ func (n *nativeDesktop) selectRetention(duration string) {
 		call("SendMessageW", n.historyRetention, 0x14E, ^uintptr(0), 0) // CB_SETCURSEL -1
 		return
 	}
-	call("SendMessageW", n.historyRetention, 0x146, 0, uintptr(unsafe.Pointer(wide(label)))) // CB_SELECTSTRING
+	call("SendMessageW", n.historyRetention, 0x146, ^uintptr(0), uintptr(unsafe.Pointer(wide(label)))) // CB_SELECTSTRING over the whole list
 }
 
 func intLabel(v int) string {
@@ -261,6 +266,10 @@ func (n *nativeDesktop) positionHistoryButtons() {
 		y := r.Top + int32(float64(17)*n.scale) - size/2
 		point := struct{ X, Y int32 }{x, y}
 		call("MapWindowPoints", n.historyList, n.home, uintptr(unsafe.Pointer(&point)), 1)
+		// The panel itself scrolls: follow the same offset as layoutControls.
+		window := n.windows[n.home]
+		point.X -= window.scrollX
+		point.Y -= window.scrollY
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(size), uintptr(size), 0x10)
 		call("SendMessageW", h, 0x30, n.fontFor(n.home, 5), 0)
 		glyph := "\ue8c8"

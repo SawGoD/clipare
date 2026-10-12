@@ -58,6 +58,9 @@ func (n *nativeDesktop) positionRowTrash() {
 		x, y := client.Right-size-8, r.Top+(r.Bottom-r.Top-size)/2
 		point := struct{ X, Y int32 }{x, y}
 		call("MapWindowPoints", n.homeList, n.home, uintptr(unsafe.Pointer(&point)), 1)
+		window := n.windows[n.home]
+		point.X -= window.scrollX
+		point.Y -= window.scrollY
 		// Row buttons overlap the list's HWND: keep them above it for painting
 		// and hit testing, including after selection/health refresh.
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(size), uintptr(size), 0x10)

@@ -299,7 +299,10 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	r.Left += px(16)
 	r.Right -= px(150) // keep clear of the per-row icon actions
 	if row.group {
-		n.drawText(d.DC, n.fontFor(n.home, 4), row.header, r, muted, 0x25)
+		// Center the label within the compact group row deterministically.
+		lineH := px(18)
+		top := r.Top + ((r.Bottom-r.Top)-lineH)/2
+		n.drawText(d.DC, n.fontFor(n.home, 4), row.header, winRect{r.Left, top, r.Right, top + lineH}, muted, 0x25)
 		return
 	}
 	headerRect := r
