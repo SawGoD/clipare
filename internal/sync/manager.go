@@ -23,11 +23,16 @@ type Manager struct {
 	latestID     string
 	log          *slog.Logger
 	broadcast    func(Message)
+	observer     func(Message, bool)
 }
 
 func NewManager(b clipboard.Backend, device, mode string, log *slog.Logger, broadcast func(Message)) *Manager {
 	return &Manager{backend: b, device: device, mode: mode, cache: NewCache(1000, 5*time.Minute), log: log, broadcast: broadcast}
 }
+
+// SetObserver installs a side-channel for clipboard events (local=true for
+// copies made on this device). It never changes the wire protocol.
+func (m *Manager) SetObserver(fn func(Message, bool)) { m.observer = fn }
 func (m *Manager) Initialize() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -84,6 +89,9 @@ func (m *Manager) LocalChanged() {
 	m.latestID = msg.ID
 	m.log.Info("clipboard changed", "id", msg.ID, "hash", h, "size", len(s))
 	m.broadcast(msg)
+	if m.observer != nil {
+		m.observer(msg, true)
+	}
 }
 func (m *Manager) Receive(ctx context.Context, msg Message) error {
 	m.mu.Lock()
@@ -119,5 +127,8 @@ func (m *Manager) Receive(ctx context.Context, msg Message) error {
 	m.latestID = msg.ID
 	m.cache.Add(msg.ID, now)
 	m.log.Info("clipboard received", "source", msg.Source, "id", msg.ID, "hash", h, "size", len(msg.Data))
+	if m.observer != nil {
+		m.observer(msg, false)
+	}
 	return nil
 }
