@@ -146,7 +146,7 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 	cstr(string(data), func(p *C.char) { cstr(empty, func(e *C.char) { C.clipare_history_rows(p, e) }) })
 }
 func (n *nativeDesktop) CurrentView() ViewState { return ViewState(C.clipare_view()) }
-func (*nativeDesktop) HistoryEnabled() bool { return C.clipare_history_enabled() != 0 }
+func (*nativeDesktop) HistoryEnabled() bool     { return C.clipare_history_enabled() != 0 }
 func (*nativeDesktop) HistoryPrefs(c config.History) {
 	flag := func(v bool) C.int {
 		if v {
