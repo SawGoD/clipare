@@ -52,8 +52,8 @@ func (n *nativeDesktop) installHistorySettings() {
 	n.styleCombo(n.historyRetention)
 	n.label("Максимум записей", 292, 622, 236)
 	n.fields[11] = n.control("EDIT", "", 0x00810080, 292, 640, 236, 26, historyMaxID)
-	n.helpButton(144, 492, 640, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
-	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 678, 488, 32, eventHistoryClear)
+	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 678, 444, 32, eventHistoryClear)
+	n.helpButton(144, 492, 684, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
 	n.historyBase = map[uintptr]int{}
 	for h, c := range n.controls {
 		if !before[h] && c.parent == n.home {

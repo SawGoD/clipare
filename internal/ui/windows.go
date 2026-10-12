@@ -213,6 +213,7 @@ func (n *nativeDesktop) Init() error {
 			if id >= 9400 && id < 9400+len(n.historyButtons) {
 				if w>>16 == 0 { // BN_CLICKED, not focus notifications.
 					index := id - 9400
+					call("SendMessageW", n.historyList, 0x186, uintptr(index/4), 0)
 					n.historyRowAction(index/4, index%4)
 				}
 				return 0
