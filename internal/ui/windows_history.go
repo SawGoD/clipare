@@ -6,6 +6,7 @@ import (
 	"clipare/internal/config"
 	"reflect"
 	"strings"
+	"syscall"
 	"unsafe"
 )
 
@@ -181,11 +182,22 @@ func (n *nativeDesktop) layoutHistory() int {
 	return 120 + height - 228
 }
 
-// updateHistoryButtons keeps one pool of per-row icon buttons positioned over
-// the list's actual item rectangles. All actions share one row, right-aligned.
+// updateHistoryButtons keeps one pool of per-row ghost icon buttons
+// positioned over the list's actual item rectangles. All actions share one
+// row, right-aligned with the device-name line.
 func (n *nativeDesktop) updateHistoryButtons() {
 	rows := n.historyRows
 	need := len(rows) * historyKindsPerRow
+	if n.historyListCallback == 0 {
+		n.historyListCallback = syscall.NewCallback(func(h uintptr, msg uint32, w, l, id, ref uintptr) uintptr {
+			result, _, _ := comctl.NewProc("DefSubclassProc").Call(h, uintptr(msg), w, l)
+			if msg == 0x115 || msg == 0x20a || msg == 5 {
+				n.positionHistoryButtons()
+			}
+			return result
+		})
+		comctl.NewProc("SetWindowSubclass").Call(n.historyList, n.historyListCallback, 3, 0)
+	}
 	if len(n.historyButtons) < need {
 		previous := n.window
 		n.window = n.home
@@ -204,6 +216,9 @@ func (n *nativeDesktop) updateHistoryButtons() {
 				label, glyph = "Развернуть запись", "\ue76c"
 			}
 			h := n.iconButton(label, glyph, 0, 0, 32, historyButtonBase+index)
+			c := n.controls[h]
+			c.kind = 5 // ghost: no frame, no fill until hover.
+			n.controls[h] = c
 			n.historyButtons = append(n.historyButtons, h)
 		}
 		n.window = previous

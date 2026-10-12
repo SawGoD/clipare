@@ -39,7 +39,9 @@ func (n *nativeDesktop) positionRowTrash() {
 	var client winRect
 	call("GetClientRect", n.homeList, uintptr(unsafe.Pointer(&client)))
 	for i, h := range n.rowTrash {
-		if n.navigation.View == ViewDiscovery || n.navigation.View == ViewPairing {
+		if n.navigation.View != ViewHome {
+			// Row actions belong to the device list only; never float over
+			// discovery, pairing or history content.
 			visible(h, false)
 			continue
 		}

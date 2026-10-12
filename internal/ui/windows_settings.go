@@ -53,7 +53,9 @@ func (n *nativeDesktop) layoutPreferences() {
 	}
 	y := 516 + delta
 	if s.ShowPreferences {
-		v.cards[2].h = 254
+		// The expanded card covers preferences and history settings; it ends
+		// below the clear button, before the advanced section.
+		v.cards[2].h = 270
 		y = 722 + delta
 	}
 	c := n.controls[n.advancedButton]

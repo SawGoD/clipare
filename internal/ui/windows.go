@@ -104,7 +104,7 @@ type nativeDesktop struct {
 	historyBase                                                                        map[uintptr]int
 	historyButtons                                                                     []uintptr
 	historyRows                                                                        []historyRow
-	historyOpen                                                                        uintptr
+	historyOpen, historyListCallback                                                   uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }

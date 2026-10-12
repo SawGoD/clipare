@@ -143,6 +143,25 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		if d.State&4 != 0 {
 			fill, border, fg = t.surface, t.border, t.muted
 		}
+		if c.kind == 5 { // ghost row action: no chrome, subtle hover fill.
+			if d.State&4 != 0 {
+				fg = t.muted
+			}
+			if d.State&0x1000 != 0 { // ODS_HOT
+				brush := gcall("CreateSolidBrush", uintptr(blendColor(t.surface, t.text, .08)))
+				call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
+				gcall("DeleteObject", brush)
+			}
+			label := n.icons[d.Window]
+			if label == "" {
+				label = windowText(d.Window)
+			}
+			n.drawText(d.DC, n.fontFor(c.parent, 5), label, d.Rect, fg, 0x25)
+			if d.State&0x10 != 0 && n.keyboardFocusVisible() {
+				call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
+			}
+			return
+		}
 		if d.State&1 != 0 {
 			fill = blendColor(fill, t.text, .1)
 		}
