@@ -4,6 +4,7 @@ package ui
 
 import (
 	"clipare/internal/config"
+	"clipare/internal/update"
 	"errors"
 	"reflect"
 	"strconv"
@@ -105,6 +106,7 @@ type nativeDesktop struct {
 	historyButtons                                                                     []uintptr
 	historyRows                                                                        []historyRow
 	historyOpen, historyListCallback                                                   uintptr
+	updateChannel                                                                      uintptr
 }
 
 func newDesktop() (desktop, error) { return &nativeDesktop{scale: 1}, nil }
@@ -213,8 +215,8 @@ func (n *nativeDesktop) Init() error {
 			if id >= 9400 && id < 9400+len(n.historyButtons) {
 				if w>>16 == 0 { // BN_CLICKED, not focus notifications.
 					index := id - 9400
-					call("SendMessageW", n.historyList, 0x186, uintptr(index/4), 0)
-					n.historyRowAction(index/4, index%4)
+					call("SendMessageW", n.historyList, 0x186, uintptr(index/historyKindsPerRow), 0)
+					n.historyRowAction(index/historyKindsPerRow, index%historyKindsPerRow)
 				}
 				return 0
 			}
@@ -232,12 +234,16 @@ func (n *nativeDesktop) Init() error {
 				n.events = append(n.events, eventHistorySettings)
 				return 0
 			}
+			if id == updateChannelID && w>>16 == 1 {
+				n.events = append(n.events, eventUpdateChannel)
+				return 0
+			}
 			if id == historyMaxID && w>>16 == 2 { // EN_KILLFOCUS.
 				n.events = append(n.events, eventHistorySettings)
 				return 0
 			}
 			if id == eventHistoryClear {
-				if call("MessageBoxW", n.main, uintptr(unsafe.Pointer(wide(historyClearConfirm))), uintptr(unsafe.Pointer(wide(historyClearTitle))), 0x124) == 6 {
+				if w>>16 == 0 && call("MessageBoxW", n.main, uintptr(unsafe.Pointer(wide(historyClearConfirm))), uintptr(unsafe.Pointer(wide(historyClearTitle))), 0x124) == 6 {
 					n.events = append(n.events, eventHistoryClear)
 				}
 				return 0
@@ -270,7 +276,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= eventHistoryExpand {
+			} else if id >= 1 && id <= eventUpdateChannel && w>>16 == 0 {
 				n.events = append(n.events, id)
 			}
 			return 0
@@ -305,6 +311,7 @@ func (n *nativeDesktop) Init() error {
 	n.installAdvanced()
 	n.installHistory()
 	n.installHistorySettings()
+	n.installUpdateChannel()
 	n.layoutPreferences()
 	n.showDevicePresentation(0)
 	n.applyTheme()
@@ -694,7 +701,7 @@ func (n *nativeDesktop) UpdateSettings(version string, enabled bool) {
 		v = 1
 	}
 	call("SendMessageW", n.updateCheck, 0xF1, v, 0)
-	call("SetWindowTextW", n.updateVersion, uintptr(unsafe.Pointer(wide("Версия: "+version))))
+	call("SetWindowTextW", n.updateVersion, uintptr(unsafe.Pointer(wide("Версия: "+update.DisplayVersion(version)))))
 }
 func (n *nativeDesktop) UpdateEnabled() bool {
 	return call("SendMessageW", n.updateCheck, 0xF0, 0, 0) == 1

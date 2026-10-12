@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// StableVersion deliberately rejects pre-release/dev builds: they never install
-// stable updates automatically. Build metadata does not affect precedence.
+// StableVersion validates the core of a stable SemVer; channel selection is
+// separate from semantic precedence.
 func StableVersion(s string) ([3]uint64, error) {
 	var v [3]uint64
 	s = strings.TrimPrefix(s, "v")
@@ -52,18 +52,13 @@ func identifier(p string) bool {
 	return true
 }
 func Newer(latest, current string) bool {
-	a, e := StableVersion(latest)
+	a, e := parseVersion(latest)
 	if e != nil {
 		return false
 	}
-	b, e := StableVersion(current)
+	b, e := parseVersion(current)
 	if e != nil {
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return a[i] > b[i]
-		}
-	}
-	return false
+	return compareVersions(a, b) > 0
 }

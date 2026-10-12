@@ -118,6 +118,7 @@ static const NSInteger HHeaderTag=1,HPreviewTag=2;
 // refreshHistory avoids full reloads when the row set is unchanged: repeated
 // background refreshes and button clicks must not blink the list.
 -(void)refreshHistory {
+ NSInteger selected=self.historyTable.selectedRow;NSString *selectedID=selected>=0&&selected<(NSInteger)self.historyIds.count?self.historyIds[selected]:nil;
  CGFloat total=0;for(NSDictionary *item in self.historyData)total+=MAX(28,MIN([item[@"height"]doubleValue],600));
  for(NSLayoutConstraint *constraint in self.historyList.constraints)if([constraint.identifier isEqualToString:@"historyListHeight"])constraint.constant=MIN(MAX(total+4,64),320);
  self.historyList.hidden=self.historyData.count==0;
@@ -148,6 +149,7 @@ static const NSInteger HHeaderTag=1,HPreviewTag=2;
   }
  }else{
   [self.historyTable reloadData];
+  if(selectedID.length){NSInteger row=[ids indexOfObject:selectedID];if(row!=NSNotFound)[self.historyTable selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];}
  }
  [self resizeDocument];
 }

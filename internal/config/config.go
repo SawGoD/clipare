@@ -73,7 +73,8 @@ type Config struct {
 	} `yaml:"group,omitempty"`
 	Autostart bool `yaml:"autostart"`
 	Updates   struct {
-		Enabled bool `yaml:"enabled"`
+		Enabled bool   `yaml:"enabled"`
+		Channel string `yaml:"channel,omitempty"`
 	} `yaml:"updates"`
 	History History `yaml:"history,omitempty"`
 	Device  Device  `yaml:"device"`
@@ -153,6 +154,9 @@ func (c Config) ListenAddress() string {
 	return net.JoinHostPort(c.Listen.Address, strconv.Itoa(c.Listen.Port))
 }
 func (c Config) Validate() error {
+	if c.Updates.Channel != "" && c.Updates.Channel != "stable" && c.Updates.Channel != "beta" {
+		return errors.New("updates.channel must be stable or beta")
+	}
 	if len(c.MembershipVersions) > 256 {
 		return errors.New("membership version limit exceeded")
 	}

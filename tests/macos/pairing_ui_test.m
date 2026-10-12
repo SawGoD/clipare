@@ -49,6 +49,18 @@ int main(int argc,const char **argv) { @autoreleasepool {
  clipare_apply_visibility(1ULL<<1);for(NSButton *button in desktop.actionButtons)if(button.tag==25)assert(button.hidden);
  clipare_apply_visibility(0);[desktop action:desktop.advancedButton];for(NSButton *button in desktop.actionButtons)if(button.tag==1)assert(button.hidden);[desktop action:desktop.advancedButton];
  clipare_update_settings("0.6.0",1);assert(clipare_update_enabled());assert(desktop.updates.tag==22);assert(desktop.additional.hidden);assert(desktop.advanced.hidden);
+ [desktop.events removeAllObjects];
+ clipare_update_channel(1);assert(clipare_update_channel_beta());
+ clipare_update_channel(0);assert(!clipare_update_channel_beta());
+ [desktop comboBoxSelectionDidChange:[NSNotification notificationWithName:NSComboBoxSelectionDidChangeNotification object:desktop.updateChannel]];
+ assert([desktop.events.lastObject integerValue]==46);[desktop.events removeAllObjects];
+ clipare_history_prefs(0,"30 минут\n1 день","1 день","25");
+ char *historyRetention=clipare_get(12);assert(strcmp(historyRetention,"1 день")==0);free(historyRetention);
+ char *historyMax=clipare_get(11);assert(strcmp(historyMax,"25")==0);free(historyMax);
+ [desktop controlTextDidChange:[NSNotification notificationWithName:NSControlTextDidChangeNotification object:desktop.historyMax]];
+ assert(desktop.events.count==0);
+ [desktop controlTextDidEndEditing:[NSNotification notificationWithName:NSControlTextDidEndEditingNotification object:desktop.historyMax]];
+ assert([desktop.events.lastObject integerValue]==39);[desktop.events removeAllObjects];
  capture(@"empty");
  // AppKit layout uses alignment rectangles; older button frames include
  // drawing outsets which can overlap without overlapping their bezels.
@@ -65,7 +77,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
   [desktop.window setContentSize:NSMakeSize(560,600)];[desktop resizeDocument];
  }
  desktop.window.appearance=nil;[NSWorkspace.sharedWorkspace.notificationCenter postNotificationName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
- [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
+ [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());capture(@"preferences");[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
  [desktop action:desktop.advancedButton];assert(!desktop.advanced.hidden);assert(desktop.window==original);capture(@"advanced");[desktop action:desktop.advancedButton];assert(desktop.advanced.hidden);
  clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_sync_status(0,"Синхронизация включена","");
  assert(desktop.emptyDevices.hidden);assert(!desktop.peerList.hidden);assert(desktop.peers.count==2);assert(desktop.syncState==0);

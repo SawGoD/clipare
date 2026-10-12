@@ -81,9 +81,13 @@ void clipare_history_rows(const char *json,const char *empty) { @autoreleasepool
  [desktop refreshHistory];
  if(desktop.view!=CPHistory)[desktop show:CPHistory];
 } }void clipare_history_prefs(int enabled,const char *labels,const char *selected,const char *max) { @autoreleasepool {
+ desktop.restoringPreferences=YES;
  desktop.historyEnable.state=enabled?NSControlStateValueOn:NSControlStateValueOff;
  [desktop.historyRetention removeAllItems];for(NSString *line in lines(labels))if(line.length)[desktop.historyRetention addItemWithObjectValue:line];
  [desktop.historyRetention selectItemWithObjectValue:str(selected)];
  desktop.historyMax.stringValue=str(max);
+ desktop.restoringPreferences=NO;
 } }
 int clipare_history_enabled(void) {return desktop.historyEnable.state==NSControlStateValueOn;}
+void clipare_update_channel(int beta) { @autoreleasepool { desktop.restoringPreferences=YES;NSInteger index=beta?1:0;if(desktop.updateChannel.indexOfSelectedItem!=index)[desktop.updateChannel selectItemAtIndex:index];desktop.restoringPreferences=NO;} }
+int clipare_update_channel_beta(void) {return desktop.updateChannel.indexOfSelectedItem==1;}

@@ -20,6 +20,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSView *emptyDevices,*peerList,*foundList,*historyList;
 @property(retain) NSTextField *emptyFound,*emptyHistory;
 @property(retain) NSComboBox *historyRetention;
+@property(retain) NSComboBox *updateChannel;
 @property(retain) NSTextField *historyMax;
 @property(retain) NSView *deviceHome,*deviceDiscovery,*devicePair,*deviceHistory;
 @property(retain) NSTextField *status,*reason,*version,*discoveryStatus,*pairName,*sas,*pairHelp,*updateText,*noticeText;
@@ -28,6 +29,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property BOOL pairIncoming, additionalExpanded, advancedExpanded;
 @property BOOL devicesEmpty, canRemove, compactVisible, listVisible;
 @property BOOL closed;
+@property BOOL restoringPreferences;
 @property NSUInteger notificationGeneration;
 -(void)build;
 -(void)action:(id)sender;

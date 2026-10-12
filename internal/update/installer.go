@@ -192,7 +192,7 @@ func (p Plan) validate() error {
 	if _, e = hex.DecodeString(p.Token); e != nil {
 		return ErrInstall
 	}
-	if _, e = StableVersion(p.Version); e != nil {
+	if _, e = packageVersion(p.Version); e != nil {
 		return ErrInstall
 	}
 	target, e := installLocation(p.Executable)

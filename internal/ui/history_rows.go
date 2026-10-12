@@ -3,7 +3,9 @@ package ui
 import (
 	"clipare/internal/config"
 	"clipare/internal/history"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -120,6 +122,10 @@ func historyRows(items []history.Item, now time.Time, revealed, expanded map[str
 			}
 		}
 		name := item.OriginName
+		link := ""
+		if item.Type == history.ContentURL {
+			link = item.Text
+		}
 		if name == "" {
 			name = item.OriginID
 		}
@@ -127,7 +133,7 @@ func historyRows(items []history.Item, now time.Time, revealed, expanded map[str
 			id:        item.ID,
 			header:    fmt.Sprintf("%s · %s", name, time.Unix(item.Timestamp, 0).Format("15:04")),
 			preview:   preview,
-			link:      item.Text,
+			link:      link,
 			height:    height,
 			sensitive: item.Sensitive,
 			revealed:  isRevealed,
@@ -239,4 +245,22 @@ func renderHistoryPrefs(d desktop, c config.History) {
 // historyFormValues extends the shared form with history settings fields.
 func historyFormValues(c config.Config) (maxItems, retention string) {
 	return fmt.Sprintf("%d", c.HistoryMaxItems()), RetentionToLabel(c.History.Retention)
+}
+
+// Only the two history controls participate; unrelated unsaved fields must
+// never be validated or persisted by an immediate preference change.
+func historySettingsFromForm(f form, current config.History) (config.History, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(f.Values[11]))
+	if err != nil || n < config.HistoryMinItems || n > config.HistoryMaxItems {
+		return current, errors.New("максимум записей должен быть от 3 до 50")
+	}
+	retention := RetentionFromLabel(f.Values[12])
+	if retention == "" && f.Values[12] == "" {
+		retention = current.Retention
+	}
+	if retention == "" {
+		return current, errors.New("выберите срок хранения")
+	}
+	current.MaxItems, current.Retention = n, retention
+	return current, nil
 }

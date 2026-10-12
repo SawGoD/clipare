@@ -76,18 +76,18 @@ func StartWithControl(parent context.Context, c config.Config, b clipboard.Backe
 	client := transport.NewPeerClient(c)
 	workers := transport.StartWorkersWithStatus(ctx, client, c.Peers, log, health)
 	manager := clipsync.NewManager(b, c.Device.ID, c.Mode(), log, workers.Broadcast)
+	waitHistory := func() {}
 	if options.history != nil {
-		recorder := options.history
-		manager.SetObserver(func(msg clipsync.Message, local bool) {
-			recorder.Record(msg.ID, msg.Source, msg.Data, msg.Timestamp, local)
-		})
-		go recorder.Run(ctx)
+		observe, wait := startHistory(ctx, options.history, log)
+		manager.SetObserver(observe)
+		waitHistory = wait
 	}
 	if e = manager.Initialize(); e != nil {
 		cancel()
 		listener.Close()
 		workers.Wait()
 		client.Close()
+		waitHistory()
 		return nil, errors.New("Буфер обмена недоступен")
 	}
 	s := &Session{cancel: cancel, done: make(chan struct{}), client: client}
@@ -147,6 +147,7 @@ func StartWithControl(parent context.Context, c config.Config, b clipboard.Backe
 				failure = e
 			}
 		}
+		waitHistory()
 		s.mu.Lock()
 		s.err = failure
 		s.mu.Unlock()

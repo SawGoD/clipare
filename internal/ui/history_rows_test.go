@@ -41,6 +41,9 @@ func TestHistoryRowsMasking(t *testing.T) {
 	if rows[1].preview != historyMaskedText {
 		t.Fatal("secret not masked", rows[1].preview)
 	}
+	if rows[1].link != "" {
+		t.Fatal("masked text leaked through URL field")
+	}
 	rows = historyRows([]history.Item{secret}, now, map[string]bool{"s": true}, nil)
 	if rows[1].preview == historyMaskedText || rows[1].preview == "" {
 		t.Fatal("revealed secret still masked", rows[1].preview)
@@ -109,6 +112,37 @@ func TestRetentionMapping(t *testing.T) {
 	}
 	if RetentionFromLabel("бессрочно") != "" || RetentionToLabel("5h") != "" {
 		t.Fatal("unknown retention accepted")
+	}
+}
+
+func TestHistorySettingsIgnoreTechnicalDraft(t *testing.T) {
+	f := form{}
+	f.Values[3] = "invalid port"
+	f.Values[11], f.Values[12] = "25", "1 день"
+	c, err := historySettingsFromForm(f, config.History{Enabled: true})
+	if err != nil || c.MaxItems != 25 || c.Retention != "24h" || !c.Enabled {
+		t.Fatal(c, err)
+	}
+	for _, value := range []string{"", "2", "51", "oops"} {
+		f.Values[11] = value
+		if _, err := historySettingsFromForm(f, c); err == nil {
+			t.Fatal("invalid limit accepted", value)
+		}
+	}
+}
+
+func TestTechnicalSavePreservesHistoryPreferences(t *testing.T) {
+	c, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.History = config.History{Enabled: true, Retention: "5h", MaxItems: 25}
+	f := toForm(c)
+	f.Values[11] = "2"
+	f.Values[12] = ""
+	next, err := fromForm(f, c)
+	if err != nil || next.History != c.History {
+		t.Fatal("technical save consumed history draft", next.History, err)
 	}
 }
 

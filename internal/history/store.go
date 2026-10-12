@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -97,8 +98,9 @@ func (s *Store) load() (bool, error) {
 	var offset int64
 	for {
 		var prefix [recordHeader]byte
-		if _, e := readFull(reader, prefix[:]); e != nil {
-			break // clean end of journal
+		if n, e := io.ReadFull(reader, prefix[:]); e != nil {
+			torn = n != 0 || !errors.Is(e, io.EOF)
+			break
 		}
 		length := binary.BigEndian.Uint32(prefix[:])
 		if length < 2+nonceSize || length > recordLimit+idLimit+recordHeader {
@@ -106,7 +108,7 @@ func (s *Store) load() (bool, error) {
 			break
 		}
 		frame := make([]byte, length)
-		if _, e := readFull(reader, frame); e != nil {
+		if _, e := io.ReadFull(reader, frame); e != nil {
 			torn = true
 			break
 		}
@@ -114,18 +116,6 @@ func (s *Store) load() (bool, error) {
 		offset += recordHeader + int64(length)
 	}
 	return torn, nil
-}
-
-func readFull(reader *bufio.Reader, buffer []byte) (int, error) {
-	total := 0
-	for total < len(buffer) {
-		n, e := reader.Read(buffer[total:])
-		total += n
-		if e != nil {
-			return total, e
-		}
-	}
-	return total, nil
 }
 
 // admit decodes one length-prefixed frame and installs it in the index.
@@ -139,9 +129,6 @@ func (s *Store) admit(frame []byte, offset, length int64) {
 		return
 	}
 	id := string(frame[2 : 2+idLength])
-	if _, exists := s.index[id]; exists {
-		return // duplicated frame after a crash between write and sync
-	}
 	plaintext, e := s.box.open(id, frame[2+idLength:])
 	if e != nil {
 		s.index[id] = recordRef{offset: offset, length: length, locked: true}
@@ -157,9 +144,8 @@ func (s *Store) admit(frame []byte, offset, length int64) {
 
 func (s *Store) install(id string, ref recordRef) {
 	if previous, ok := s.hashes[ref.hash]; ok && previous != id {
-		if old, exists := s.index[previous]; exists && !old.created.Before(ref.created) {
-			// A newer row for identical content already exists.
-			s.index[id] = ref
+		if old, exists := s.index[previous]; exists && old.created.After(ref.created) {
+			// An older duplicate must not create a second visible row.
 			return
 		}
 		delete(s.index, previous)
@@ -334,6 +320,15 @@ func (s *Store) Cleanup(now time.Time, retention time.Duration, max int) error {
 	}
 	drop := survivorsToDrop(refs, now, retention, max)
 	if len(drop) == 0 {
+		// Refreshing the same content also appends frames. Bound obsolete
+		// ciphertext even when the number of visible rows stays constant.
+		var live int64
+		for _, ref := range s.index {
+			live += ref.length
+		}
+		if info, err := s.file.Stat(); err == nil && info.Size() > 2*live+(64<<10) {
+			return s.rewriteLocked()
+		}
 		return nil
 	}
 	for id, ref := range s.index {

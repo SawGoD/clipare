@@ -10,6 +10,7 @@ package ui
 import "C"
 import (
 	"clipare/internal/config"
+	"clipare/internal/update"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -117,9 +118,22 @@ func (*nativeDesktop) UpdateSettings(version string, enabled bool) {
 	if enabled {
 		n = 1
 	}
-	cstr(version, func(p *C.char) { C.clipare_update_settings(p, C.int(n)) })
+	cstr(update.DisplayVersion(version), func(p *C.char) { C.clipare_update_settings(p, C.int(n)) })
 }
 func (*nativeDesktop) UpdateEnabled() bool { return C.clipare_update_enabled() != 0 }
+func (*nativeDesktop) UpdateChannelSettings(channel string) {
+	var beta C.int
+	if channel == update.ChannelBeta {
+		beta = 1
+	}
+	C.clipare_update_channel(beta)
+}
+func (*nativeDesktop) UpdateChannel() string {
+	if C.clipare_update_channel_beta() != 0 {
+		return update.ChannelBeta
+	}
+	return update.ChannelStable
+}
 func (*nativeDesktop) UpdatePrompt(v updatePrompt) {
 	cstr(v.Text, func(t *C.char) {
 		cstr(v.Primary, func(p *C.char) {

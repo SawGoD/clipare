@@ -383,6 +383,9 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 		if id := call("GetDlgCtrlID", h); id >= 9000 && id < 9000+uintptr(len(n.rowTrash)) {
 			continue // Positioned from the list's actual item rectangles below.
 		}
+		if id := call("GetDlgCtrlID", h); id >= historyButtonBase && id < historyButtonBase+uintptr(len(n.historyButtons)) {
+			continue
+		}
 		r := n.scaledRect(hwnd, c.bounds)
 		r.Left -= window.scrollX
 		r.Right -= window.scrollX

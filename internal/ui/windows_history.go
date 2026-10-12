@@ -50,18 +50,19 @@ func (n *nativeDesktop) installHistorySettings() {
 	for h := range n.controls {
 		before[h] = true
 	}
-	n.historyCheck = n.control("BUTTON", "Сохранять историю", 0x10003, 40, 588, 488, 28, eventHistoryEnabled)
-	n.label("Хранить", 40, 622, 236)
+	n.historyCheck = n.control("BUTTON", "Сохранять историю", 0x10003, 40, 628, 488, 28, eventHistoryEnabled)
+	n.label("Хранить", 40, 662, 236)
 	// Same style as the address combo: identical theming and frame rendering.
-	n.historyRetention = n.control("COMBOBOX", "", 0x00210252, 40, 640, 236, 200, historyComboID)
+	n.historyRetention = n.control("COMBOBOX", "", 0x00210252, 40, 680, 236, 200, historyComboID)
+	n.fields[12] = n.historyRetention
 	n.styleCombo(n.historyRetention)
 	for _, label := range RetentionLabels {
 		call("SendMessageW", n.historyRetention, 0x143, 0, uintptr(unsafe.Pointer(wide(label)))) // CB_ADDSTRING
 	}
-	n.label("Максимум записей", 292, 622, 236)
-	n.input(11, 292, 640, 236, false)
-	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 678, 444, 32, eventHistoryClear)
-	n.helpButton(144, 492, 684, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
+	n.label("Максимум записей", 292, 662, 236)
+	n.input(11, 292, 680, 236, false)
+	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 718, 444, 32, eventHistoryClear)
+	n.helpButton(144, 492, 724, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
 	n.historyBase = map[uintptr]int{}
 	for h, c := range n.controls {
 		if !before[h] && c.parent == n.home {
@@ -81,12 +82,16 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 	if reflect.DeepEqual(rows, n.historyRows) && windowText(n.historyStatus) == status && n.navigation.View == ViewHistory {
 		return
 	}
+	selection := int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0)))
+	selectedID := ""
+	if selection >= 0 && selection < len(n.historyRows) {
+		selectedID = n.historyRows[selection].id
+	}
 	n.historyRows = rows
 	accessibility := make([]string, len(rows))
 	for i, row := range rows {
 		accessibility[i] = historySummary(row)
 	}
-	selection := int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0)))
 	wasVisible := call("GetWindowLongPtrW", n.historyList, ^uintptr(15))&0x10000000 != 0
 	call("SendMessageW", n.historyList, 0xb, 0, 0)
 	call("SendMessageW", n.historyList, 0x184, 0, 0)
@@ -94,8 +99,11 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 		call("SendMessageW", n.historyList, 0x180, 0, uintptr(unsafe.Pointer(wide(text))))
 		call("SendMessageW", n.historyList, 0x1a0, uintptr(i), uintptr(n.px(rows[i].height)))
 	}
-	if selection >= 0 && selection < len(rows) {
-		call("SendMessageW", n.historyList, 0x186, uintptr(selection), 0)
+	for index, row := range rows {
+		if selectedID != "" && row.id == selectedID {
+			call("SendMessageW", n.historyList, 0x186, uintptr(index), 0)
+			break
+		}
 	}
 	call("SendMessageW", n.historyList, 0xb, 1, 0)
 	visible(n.historyList, wasVisible && len(rows) > 0)
@@ -233,7 +241,7 @@ func (n *nativeDesktop) updateHistoryButtons() {
 
 func (n *nativeDesktop) positionHistoryButtons() {
 	var client winRect
-	call("GetClientRect", n.home, uintptr(unsafe.Pointer(&client)))
+	call("GetClientRect", n.historyList, uintptr(unsafe.Pointer(&client)))
 	for index, h := range n.historyButtons {
 		row, kind := index/historyKindsPerRow, index%historyKindsPerRow
 		if n.navigation.View != ViewHistory || row >= len(n.historyRows) {
@@ -266,12 +274,12 @@ func (n *nativeDesktop) positionHistoryButtons() {
 		y := r.Top + int32(float64(17)*n.scale) - size/2
 		point := struct{ X, Y int32 }{x, y}
 		call("MapWindowPoints", n.historyList, n.home, uintptr(unsafe.Pointer(&point)), 1)
-		// The panel itself scrolls: follow the same offset as layoutControls.
-		window := n.windows[n.home]
-		point.X -= window.scrollX
-		point.Y -= window.scrollY
+		// MapWindowPoints already includes the scrolled list's actual position.
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(size), uintptr(size), 0x10)
-		call("SendMessageW", h, 0x30, n.fontFor(n.home, 5), 0)
+		font := n.fontFor(n.home, 5)
+		if call("SendMessageW", h, 0x31, 0, 0) != font {
+			call("SendMessageW", h, 0x30, font, 0)
+		}
 		glyph := "\ue8c8"
 		switch kind {
 		case 1:

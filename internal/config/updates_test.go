@@ -32,3 +32,28 @@ func TestUpdateDefaultsAndPersistence(t *testing.T) {
 		t.Fatal("identity changed")
 	}
 }
+
+func TestUpdateChannelPersistenceAndValidation(t *testing.T) {
+	c, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Updates.Channel != "" {
+		t.Fatal("old installs must infer channel")
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	for _, channel := range []string{"stable", "beta"} {
+		c.Updates.Channel = channel
+		if err := Save(path, c); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(path)
+		if err != nil || got.Updates.Channel != channel || got.Identity != c.Identity {
+			t.Fatal("channel persistence", err)
+		}
+	}
+	c.Updates.Channel = "nightly"
+	if err := c.Validate(); err == nil {
+		t.Fatal("invalid channel")
+	}
+}

@@ -36,3 +36,11 @@ func TestUpdatePromptStates(t *testing.T) {
 		}
 	}
 }
+
+func TestBetaLabelInEveryUpdateState(t *testing.T) {
+	for _, p := range []updatePrompt{updateNotice("Нет обновлений", "0.6.0-beta.1"), updateFailure("Ошибка", "0.6.0-preview.1", eventCheckUpdate), updateOffer("0.5.0", "0.6.0-beta.2")} {
+		if !strings.Contains(p.Text, "(бета)") {
+			t.Fatal("beta label missing", p)
+		}
+	}
+}

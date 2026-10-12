@@ -7,8 +7,8 @@ func TestBetaRemainsOutsideStableUpdateChannel(t *testing.T) {
 		if _, err := StableVersion(v); err == nil {
 			t.Fatal("prerelease accepted as stable")
 		}
-		if Newer(v, "0.4.1") || Newer("0.6.0", v) {
-			t.Fatal("prerelease entered stable update channel")
+		if eligibleRelease(Release{Tag: "v" + v, Prerelease: true}, ChannelStable).Version != "" {
+			t.Fatal("prerelease entered stable channel")
 		}
 	}
 }

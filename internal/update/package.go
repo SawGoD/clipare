@@ -31,7 +31,8 @@ func ValidatePackage(root, version, targetOS, arch string) (Package, error) {
 	if p.Version != version || p.OS != targetOS || p.Arch != arch || len(p.Files) == 0 || len(p.Files) > 4096 {
 		return p, ErrPackage
 	}
-	if _, e = StableVersion(p.Version); e != nil {
+	parsedVersion, e := packageVersion(p.Version)
+	if e != nil {
 		return p, ErrPackage
 	}
 	wanted := map[string]bool{PackageFile: true}
@@ -68,7 +69,10 @@ func ValidatePackage(root, version, targetOS, arch string) (Package, error) {
 			}
 		}
 		b, e = os.ReadFile(filepath.Join(root, "Clipare.app", "Contents", "Info.plist"))
-		if e != nil || len(b) > 64<<10 || !strings.Contains(string(b), "<key>CFBundleShortVersionString</key><string>"+version+"</string>") {
+		if e != nil || len(b) > 64<<10 || !strings.Contains(string(b), "<key>CFBundleShortVersionString</key><string>"+parsedVersion.Core+"</string>") {
+			return p, ErrPackage
+		}
+		if parsedVersion.Prerelease && !strings.Contains(string(b), "<key>CFBundleGetInfoString</key><string>Clipare "+version+"</string>") {
 			return p, ErrPackage
 		}
 		f, e := macho.Open(filepath.Join(root, "Clipare.app", "Contents", "MacOS", "Clipare"))

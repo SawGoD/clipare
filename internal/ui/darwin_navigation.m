@@ -101,6 +101,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
  if(tag==31){[self back];return;}
  if(tag==30){BOOL wasHome=self.view==CPHome;if(self.view==CPDiscovery)[self.events addObject:@17];[self show:CPHome];self.advancedExpanded=wasHome?!self.advancedExpanded:YES;self.advanced.hidden=!self.advancedExpanded;self.advancedButton.bezelColor=self.advancedExpanded?NSColor.controlAccentColor:nil;[self resizeDocument];return;}
  if(tag==32){self.additionalExpanded=!self.additionalExpanded;self.additional.hidden=!self.additionalExpanded;self.additionalButton.image=CPSymbol(self.additionalExpanded?@"chevron.down":@"chevron.right",nil);[self resizeDocument];return;}
+ if(tag==37){if(self.window.attachedSheet)return;NSAlert *alert=[[[NSAlert alloc]init]autorelease];alert.messageText=@"Очистить историю?";alert.informativeText=@"Все сохранённые записи буфера обмена будут удалены только на этом устройстве.";[alert addButtonWithTitle:@"Очистить"];[alert addButtonWithTitle:@"Отмена"];[alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result){if(result==NSAlertFirstButtonReturn)[self.events addObject:@37];}];return;}
  if(tag==9){NSAlert *a=[[[NSAlert alloc]init]autorelease];a.messageText=@"Удалить устройство?";a.informativeText=@"Синхронизация с выбранным устройством будет прекращена.";[a addButtonWithTitle:@"Удалить"];[a addButtonWithTitle:@"Отмена"];[a beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse r){if(r==NSAlertFirstButtonReturn)[self.events addObject:@9];}];return;}
  [self.events addObject:@(tag)];
 }
@@ -112,6 +113,7 @@ NSTextField *CPInput(CPDesktop *d,NSInteger index,BOOL secure) {
  for(NSUInteger i=0;i<titles.count;i++){NSMenuItem *item=[[[NSMenuItem alloc]initWithTitle:titles[i] action:actions[i] keyEquivalent:keys[i]]autorelease];item.keyEquivalentModifierMask=NSEventModifierFlagCommand;[menu addItem:item];}edit.submenu=menu;[main addItem:edit];NSApp.mainMenu=main;
 }
 -(void)dealloc {
+ [_updateChannel release];
  [_actionButtons release];
  [_deviceHome release];[_deviceDiscovery release];[_devicePair release];[_deviceHistory release];
  [_historyData release];[_historyIds release];[_historyHeights release];[_historyTable release];[_historyList release];[_emptyHistory release];[_historyEnable release];[_historyClear release];[_historyRetention release];[_historyMax release];

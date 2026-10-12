@@ -116,6 +116,34 @@ func TestServiceDisabledRecordsNothing(t *testing.T) {
 	}
 }
 
+func TestDisabledHistoryCanReadAndClearExistingData(t *testing.T) {
+	s, ks, dir := openTestService(t, serviceConfig(true))
+	s.Record("one", "mac", "sample", 1700000000, true)
+	s.Close()
+	s, err := OpenWithKeystore(filepath.Join(dir, HistoryFile), ks, serviceConfig(false), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	items, err := s.Items()
+	if err != nil || len(items) != 1 {
+		t.Fatal(items, err)
+	}
+	if err := s.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err = OpenWithKeystore(filepath.Join(dir, HistoryFile), ks, serviceConfig(false), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	items, err = s.Items()
+	if err != nil || len(items) != 0 {
+		t.Fatal("clear did not persist", items, err)
+	}
+}
+
 func TestServiceUnknownPeerFallsBackToID(t *testing.T) {
 	s, _, _ := openTestService(t, serviceConfig(true))
 	s.Record("id-1", "laptop", "text", 1700000000, false)
@@ -173,6 +201,36 @@ func TestServiceKeyLostThenClear(t *testing.T) {
 	reopened.Record("id-2", "mac", "fresh", 1700000001, true)
 	if items, e = reopened.Items(); e != nil || len(items) != 1 || items[0].Text != "fresh" {
 		t.Fatal("recording after reset failed", items, e)
+	}
+}
+
+func TestMissingKeyDoesNotCreateReplacementUntilClear(t *testing.T) {
+	s, ks, dir := openTestService(t, serviceConfig(true))
+	s.Record("one", "mac", "sample", 1700000000, true)
+	s.Close()
+	ks.key = nil
+	s, err := OpenWithKeystore(filepath.Join(dir, HistoryFile), ks, serviceConfig(true), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if ks.key != nil {
+		t.Fatal("replacement generated without explicit clear")
+	}
+	if _, err := s.Items(); !errors.Is(err, ErrKeyLost) {
+		t.Fatal(err)
+	}
+	s.Record("two", "mac", "more", 1700000001, true)
+	if err := s.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if len(ks.key) != keySize {
+		t.Fatal("clear did not create protected key")
+	}
+	s.Record("three", "mac", "fresh", 1700000002, true)
+	items, err := s.Items()
+	if err != nil || len(items) != 1 || items[0].Text != "fresh" {
+		t.Fatal(items, err)
 	}
 }
 

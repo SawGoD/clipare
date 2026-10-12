@@ -81,7 +81,19 @@ const (
 	eventReserved44
 
 	eventHistoryExpand
+	eventUpdateChannel
 )
+
+type updateChannelDesktop interface {
+	UpdateChannelSettings(string)
+	UpdateChannel() string
+}
+
+func renderUpdateChannel(d desktop, c config.Config) {
+	if v, ok := d.(updateChannelDesktop); ok {
+		v.UpdateChannelSettings(update.ResolveChannel(c.Updates.Channel, clipare.Version()))
+	}
+}
 
 type updateDesktop interface {
 	UpdateSettings(string, bool)
@@ -107,6 +119,7 @@ type updateResult struct {
 	manual  bool
 	work    string
 	helper  bool
+	channel string
 }
 
 type pairingDesktop interface {
@@ -159,18 +172,8 @@ func fromForm(f form, c config.Config) (config.Config, error) {
 	}
 	c.Security.Secret = f.Values[4]
 	c.Autostart = f.Autostart
-	// History settings arrive from their own controls; untouched combos fall
-	// back to the draft so unrelated saves never invalidate them.
-	if v, e := strconv.Atoi(strings.TrimSpace(f.Values[11])); e == nil {
-		c.History.MaxItems = v
-	} else if strings.TrimSpace(f.Values[11]) == "" {
-		c.History.MaxItems = 0
-	}
-	if retention := RetentionFromLabel(f.Values[12]); retention != "" {
-		c.History.Retention = retention
-	} else if strings.TrimSpace(f.Values[12]) == "" {
-		c.History.Retention = ""
-	}
+	// Immediate history preferences are persisted separately. A technical
+	// form save must not consume half-edited or unrepresented history values.
 	return c, nil
 }
 
@@ -248,18 +251,32 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	// History keeps only local, encrypted data; open it lazily so disabled
 	// installations never create keys or files.
 	var hist *history.Service
-	openHistory := func(next config.Config) {
-		if hist != nil || !next.History.Enabled {
+	var historyOpenError error
+	openHistory := func(next config.Config, inspect bool) {
+		if hist != nil {
 			return
 		}
+		if !next.History.Enabled {
+			if !inspect {
+				return
+			}
+			if _, err := os.Stat(history.DefaultPath(path)); err != nil {
+				historyOpenError = nil
+				if !os.IsNotExist(err) {
+					historyOpenError = err
+				}
+				return
+			}
+		}
 		h, e := history.Open(history.DefaultPath(path), next, log)
+		historyOpenError = e
 		if e != nil {
 			log.Warn("clipboard history unavailable")
 			return
 		}
 		hist = h
 	}
-	openHistory(c)
+	openHistory(c, false)
 	defer func() {
 		if hist != nil {
 			hist.Close()
@@ -322,6 +339,9 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	var available *update.Release
 	deferredUpdateOffer := false
 	cache, cacheErr := update.CacheDir()
+	if environment, ok := d.(interface{ UpdateCacheDir() (string, error) }); ok {
+		cache, cacheErr = environment.UpdateCacheDir()
+	}
 	checker := update.Checker{Current: clipare.Version(), StatePath: filepath.Join(cache, "state.json")}
 	defer func() { cancel(); updateWG.Wait() }()
 	checkUpdate := func(manual bool) {
@@ -336,6 +356,8 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		}
 		checking = true
 		enabled := c.Updates.Enabled
+		currentChecker := checker
+		currentChecker.Channel = update.ResolveChannel(c.Updates.Channel, clipare.Version())
 		if manual {
 			available = nil
 			ud.UpdatePrompt(updateProgress("Проверка обновлений…"))
@@ -344,18 +366,19 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		go func() {
 			defer updateWG.Done()
 			update.Cleanup(cache, time.Now())
-			if manual || enabled && checker.Due(time.Now()) {
+			if manual || enabled && currentChecker.Due(time.Now()) {
 				log.Info("update check started")
 			}
-			r, err := checker.Check(ctx, enabled, manual)
+			r, err := currentChecker.Check(ctx, enabled, manual)
 			select {
-			case updateDone <- updateResult{release: r, err: err, manual: manual}:
+			case updateDone <- updateResult{release: r, err: err, manual: manual, channel: currentChecker.Channel}:
 			case <-ctx.Done():
 			}
 		}()
 	}
 	if hasUpdateUI {
 		ud.UpdateSettings(clipare.Version(), c.Updates.Enabled)
+		renderUpdateChannel(d, c)
 		checkUpdate(false)
 	}
 	nextUpdatePoll := time.Now().Add(time.Minute)
@@ -418,6 +441,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	var session *app.Session
 	done := make(chan result, 1)
 	busy := false
+	historyAttached := false
 	// Clipboard history rendering state; row IDs map list selections to items.
 	// Reveal and expansion are runtime-only and reset when the view is opened.
 	historyItems := map[string]history.Item{}
@@ -428,6 +452,13 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	renderHistory = func() {
 		hd, ok := d.(historyDesktop)
 		if !ok {
+			return
+		}
+		if !busy {
+			openHistory(c, true)
+		}
+		if hist == nil && historyOpenError != nil {
+			d.Alert("История недоступна. Проверьте доступ к защищённому хранилищу ключей и файлу истории")
 			return
 		}
 		var items []history.Item
@@ -461,7 +492,8 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	apply := func(next config.Config, persist bool) {
 		preferenceAuto, preferenceUpdates = next.Autostart, next.Updates.Enabled
 		renderPreferences(d, preferenceAuto, preferenceUpdates)
-		openHistory(next)
+		openHistory(next, false)
+		historyAttached = hist != nil
 		if hist != nil {
 			hist.UpdateSettings(next)
 		}
@@ -517,6 +549,40 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			done <- result{next, s, err, persist}
 		}()
 	}
+	// History preferences do not change networking; save them independently
+	// without consuming technical drafts or restarting a working sync session.
+	saveHistory := func(settings config.History) {
+		if settings == c.History {
+			return
+		}
+		next := c
+		next.History = settings
+		if err := next.Validate(); err != nil {
+			d.Alert("Проверьте настройки истории: " + err.Error())
+			renderHistoryPrefs(d, c.History)
+			return
+		}
+		if !historyAttached && settings.Enabled {
+			apply(next, true)
+			return
+		}
+		var err error
+		if service != nil {
+			next, err = service.SaveSettings(next)
+		} else {
+			err = config.Save(path, next)
+		}
+		if err != nil {
+			d.Alert("Не удалось сохранить настройки истории")
+			renderHistoryPrefs(d, c.History)
+			return
+		}
+		c.History, draft.History = next.History, next.History
+		if hist != nil {
+			hist.UpdateSettings(c)
+		}
+		renderHistoryPrefs(d, c.History)
+	}
 	if needsSetup && hasPairUI && discovery.NetBirdAddress(c.Listen.Address) {
 		d.Show(toForm(draft), draft.Peers, config.Addresses())
 		apply(c, true)
@@ -541,7 +607,6 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	}()
 	refresh := time.NewTicker(timing.refresh)
 	defer refresh.Stop()
-	historyDirty := false
 	d.Update(status, false, c.Peers, states)
 	renderStatus(d, status, c.Mode() != "disabled", false, c.Listen.Address == "127.0.0.1", busy)
 	renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
@@ -605,6 +670,10 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				continue
 			}
 			checking = false
+			if ur.channel != "" && ur.channel != update.ResolveChannel(c.Updates.Channel, clipare.Version()) {
+				checkUpdate(ur.manual)
+				continue
+			}
 			if ur.err != nil {
 				log.Debug("update check failed")
 				if ur.manual {
@@ -615,7 +684,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			if ur.release == nil {
 				if ur.manual {
 					message := "Установлена последняя версия Clipare"
-					if _, e := update.StableVersion(clipare.Version()); e != nil {
+					if update.DevelopmentVersion(clipare.Version()) {
 						message = "Автообновления недоступны для dev-сборок"
 					}
 					ud.UpdatePrompt(updateNotice(message, clipare.Version()))
@@ -724,6 +793,11 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 			renderStatus(d, status, c.Mode() != "disabled", session != nil, c.Listen.Address == "127.0.0.1", busy)
 			preferenceAuto, preferenceUpdates = c.Autostart, c.Updates.Enabled
 			renderPreferences(d, preferenceAuto, preferenceUpdates)
+			renderUpdateChannel(d, c)
+			if hist != nil {
+				hist.UpdateSettings(c)
+			}
+			renderHistoryPrefs(d, c.History)
 			renderApply(d, d.Read(), toForm(c), needsSetup || !reflect.DeepEqual(draft.Peers, c.Peers))
 		case st := <-statusUpdates:
 			states[st.id] = st.online
@@ -733,10 +807,6 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		case <-refresh.C:
 			if session != nil {
 				renderPlatforms(d, session)
-			}
-			if historyDirty {
-				historyDirty = false
-				renderHistory()
 			}
 			// An open History section refreshes itself as events are recorded.
 			if v, ok := d.(viewDesktop); ok && v.CurrentView() == ViewHistory {
@@ -804,6 +874,9 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					if action == eventAutostartPreference || action == eventUpdatePreference {
 						renderPreferences(d, preferenceAuto, preferenceUpdates)
 					}
+					if action == eventUpdateChannel {
+						renderUpdateChannel(d, c)
+					}
 					continue
 				}
 			}
@@ -813,6 +886,38 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				continue
 			}
 			switch action {
+			case eventUpdateChannel:
+				v, ok := d.(updateChannelDesktop)
+				if !ok {
+					continue
+				}
+				channel := v.UpdateChannel()
+				if channel != update.ChannelStable && channel != update.ChannelBeta {
+					renderUpdateChannel(d, c)
+					continue
+				}
+				if channel == c.Updates.Channel {
+					continue
+				}
+				next := c
+				next.Updates.Channel = channel
+				var err error
+				if service != nil {
+					next, err = service.SaveSettings(next)
+				} else {
+					err = config.Save(path, next)
+				}
+				if err != nil {
+					d.Alert("Не удалось сохранить канал обновлений")
+					renderUpdateChannel(d, c)
+					continue
+				}
+				c.Updates.Channel, draft.Updates.Channel = channel, channel
+				available = nil
+				deferredUpdateOffer = false
+				ud.UpdateClose()
+				renderUpdateChannel(d, c)
+				checkUpdate(false)
 			case eventDeviceName:
 				if outgoing || shownIncoming != "" {
 					d.Alert("Завершите подключение перед изменением имени")
@@ -846,7 +951,6 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 				// The watcher re-records the copy; the row moves to the top on
 				// the next refresh instead of duplicating.
-				historyDirty = true
 			case eventHistoryEye:
 				id, ok := selectedHistoryID(historyRowIDs, d.Selected())
 				if !ok {
@@ -873,37 +977,41 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				if item, ok := selectedHistoryItem(historyRowIDs, historyItems, d.Selected()); ok && hist != nil {
 					if e := hist.Delete(item.ID); e != nil {
 						d.Alert("Не удалось удалить запись")
+						continue
 					}
 				}
 				renderHistory()
 			case eventHistoryClear:
+				openHistory(c, true)
+				if hist == nil && historyOpenError != nil {
+					d.Alert("Не удалось открыть историю для очистки. Проверьте доступ к хранилищу ключей и файлу истории")
+					continue
+				}
 				if hist != nil {
 					if e := hist.Clear(); e != nil {
 						d.Alert("Не удалось очистить историю")
+						continue
 					}
 				}
-				renderHistory()
+				if v, ok := d.(viewDesktop); ok && v.CurrentView() == ViewHistory {
+					renderHistory()
+				}
 			case eventHistoryEnabled:
 				hd, ok := d.(historyDesktop)
 				if !ok {
 					continue
 				}
-				next := c
-				next.History.Enabled = hd.HistoryEnabled()
-				draft = next
-				apply(next, true)
+				settings := c.History
+				settings.Enabled = hd.HistoryEnabled()
+				saveHistory(settings)
 			case eventHistorySettings:
-				next, err := fromForm(d.Read(), draft)
-				if err == nil {
-					err = next.Validate()
-				}
+				settings, err := historySettingsFromForm(d.Read(), c.History)
 				if err != nil {
 					d.Alert("Проверьте настройки истории: " + err.Error())
 					renderHistoryPrefs(d, c.History)
 					continue
 				}
-				draft = next
-				apply(next, true)
+				saveHistory(settings)
 			case eventCheckUpdate:
 				checkUpdate(true)
 			case eventLaterUpdate:
@@ -939,7 +1047,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				}
 				installing = true
 				r := *available
-				ud.UpdatePrompt(updateProgress("Загрузка Clipare " + r.Version + "…"))
+				ud.UpdatePrompt(updateProgress("Загрузка Clipare " + update.DisplayVersion(r.Version) + "…"))
 				updateWG.Add(1)
 				go func() {
 					defer updateWG.Done()
@@ -1064,6 +1172,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				d.Show(toForm(draft), draft.Peers, config.Addresses())
 				if hasUpdateUI {
 					ud.UpdateSettings(clipare.Version(), c.Updates.Enabled)
+					renderUpdateChannel(d, c)
 				}
 			case eventPause:
 				if session == nil {

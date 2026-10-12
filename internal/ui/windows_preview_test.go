@@ -224,6 +224,34 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("platform refresh omitted")
 	}
 	n.UpdateSettings("0.5.0", true)
+	n.HistoryPrefs(config.History{Retention: "24h", MaxItems: 25})
+	if n.Read().Values[12] != "1 день" || n.Read().Values[11] != "25" {
+		t.Fatal("history settings disconnected from native form")
+	}
+	n.UpdateChannelSettings("beta")
+	if n.UpdateChannel() != "beta" {
+		t.Fatal("beta channel not selected")
+	}
+	n.UpdateChannelSettings("stable")
+	if n.UpdateChannel() != "stable" {
+		t.Fatal("stable channel not selected")
+	}
+	n.ShowHistory([]historyRow{{group: true, header: "Сегодня", height: 30}, {id: "sample", header: "Устройство", preview: "Тест", height: 64, sensitive: true}}, false)
+	index := historyKindsPerRow + 3 // trash on the first content row, after a group.
+	var listRect, buttonRect winRect
+	call("GetWindowRect", n.historyList, uintptr(unsafe.Pointer(&listRect)))
+	call("GetWindowRect", n.historyButtons[index], uintptr(unsafe.Pointer(&buttonRect)))
+	if buttonRect.Right > listRect.Right || buttonRect.Left < listRect.Left || buttonRect.Top < listRect.Top || buttonRect.Bottom > listRect.Bottom {
+		t.Fatal("history action outside list", buttonRect, listRect)
+	}
+	n.events = nil
+	call("SendMessageW", n.home, 0x111, uintptr(historyButtonBase+index), n.historyButtons[index])
+	if n.Selected() != 1 || len(n.events) != 1 || n.events[0] != eventHistoryDelete {
+		t.Fatal("wrong history action", n.Selected(), n.events)
+	}
+	n.events = nil
+	captureWindow(t, n.home, filepath.Join(dir, "history.png"))
+	n.navigate(ViewHome)
 	captureWindow(t, n.home, filepath.Join(dir, "home-painted.png"))
 	for _, state := range []SyncState{SyncActive, SyncDisabled, SyncDegraded, SyncActive} {
 		n.SyncStatus(SyncStatus{State: state, Message: "Тест статуса", Reason: "Синтетический preview"})

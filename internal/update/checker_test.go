@@ -20,7 +20,7 @@ func TestVersions(t *testing.T) {
 	for _, v := range []struct {
 		a, b string
 		want bool
-	}{{"0.10.0", "0.9.9", true}, {"v1.0.0", "0.9.0", true}, {"1.0.0", "1.0.0", false}, {"1.0.0", "2.0.0", false}, {"0.4.0", "0.4.0-dev", false}, {"0.4.0-beta.1", "0.3.0", false}, {"01.0.0", "0.3.0", false}, {"1.0.0+build", "0.3.0", true}} {
+	}{{"0.10.0", "0.9.9", true}, {"v1.0.0", "0.9.0", true}, {"1.0.0", "1.0.0", false}, {"1.0.0", "2.0.0", false}, {"0.4.0", "0.4.0-dev", true}, {"0.4.0-beta.1", "0.3.0", true}, {"01.0.0", "0.3.0", false}, {"1.0.0+build", "0.3.0", true}} {
 		if Newer(v.a, v.b) != v.want {
 			t.Fatal(v)
 		}

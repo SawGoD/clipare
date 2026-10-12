@@ -27,7 +27,7 @@ func survivorsToDrop(refs []recordRef, now time.Time, retention time.Duration, m
 	// Newest rows survive; order by created descending, id-independent.
 	live := make([]recordRef, 0, kept)
 	for _, ref := range refs {
-		if !drop[ref] {
+		if !ref.locked && !drop[ref] {
 			live = append(live, ref)
 		}
 	}

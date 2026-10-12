@@ -29,6 +29,8 @@ type Service struct {
 	ownName   string
 	peerNames map[string]string
 	keyLost   bool
+	path      string
+	keystore  Keystore
 }
 
 // Open opens the history service with the platform keystore. A missing key is
@@ -46,6 +48,15 @@ func OpenWithKeystore(path string, ks Keystore, c config.Config, log *slog.Logge
 	key, e := ks.Load()
 	switch {
 	case errors.Is(e, os.ErrNotExist):
+		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+			// Existing ciphertext must not cause an implicit replacement key.
+			// Generate one only after the user explicitly clears the history.
+			s := &Service{log: log, keyLost: true, path: path, keystore: ks}
+			s.UpdateSettings(c)
+			return s, nil
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, errors.New("cannot inspect history file")
+		}
 		key = make([]byte, keySize)
 		if _, e = rand.Read(key); e != nil {
 			return nil, e
@@ -60,8 +71,11 @@ func OpenWithKeystore(path string, ks Keystore, c config.Config, log *slog.Logge
 	if e != nil {
 		return nil, e
 	}
-	s := &Service{store: store, log: log, peerNames: map[string]string{}}
+	s := &Service{store: store, log: log, peerNames: map[string]string{}, path: path, keystore: ks}
 	s.UpdateSettings(c)
+	if _, err := store.List(); errors.Is(err, ErrKeyLost) {
+		s.keyLost = true
+	}
 	if e = store.Cleanup(time.Now(), s.retention, s.maxItems); e != nil {
 		log.Warn("history cleanup failed")
 	}
@@ -110,15 +124,13 @@ func (s *Service) Record(msgID, source, text string, timestamp int64, local bool
 		item.OriginName = source
 	}
 	now := time.Now()
-	added, e := s.store.Add(item, now)
+	_, e := s.store.Add(item, now)
 	if e != nil {
 		s.log.Warn("history record failed")
 		return
 	}
-	if added {
-		if e = s.store.Cleanup(now, s.retention, s.maxItems); e != nil {
-			s.log.Warn("history cleanup failed")
-		}
+	if e = s.store.Cleanup(now, s.retention, s.maxItems); e != nil {
+		s.log.Warn("history cleanup failed")
 	}
 }
 
@@ -126,6 +138,9 @@ func (s *Service) Record(msgID, source, text string, timestamp int64, local bool
 func (s *Service) Items() ([]Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.keyLost {
+		return nil, ErrKeyLost
+	}
 	if s.store == nil {
 		return nil, errors.New("history is unavailable")
 	}
@@ -150,6 +165,20 @@ func (s *Service) Delete(id string) error {
 func (s *Service) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.store == nil && s.keyLost {
+		key := make([]byte, keySize)
+		if _, err := rand.Read(key); err != nil {
+			return err
+		}
+		if err := s.keystore.Save(key); err != nil {
+			return errors.New("cannot protect the history key")
+		}
+		store, err := OpenStore(s.path, key)
+		if err != nil {
+			return err
+		}
+		s.store = store
+	}
 	if s.store == nil {
 		return errors.New("history is unavailable")
 	}
@@ -174,7 +203,7 @@ func (s *Service) Run(ctx context.Context) {
 			store, retention, max := s.store, s.retention, s.maxItems
 			s.mu.Unlock()
 			if store == nil {
-				return
+				continue
 			}
 			if e := store.Cleanup(now, retention, max); e != nil {
 				s.log.Warn("history cleanup failed")

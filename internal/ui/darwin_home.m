@@ -40,12 +40,13 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
  NSStackView *updates=CPStack(@[self.version,CPIcon(@"arrow.clockwise",@"Проверить обновления",self,19)],YES);updates.distribution=NSStackViewDistributionFill;[self.version setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationHorizontal];
  self.autostart=[NSButton checkboxWithTitle:@"Запускать при входе в систему" target:self action:@selector(action:)];self.autostart.tag=23;
  self.updates=[NSButton checkboxWithTitle:@"Автоматически проверять обновления" target:self action:@selector(action:)];self.updates.tag=22;
+ NSComboBox *channel=[[[NSComboBox alloc]init]autorelease];channel.font=[NSFont systemFontOfSize:14];channel.delegate=self;channel.editable=NO;channel.accessibilityLabel=@"Канал обновлений";channel.toolTip=@"Стабильные — обычные релизы. Бета — также предварительные версии, которые могут содержать ошибки.";[channel addItemsWithObjectValues:@[@"Стабильные",@"Бета"]];self.updateChannel=channel;
  self.historyEnable=[NSButton checkboxWithTitle:@"Сохранять историю" target:self action:@selector(action:)];self.historyEnable.tag=38;
- NSComboBox *retention=[[[NSComboBox alloc]init]autorelease];retention.font=[NSFont systemFontOfSize:14];retention.delegate=self;retention.editable=NO;retention.completes=NO;self.historyRetention=retention;
+ NSComboBox *retention=[[[NSComboBox alloc]init]autorelease];retention.font=[NSFont systemFontOfSize:14];retention.delegate=self;retention.editable=NO;retention.completes=NO;self.historyRetention=retention;self.fields[12]=retention;
  self.historyMax=CPInput(self,11,NO);
  NSStackView *historyOptions=CPStack(@[CPStack(@[CPLabel(@"Хранить",12),retention],NO),CPStack(@[CPLabel(@"Максимум записей",12),self.historyMax],NO)],YES);historyOptions.distribution=NSStackViewDistributionFillEqually;
  self.historyClear=CPButton(@"Очистить историю",self,37);
- self.additional=CPStack(@[self.autostart,self.updates,self.historyEnable,historyOptions,self.historyClear],NO);self.additional.hidden=YES;
+ self.additional=CPStack(@[self.autostart,self.updates,CPStack(@[CPLabel(@"Канал обновлений",12),channel],YES),self.historyEnable,historyOptions,self.historyClear],NO);self.additional.hidden=YES;
  self.additionalButton=CPButton(@"Дополнительно",self,32);self.additionalButton.image=CPSymbol(@"chevron.right",nil);self.additionalButton.imagePosition=NSImageRight;
  self.advanced=[self buildAdvanced];self.advanced.hidden=YES;
  return CPStack(@[top,computer,devices,self.additionalButton,self.additional,self.advanced,updates],NO);
@@ -59,9 +60,9 @@ static NSView *CPColumns(NSView *left, NSView *right) { NSStackView *row=CPStack
 -(void)showHelp:(NSButton *)sender {
  if(self.window.attachedSheet)return;NSAlert *alert=[[[NSAlert alloc]init]autorelease];alert.messageText=@"Clipare";alert.informativeText=sender.toolTip;[alert addButtonWithTitle:@"Понятно"];[alert beginSheetModalForWindow:self.window completionHandler:nil];
 }
--(void)controlTextDidChange:(NSNotification *)notification { if(notification.object==self.historyMax){[self.events addObject:@39];return;} [self.events addObject:@24]; }
+-(void)controlTextDidChange:(NSNotification *)notification { if(notification.object==self.historyMax)return; [self.events addObject:@24]; }
 -(void)controlTextDidEndEditing:(NSNotification *)notification { if(notification.object==self.historyMax)[self.events addObject:@39]; }
--(void)comboBoxSelectionDidChange:(NSNotification *)notification { if(notification.object==self.historyRetention){[self.events addObject:@39];return;} [self.events addObject:@24]; }
+-(void)comboBoxSelectionDidChange:(NSNotification *)notification { if(self.restoringPreferences)return;if(notification.object==self.updateChannel){[self.events addObject:@46];return;} if(notification.object==self.historyRetention){[self.events addObject:@39];return;} [self.events addObject:@24]; }
 -(NSView *)table:(BOOL)discovery {
  NSScrollView *scroll=[[[NSScrollView alloc]init]autorelease];scroll.hasVerticalScroller=YES;scroll.drawsBackground=NO;scroll.borderType=NSNoBorder;scroll.translatesAutoresizingMaskIntoConstraints=NO;NSLayoutConstraint *height=[scroll.heightAnchor constraintEqualToConstant:180];height.identifier=@"deviceListHeight";height.active=YES;
  NSTableView *table=[[[NSTableView alloc]initWithFrame:NSMakeRect(0,0,480,180)]autorelease];NSTableColumn *column=[[[NSTableColumn alloc]initWithIdentifier:@"device"]autorelease];column.width=480;column.editable=NO;column.resizingMask=NSTableColumnAutoresizingMask;[table addTableColumn:column];table.headerView=nil;table.rowHeight=52;table.dataSource=self;table.delegate=self;table.backgroundColor=NSColor.clearColor;table.autoresizingMask=NSViewWidthSizable;scroll.documentView=table;

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -84,8 +85,18 @@ func (g GitHub) request(ctx context.Context, raw string, max int64) (*http.Respo
 	return res, nil
 }
 func (g GitHub) Latest(ctx context.Context) (Release, error) {
+	return g.LatestForChannel(ctx, ChannelStable)
+}
+
+func (g GitHub) LatestForChannel(ctx context.Context, channel string) (Release, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	if channel == ChannelBeta {
+		return g.latestBeta(ctx)
+	}
+	if channel != ChannelStable {
+		return Release{}, ErrUnavailable
+	}
 	res, e := g.request(ctx, API, 1<<20)
 	if e != nil {
 		return Release{}, e
@@ -99,20 +110,48 @@ func (g GitHub) Latest(ctx context.Context) (Release, error) {
 	if json.Unmarshal(b, &r) != nil {
 		return r, ErrUnavailable
 	}
-	if r.Draft || r.Prerelease {
-		return Release{}, nil
+	return eligibleRelease(r, channel), nil
+}
+
+func eligibleRelease(r Release, channel string) Release {
+	if !strings.HasPrefix(r.Tag, "v") || r.Draft || len(r.Assets) > 64 || DevelopmentVersion(r.Tag) {
+		return Release{}
 	}
-	if _, e = StableVersion(r.Tag); e != nil {
-		return Release{}, nil
+	v, err := packageVersion(strings.TrimPrefix(r.Tag, "v"))
+	if err != nil || v.Prerelease != r.Prerelease || channel == ChannelStable && r.Prerelease {
+		return Release{}
 	}
-	r.Version = r.Tag[1:]
-	if r.Tag != "v"+r.Version {
-		return Release{}, ErrUnavailable
+	r.Version = strings.TrimPrefix(r.Tag, "v")
+	return r
+}
+
+// Beta includes stable promotions as well as previews. Read a bounded number
+// of pages and select by SemVer, never by GitHub publication order.
+func (g GitHub) latestBeta(ctx context.Context) (Release, error) {
+	var latest Release
+	for page := 1; page <= 3; page++ {
+		raw := strings.TrimSuffix(API, "/latest") + fmt.Sprintf("?per_page=100&page=%d", page)
+		res, err := g.request(ctx, raw, 4<<20)
+		if err != nil {
+			return Release{}, err
+		}
+		body, err := io.ReadAll(io.LimitReader(res.Body, (4<<20)+1))
+		res.Body.Close()
+		var releases []Release
+		if err != nil || len(body) > 4<<20 || json.Unmarshal(body, &releases) != nil || releases == nil || len(releases) > 100 {
+			return Release{}, ErrUnavailable
+		}
+		for _, r := range releases {
+			r = eligibleRelease(r, ChannelBeta)
+			if r.Version != "" && (latest.Version == "" || Newer(r.Version, latest.Version)) {
+				latest = r
+			}
+		}
+		if !strings.Contains(res.Header.Get("Link"), `rel="next"`) {
+			break
+		}
 	}
-	if len(r.Assets) > 64 {
-		return Release{}, ErrUnavailable
-	}
-	return r, nil
+	return latest, nil
 }
 func (r Release) Asset(name string) (Asset, error) {
 	var found Asset
@@ -137,7 +176,7 @@ func (r Release) Platform(os, arch string) (Asset, error) {
 	if (os != "darwin" && os != "windows") || (arch != "amd64" && arch != "arm64") {
 		return Asset{}, ErrPlatform
 	}
-	if _, e := StableVersion(r.Version); e != nil || r.Tag != "v"+r.Version {
+	if _, e := packageVersion(r.Version); e != nil || r.Tag != "v"+r.Version {
 		return Asset{}, ErrPlatform
 	}
 	return r.Asset(fmt.Sprintf("clipare-%s-%s-%s.zip", r.Tag, os, arch))

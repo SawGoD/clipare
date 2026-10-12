@@ -12,11 +12,13 @@ const Interval = 24 * time.Hour
 
 type State struct {
 	LastCheck time.Time `json:"last_check"`
+	Channel   string    `json:"channel,omitempty"`
 }
 type Checker struct {
 	GitHub    GitHub
 	Current   string
 	StatePath string
+	Channel   string
 }
 
 func (c Checker) Due(now time.Time) bool {
@@ -25,13 +27,20 @@ func (c Checker) Due(now time.Time) bool {
 	if e != nil || json.Unmarshal(b, &s) != nil {
 		return true
 	}
+	previous := s.Channel
+	if previous == "" {
+		previous = ChannelStable
+	}
+	if previous != ResolveChannel(c.Channel, c.Current) {
+		return true
+	}
 	return s.LastCheck.IsZero() || now.Before(s.LastCheck) || now.Sub(s.LastCheck) >= Interval
 }
 
 // Check records attempts (including failures) so restarts cannot hammer GitHub.
 // Manual requests bypass the interval, never the user-confirmation requirement.
 func (c Checker) Check(ctx context.Context, enabled, manual bool) (*Release, error) {
-	if _, e := StableVersion(c.Current); e != nil {
+	if DevelopmentVersion(c.Current) {
 		return nil, nil
 	}
 	if !manual && (!enabled || !c.Due(time.Now())) {
@@ -40,11 +49,12 @@ func (c Checker) Check(ctx context.Context, enabled, manual bool) (*Release, err
 	if e := os.MkdirAll(filepath.Dir(c.StatePath), 0700); e != nil {
 		return nil, e
 	}
-	b, _ := json.Marshal(State{time.Now().UTC()})
+	channel := ResolveChannel(c.Channel, c.Current)
+	b, _ := json.Marshal(State{LastCheck: time.Now().UTC(), Channel: channel})
 	if e := atomicWrite(c.StatePath, b); e != nil {
 		return nil, e
 	}
-	r, e := c.GitHub.Latest(ctx)
+	r, e := c.GitHub.LatestForChannel(ctx, channel)
 	if e != nil {
 		return nil, e
 	}

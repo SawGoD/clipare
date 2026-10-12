@@ -80,6 +80,87 @@ func TestStoreContentDedupBumpsExistingRow(t *testing.T) {
 	}
 }
 
+func TestStoreRefreshedRowSurvivesRestart(t *testing.T) {
+	s, path := openTestStore(t, storeKey)
+	now := time.Unix(1700000000, 0)
+	s.Add(testItem("first", "same"), now)
+	s.Add(testItem("second", "same"), now.Add(time.Hour))
+	s.Close()
+	reopened, err := OpenStore(path, storeKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	items, err := reopened.List()
+	if err != nil || len(items) != 1 || items[0].Timestamp != now.Add(time.Hour).Unix() {
+		t.Fatal("refreshed row lost after restart", items, err)
+	}
+}
+
+func TestStorePartialPrefixRecoveryAllowsFutureAppends(t *testing.T) {
+	for size := 1; size <= 3; size++ {
+		t.Run(string(rune('0'+size)), func(t *testing.T) {
+			s, path := openTestStore(t, storeKey)
+			now := time.Unix(1700000000, 0)
+			s.Add(testItem("first", "first"), now)
+			s.Close()
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.Write(make([]byte, size)); err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+			s, err = OpenStore(path, storeKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.Add(testItem("second", "second"), now.Add(time.Minute)); err != nil {
+				t.Fatal(err)
+			}
+			s.Close()
+			s, err = OpenStore(path, storeKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			items, err := s.List()
+			if err != nil || len(items) != 2 {
+				t.Fatal("append lost after recovery", items, err)
+			}
+		})
+	}
+}
+
+func TestCleanupNeverDropsLockedRecordsAtItemLimit(t *testing.T) {
+	now := time.Now()
+	locked := recordRef{offset: 1, locked: true}
+	refs := []recordRef{locked, {offset: 2, created: now}, {offset: 3, created: now.Add(-time.Minute)}}
+	drop := survivorsToDrop(refs, now, time.Hour, 1)
+	if drop[locked] || !drop[refs[2]] || drop[refs[1]] {
+		t.Fatal("incorrect cleanup", drop)
+	}
+}
+
+func TestRepeatedContentJournalIsBounded(t *testing.T) {
+	s, path := openTestStore(t, storeKey)
+	now := time.Now()
+	text := strings.Repeat("sample", 2000)
+	for i := 0; i < 30; i++ {
+		if _, err := s.Add(testItem(string(rune('a'+i)), text), now.Add(time.Duration(i)*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Cleanup(now, time.Hour, 10); err != nil {
+			t.Fatal(err)
+		}
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Size() > 100000 {
+		t.Fatal("journal grew without bound", info, err)
+	}
+}
+
 func TestStoreDeleteAndClear(t *testing.T) {
 	s, _ := openTestStore(t, storeKey)
 	now := time.Unix(1700000000, 0)
