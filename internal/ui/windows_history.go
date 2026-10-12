@@ -50,19 +50,19 @@ func (n *nativeDesktop) installHistorySettings() {
 	for h := range n.controls {
 		before[h] = true
 	}
-	n.historyCheck = n.control("BUTTON", "Сохранять историю", 0x10003, 40, 628, 488, 28, eventHistoryEnabled)
-	n.label("Хранить", 40, 662, 236)
+	n.historyCheck = n.control("BUTTON", "Сохранять историю", 0x10003, 40, 588, 488, 28, eventHistoryEnabled)
+	n.label("Хранить", 40, 622, 236)
 	// Same style as the address combo: identical theming and frame rendering.
-	n.historyRetention = n.control("COMBOBOX", "", 0x00210252, 40, 680, 236, 200, historyComboID)
+	n.historyRetention = n.control("COMBOBOX", "", 0x00210252, 40, 640, 236, 200, historyComboID)
 	n.fields[12] = n.historyRetention
 	n.styleCombo(n.historyRetention)
 	for _, label := range RetentionLabels {
 		call("SendMessageW", n.historyRetention, 0x143, 0, uintptr(unsafe.Pointer(wide(label)))) // CB_ADDSTRING
 	}
-	n.label("Максимум записей", 292, 662, 236)
-	n.input(11, 292, 680, 236, false)
-	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 718, 444, 32, eventHistoryClear)
-	n.helpButton(144, 492, 724, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
+	n.label("Максимум записей", 292, 622, 236)
+	n.input(11, 292, 640, 236, false)
+	n.historyClear = n.control("BUTTON", "Очистить историю", 0x10000, 40, 678, 444, 32, eventHistoryClear)
+	n.helpButton(144, 492, 684, "Записи удаляются автоматически: по сроку хранения и по достижении максимума. История хранится только на этом устройстве и шифруется.")
 	n.historyBase = map[uintptr]int{}
 	for h, c := range n.controls {
 		if !before[h] && c.parent == n.home {

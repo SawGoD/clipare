@@ -264,6 +264,9 @@ func TestWindowsFluentPreview(t *testing.T) {
 	}
 	n.preferencesExpanded = true
 	n.layoutPreferences()
+	if windowText(n.updateCheck) != "Авто-проверка обновлений" || n.controls[n.updateCheck].bounds.y != n.controls[n.updateChannel].bounds.y || n.controls[n.updateCheck].bounds.x+n.controls[n.updateCheck].bounds.w >= n.controls[n.updateChannel].bounds.x {
+		t.Fatal("update preferences must share one row")
+	}
 	if call("IsWindowVisible", n.homeAuto) == 0 || call("IsWindowVisible", n.updateCheck) == 0 {
 		t.Fatal("expanded preferences are hidden")
 	}

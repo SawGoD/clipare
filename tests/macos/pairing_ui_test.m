@@ -77,7 +77,12 @@ int main(int argc,const char **argv) { @autoreleasepool {
   [desktop.window setContentSize:NSMakeSize(560,600)];[desktop resizeDocument];
  }
  desktop.window.appearance=nil;[NSWorkspace.sharedWorkspace.notificationCenter postNotificationName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
- [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());capture(@"preferences");[desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
+ [desktop action:desktop.additionalButton];assert(!desktop.additional.hidden);assert(clipare_update_enabled());capture(@"preferences");
+ assert([desktop.updates.title isEqualToString:@"Авто-проверка обновлений"]);
+ assert(desktop.updates.superview==desktop.updateChannel.superview);
+ assert(fabs(NSMidY(desktop.updates.frame)-NSMidY(desktop.updateChannel.frame))<2);
+ assert(NSMaxX(desktop.updates.frame)<NSMinX(desktop.updateChannel.frame));
+ [desktop action:desktop.additionalButton];assert(desktop.additional.hidden);
  [desktop action:desktop.advancedButton];assert(!desktop.advanced.hidden);assert(desktop.window==original);capture(@"advanced");[desktop action:desktop.advancedButton];assert(desktop.advanced.hidden);
  clipare_peers("Desktop-PC\nLaptop");clipare_status("Синхронизация включена",1,"● Desktop-PC\n○ Laptop");clipare_sync_status(0,"Синхронизация включена","");
  assert(desktop.emptyDevices.hidden);assert(!desktop.peerList.hidden);assert(desktop.peers.count==2);assert(desktop.syncState==0);

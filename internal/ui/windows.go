@@ -355,7 +355,7 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	c.kind = 4
 	n.controls[n.preferencesToggle] = c
 	n.homeAuto = n.control("BUTTON", "Запускать при входе в систему", 0x10003, 40, 508, 488, 28, eventAutostartPreference)
-	n.updateCheck = n.control("BUTTON", "Автоматически проверять обновления", 0x10003, 40, 548, 488, 28, 22)
+	n.updateCheck = n.control("BUTTON", "Авто-проверка обновлений", 0x10003, 40, 548, 232, 28, 22)
 	n.fields[0], n.auto, n.list, n.statusLabel = n.homeName, n.homeAuto, n.homeList, n.homeStatus
 	n.updateWindow = n.panel(class, "Обновление Clipare", 520, 320, logicalRect{24, 24, 472, 216})
 	n.window = n.updateWindow
