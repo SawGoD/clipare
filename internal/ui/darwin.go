@@ -134,7 +134,8 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 	for _, row := range rows {
 		payload = append(payload, map[string]any{
 			"id": row.id, "header": row.header, "preview": row.preview, "link": row.link,
-			"sensitive": row.sensitive, "revealed": row.revealed, "url": row.url, "group": row.group,
+			"height": row.height, "sensitive": row.sensitive, "revealed": row.revealed,
+			"expanded": row.expanded, "truncated": row.truncated, "url": row.url, "group": row.group,
 		})
 	}
 	data, _ := json.Marshal(payload)
@@ -144,6 +145,7 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 	}
 	cstr(string(data), func(p *C.char) { cstr(empty, func(e *C.char) { C.clipare_history_rows(p, e) }) })
 }
+func (n *nativeDesktop) CurrentView() ViewState { return ViewState(C.clipare_view()) }
 func (*nativeDesktop) HistoryEnabled() bool { return C.clipare_history_enabled() != 0 }
 func (*nativeDesktop) HistoryPrefs(c config.History) {
 	flag := func(v bool) C.int {

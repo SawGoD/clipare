@@ -221,8 +221,8 @@ func (n *nativeDesktop) positionHistoryButtons() {
 			continue
 		}
 		row0 := n.historyRows[row]
-		// Slots right-to-left: copy, trash, eye, link, expand.
-		slot := map[int]int{0: 0, 3: 1, 1: 2, 2: 3, 4: 4}[kind]
+		// Slots right-to-left: delete, copy, eye, link, expand.
+		slot := map[int]int{0: 1, 3: 0, 1: 2, 2: 3, 4: 4}[kind]
 		switch {
 		case row0.group:
 			visible(h, false)

@@ -67,12 +67,12 @@ static const NSInteger HHeaderTag=1,HPreviewTag=2;
  else{preview.lineBreakMode=NSLineBreakByTruncatingTail;preview.maximumNumberOfLines=3;}
  if([item[@"url"]boolValue])preview.textColor=NSColor.controlAccentColor;
  [cell addSubview:preview];
- // All actions share one row, right-aligned: copy is rightmost.
+ // All actions share one row, right-aligned: copy sits left of delete.
  NSButton *copy=CPIcon(@"doc.on.doc",@"Копировать",self,34);copy.action=@selector(historyAction:);[cell addSubview:copy];
  NSButton *trash=CPIcon(@"trash",@"Удалить запись",self,36);trash.action=@selector(historyAction:);[cell addSubview:trash];
- NSButton *last=copy;
- [NSLayoutConstraint activateConstraints:@[[copy.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],[copy.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],[trash.trailingAnchor constraintEqualToAnchor:copy.leadingAnchor constant:-6],[trash.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]]];
- last=trash;
+ NSButton *last=trash;
+ [NSLayoutConstraint activateConstraints:@[[trash.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],[trash.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],[copy.trailingAnchor constraintEqualToAnchor:trash.leadingAnchor constant:-6],[copy.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]]];
+ last=copy;
  if([item[@"sensitive"]boolValue]){
   NSButton *eye=CPIcon([item[@"revealed"]boolValue]?@"eye.slash":@"eye",[item[@"revealed"]boolValue]?@"Скрыть значение":@"Показать значение",self,35);eye.action=@selector(historyAction:);[cell addSubview:eye];
   [NSLayoutConstraint activateConstraints:@[[eye.trailingAnchor constraintEqualToAnchor:last.leadingAnchor constant:-6],[eye.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]]];
