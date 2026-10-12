@@ -80,8 +80,7 @@ void clipare_history_rows(const char *json,const char *empty) { @autoreleasepool
  desktop.emptyHistory.stringValue=empty&&*empty?str(empty):@"История пуста";
  [desktop refreshHistory];
  if(desktop.view!=CPHistory)[desktop show:CPHistory];
-} }
-void clipare_history_prefs(int enabled,const char *labels,const char *selected,const char *max) { @autoreleasepool {
+} }void clipare_history_prefs(int enabled,const char *labels,const char *selected,const char *max) { @autoreleasepool {
  desktop.historyEnable.state=enabled?NSControlStateValueOn:NSControlStateValueOff;
  [desktop.historyRetention removeAllItems];for(NSString *line in lines(labels))if(line.length)[desktop.historyRetention addItemWithObjectValue:line];
  [desktop.historyRetention selectItemWithObjectValue:str(selected)];

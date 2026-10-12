@@ -280,12 +280,11 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	r.Left += px(16)
 	r.Right -= px(150) // keep clear of the per-row icon actions
 	if row.group {
-		r.Top += px(32)
 		n.drawText(d.DC, n.fontFor(n.home, 4), row.header, r, muted, 0x25)
 		return
 	}
 	headerRect := r
-	headerRect.Top += px(10)
+	headerRect.Top += px(8)
 	headerRect.Bottom = headerRect.Top + px(20)
 	n.drawText(d.DC, n.fontFor(n.home, 4), row.header, headerRect, muted, 0x8020)
 	previewColor := fg
@@ -293,8 +292,8 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 		previewColor = t.accent
 	}
 	previewRect := r
-	previewRect.Top += px(32)
-	previewRect.Bottom = d.Rect.Bottom - px(10)
+	previewRect.Top += px(28)
+	previewRect.Bottom = d.Rect.Bottom - px(8)
 	n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x10)
 	if d.State&0x10 != 0 && n.keyboardFocusVisible() {
 		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
@@ -373,12 +372,8 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 			call("SendMessageW", h, 0x153, ^uintptr(0), uintptr(n.scaledRect(hwnd, logicalRect{h: 26}).Bottom))
 			call("SendMessageW", h, 0x153, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 32}).Bottom))
 		}
-		if fontChanged && (h == n.homeList || h == n.foundList || h == n.historyList) {
-			logical := 60
-			if h == n.historyList {
-				logical = historyRowHeight
-			}
-			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: logical}).Bottom))
+		if fontChanged && (h == n.homeList || h == n.foundList) {
+			call("SendMessageW", h, 0x1a0, 0, uintptr(n.scaledRect(hwnd, logicalRect{h: 60}).Bottom))
 		}
 	}
 	// Commit positions together, without intermediate erase/font redraws.

@@ -10,7 +10,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 @property(retain) NSWindow *window;
 @property(retain) NSScrollView *scroll;
 @property(retain) NSMutableDictionary *views;
-@property(retain) NSMutableArray *fields, *events, *peers, *found, *historyData;
+@property(retain) NSMutableArray *fields, *events, *peers, *found, *historyData, *historyIds, *historyHeights;
 @property(retain) NSMutableArray *actionButtons;
 @property(retain) NSStatusItem *tray;
 @property(retain) CPStatusDot *statusDot;
@@ -54,6 +54,7 @@ typedef NS_ENUM(NSInteger, CPView) { CPHome, CPDiscovery, CPPairing, CPUpdate, C
 -(NSStackView *)buildHistory;
 -(void)refreshHistory;
 -(NSInteger)historyRowCount;
+-(CGFloat)tableView:(NSTableView *)tableView heightOfRow:(NSInteger)row;
 -(NSView *)historyCellForColumn:(NSTableColumn *)column row:(NSInteger)row;
 -(void)selectHistoryRow:(NSButton *)sender;
 -(void)historyAction:(NSButton *)sender;

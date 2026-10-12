@@ -56,17 +56,30 @@ func RetentionFromLabel(label string) string {
 
 // historyRow is one rendered line of the History list. Group rows carry
 // section labels (Сегодня / Вчера / Ранее) instead of content. The revealed
-// flag is runtime-only UI state owned by the shared loop.
+// and expanded flags are runtime-only UI state owned by the shared loop.
 type historyRow struct {
 	id        string
 	header    string
 	preview   string
 	link      string // full URL for url rows
+	height    int    // logical row height; adapters scale it
 	sensitive bool
 	revealed  bool
+	expanded  bool
+	truncated bool // expandable: content did not fit the collapsed preview
 	url       bool
 	group     bool
 }
+
+// viewDesktop lets the shared loop react to the native navigation state.
+type viewDesktop interface{ CurrentView() ViewState }
+
+const (
+	historyGroupHeight  = 30
+	historyRowHeight    = 88
+	historyMaxExpand    = 560
+	historyExpandCutoff = 128
+)
 
 func historyGroupLabel(moment, now time.Time) string {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -80,8 +93,64 @@ func historyGroupLabel(moment, now time.Time) string {
 	}
 }
 
-// historyPreview caps content to three short lines with an ellipsis.
-func historyPreview(text string) string {
+// historyRows renders items (newest first) into display rows with date groups.
+// Hidden sensitive rows are masked; reveal and expansion state is runtime-only.
+func historyRows(items []history.Item, now time.Time, revealed, expanded map[string]bool) []historyRow {
+	rows := make([]historyRow, 0, len(items)+3)
+	lastGroup := ""
+	for _, item := range items {
+		label := historyGroupLabel(time.Unix(item.Timestamp, 0), now)
+		if label != lastGroup {
+			rows = append(rows, historyRow{group: true, header: label, height: historyGroupHeight})
+			lastGroup = label
+		}
+		isRevealed := item.Sensitive && revealed[item.ID]
+		isExpanded := expanded[item.ID] && (!item.Sensitive || isRevealed)
+		preview, truncated, height := historyPreview(item.Text, isExpanded)
+		if item.Sensitive && !isRevealed {
+			preview = historyMaskedText
+		}
+		name := item.OriginName
+		if name == "" {
+			name = item.OriginID
+		}
+		rows = append(rows, historyRow{
+			id:        item.ID,
+			header:    fmt.Sprintf("%s · %s", name, time.Unix(item.Timestamp, 0).Format("15:04")),
+			preview:   preview,
+			link:      item.Text,
+			height:    height,
+			sensitive: item.Sensitive,
+			revealed:  isRevealed,
+			expanded:  isExpanded,
+			truncated: truncated,
+			url:       item.Type == history.ContentURL,
+		})
+	}
+	return rows
+}
+
+// historyPreview renders one row's content: a capped three-line preview while
+// collapsed, the full text when expanded. It reports whether the row offers
+// an expand control and how tall the row must be.
+func historyPreview(text string, expanded bool) (preview string, truncated bool, height int) {
+	trimmed := strings.TrimSpace(text)
+	runes := []rune(trimmed)
+	truncated = len(runes) > historyExpandCutoff || strings.Count(trimmed, "\n") >= 3
+	if expanded {
+		if len(runes) > 4000 {
+			// Gigantic clips stay bounded even when expanded.
+			return string(runes[:4000]) + "…", truncated, expandedHeight(string(runes[:4000]))
+		}
+		if trimmed == "" {
+			return "…", truncated, historyRowHeight
+		}
+		return trimmed, truncated, expandedHeight(trimmed)
+	}
+	return collapseLines(trimmed), truncated, historyRowHeight
+}
+
+func collapseLines(text string) string {
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	var out []string
 	for _, line := range lines {
@@ -101,43 +170,29 @@ func historyPreview(text string) string {
 	if result == "" {
 		return "…"
 	}
-	if len(lines) > 3 {
+	if len(out) == 3 && len(lines) > 3 {
 		result += "\n…"
 	}
 	return result
 }
 
-// historyRows renders items (newest first) into display rows with date groups.
-// Hidden sensitive rows are masked; reveal state is runtime-only.
-func historyRows(items []history.Item, now time.Time, revealed map[string]bool) []historyRow {
-	rows := make([]historyRow, 0, len(items)+3)
-	lastGroup := ""
-	for _, item := range items {
-		label := historyGroupLabel(time.Unix(item.Timestamp, 0), now)
-		if label != lastGroup {
-			rows = append(rows, historyRow{group: true, header: label})
-			lastGroup = label
+func expandedHeight(text string) int {
+	lines := 0
+	for _, line := range strings.Split(text, "\n") {
+		if r := len([]rune(line)); r <= 80 {
+			lines++
+		} else {
+			lines += (r + 79) / 80
 		}
-		isRevealed := item.Sensitive && revealed[item.ID]
-		preview := historyPreview(item.Text)
-		if item.Sensitive && !isRevealed {
-			preview = historyMaskedText
-		}
-		name := item.OriginName
-		if name == "" {
-			name = item.OriginID
-		}
-		rows = append(rows, historyRow{
-			id:        item.ID,
-			header:    fmt.Sprintf("%s · %s", name, time.Unix(item.Timestamp, 0).Format("15:04")),
-			preview:   preview,
-			link:      item.Text,
-			sensitive: item.Sensitive,
-			revealed:  isRevealed,
-			url:       item.Type == history.ContentURL,
-		})
 	}
-	return rows
+	if lines < 3 {
+		lines = 3
+	}
+	height := 40 + lines*17
+	if height > historyMaxExpand {
+		height = historyMaxExpand
+	}
+	return height
 }
 
 // historySummary builds the accessibility text of one row.

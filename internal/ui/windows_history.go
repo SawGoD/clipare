@@ -4,16 +4,18 @@ package ui
 
 import (
 	"clipare/internal/config"
+	"reflect"
 	"strings"
 	"unsafe"
 )
 
 const (
-	historyRowHeight  = 92
 	historyListID     = 121
 	historyComboID    = 142
 	historyMaxID      = 141
 	historyButtonBase = 9400
+	// Per-row action slots: expand, link, eye, trash, copy (copy rightmost).
+	historyKindsPerRow = 5
 )
 
 // History lives inside the home device card, exactly like discovery and
@@ -29,8 +31,8 @@ func (n *nativeDesktop) installHistory() {
 	n.emptyHistory = n.control("STATIC", historyEmptyTitle+"\n"+historyEmptyHint, 0x4000, 40, 272, 488, 72, 0)
 	n.historyStatus = n.control("STATIC", "", 0x4000, 40, 272, 488, 72, 0)
 	n.setRole(n.historyStatus, 4)
-	n.historyList = n.control("LISTBOX", "", 0x00210151, 40, 264, 488, 180, historyListID)
-	call("SendMessageW", n.historyList, 0x1a0, 0, uintptr(n.scaledRect(n.home, logicalRect{h: historyRowHeight}).Bottom))
+	// Variable item heights: expanded rows grow with their content.
+	n.historyList = n.control("LISTBOX", "", 0x00210161, 40, 264, 488, 180, historyListID)
 	n.historyButtons = nil
 	for h, c := range n.controls {
 		if !before[h] && c.parent == n.home {
@@ -65,6 +67,14 @@ func (n *nativeDesktop) installHistorySettings() {
 }
 
 func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
+	status := ""
+	if keyLost {
+		status = historyKeyLostText
+	}
+	// Identical payloads are ignored: background refreshes must not blink.
+	if reflect.DeepEqual(rows, n.historyRows) && windowText(n.historyStatus) == status && n.navigation.View == ViewHistory {
+		return
+	}
 	n.historyRows = rows
 	accessibility := make([]string, len(rows))
 	for i, row := range rows {
@@ -74,8 +84,9 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 	wasVisible := call("GetWindowLongPtrW", n.historyList, ^uintptr(15))&0x10000000 != 0
 	call("SendMessageW", n.historyList, 0xb, 0, 0)
 	call("SendMessageW", n.historyList, 0x184, 0, 0)
-	for _, text := range accessibility {
+	for i, text := range accessibility {
 		call("SendMessageW", n.historyList, 0x180, 0, uintptr(unsafe.Pointer(wide(text))))
+		call("SendMessageW", n.historyList, 0x1a0, uintptr(i), uintptr(n.px(rows[i].height)))
 	}
 	if selection >= 0 && selection < len(rows) {
 		call("SendMessageW", n.historyList, 0x186, uintptr(selection), 0)
@@ -83,16 +94,18 @@ func (n *nativeDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 	call("SendMessageW", n.historyList, 0xb, 1, 0)
 	visible(n.historyList, wasVisible && len(rows) > 0)
 	call("InvalidateRect", n.historyList, 0, 1)
-	status := ""
-	if keyLost {
-		status = historyKeyLostText
-	}
 	if windowText(n.historyStatus) != status {
 		call("SetWindowTextW", n.historyStatus, uintptr(unsafe.Pointer(wide(status))))
 	}
 	n.layoutHistory()
-	n.navigate(ViewHistory)
+	if n.navigation.View != ViewHistory {
+		n.navigate(ViewHistory)
+	} else {
+		n.updateHistoryButtons()
+	}
 }
+
+func (n *nativeDesktop) CurrentView() ViewState { return n.navigation.View }
 
 func (n *nativeDesktop) HistoryEnabled() bool {
 	return call("SendMessageW", n.historyCheck, 0xF0, 0, 0) == 1
@@ -142,7 +155,10 @@ func (n *nativeDesktop) layoutHistory() int {
 		return 0
 	}
 	count := len(n.historyRows)
-	height := count * historyRowHeight
+	height := 0
+	for _, row := range n.historyRows {
+		height += row.height
+	}
 	if height > 276 {
 		height = 276
 	}
@@ -150,7 +166,6 @@ func (n *nativeDesktop) layoutHistory() int {
 		height = 88
 	}
 	visible(n.historyList, count > 0)
-	visible(n.emptyHistory, count == 0)
 	status := windowText(n.historyStatus)
 	visible(n.historyStatus, count == 0 && status != "")
 	visible(n.emptyHistory, count == 0 && status == "")
@@ -167,16 +182,16 @@ func (n *nativeDesktop) layoutHistory() int {
 }
 
 // updateHistoryButtons keeps one pool of per-row icon buttons positioned over
-// the list's actual item rectangles.
+// the list's actual item rectangles. All actions share one row, right-aligned.
 func (n *nativeDesktop) updateHistoryButtons() {
 	rows := n.historyRows
-	need := len(rows) * 4
+	need := len(rows) * historyKindsPerRow
 	if len(n.historyButtons) < need {
 		previous := n.window
 		n.window = n.home
 		for len(n.historyButtons) < need {
 			index := len(n.historyButtons)
-			kind := index % 4
+			kind := index % historyKindsPerRow
 			label, glyph := "Копировать", "\ue8c8"
 			switch kind {
 			case 1:
@@ -185,6 +200,8 @@ func (n *nativeDesktop) updateHistoryButtons() {
 				label, glyph = "Открыть ссылку", "\ue8a7"
 			case 3:
 				label, glyph = "Удалить запись", "\ue74d"
+			case 4:
+				label, glyph = "Развернуть запись", "\ue76c"
 			}
 			h := n.iconButton(label, glyph, 0, 0, 32, historyButtonBase+index)
 			n.historyButtons = append(n.historyButtons, h)
@@ -198,17 +215,19 @@ func (n *nativeDesktop) positionHistoryButtons() {
 	var client winRect
 	call("GetClientRect", n.home, uintptr(unsafe.Pointer(&client)))
 	for index, h := range n.historyButtons {
-		row, kind := index/4, index%4
+		row, kind := index/historyKindsPerRow, index%historyKindsPerRow
 		if n.navigation.View != ViewHistory || row >= len(n.historyRows) {
 			visible(h, false)
 			continue
 		}
 		row0 := n.historyRows[row]
+		// Slots right-to-left: copy, trash, eye, link, expand.
+		slot := map[int]int{0: 0, 3: 1, 1: 2, 2: 3, 4: 4}[kind]
 		switch {
 		case row0.group:
 			visible(h, false)
 			continue
-		case kind == 1 && !row0.sensitive, kind == 2 && !row0.url:
+		case kind == 1 && !row0.sensitive, kind == 2 && !row0.url, kind == 4 && !row0.truncated:
 			visible(h, false)
 			continue
 		}
@@ -222,8 +241,8 @@ func (n *nativeDesktop) positionHistoryButtons() {
 			dpi = 96
 		}
 		size := int32(32 * dpi / 96)
-		x := client.Right - size - 8 - int32(kind)*int32(float64(38)*n.scale)
-		y := r.Top + (r.Bottom-r.Top-size)/2 + int32(12*n.scale)
+		x := client.Right - size - 8 - int32(slot)*int32(float64(38)*n.scale)
+		y := r.Top + (r.Bottom-r.Top-size)/2
 		point := struct{ X, Y int32 }{x, y}
 		call("MapWindowPoints", n.historyList, n.home, uintptr(unsafe.Pointer(&point)), 1)
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(size), uintptr(size), 0x10)
@@ -239,6 +258,11 @@ func (n *nativeDesktop) positionHistoryButtons() {
 			glyph = "\ue8a7"
 		case 3:
 			glyph = "\ue74d"
+		case 4:
+			glyph = "\ue76c"
+			if row0.expanded {
+				glyph = "\ue70d"
+			}
 		}
 		if n.icons[h] != glyph {
 			n.icons[h] = glyph
@@ -274,5 +298,9 @@ func (n *nativeDesktop) historyRowAction(row, kind int) {
 		}
 	case 3:
 		n.events = append(n.events, eventHistoryDelete)
+	case 4:
+		if target.truncated {
+			n.events = append(n.events, eventHistoryExpand)
+		}
 	}
 }

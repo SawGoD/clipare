@@ -270,7 +270,7 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
-			} else if id >= 1 && id <= eventHistorySettings {
+			} else if id >= 1 && id <= eventHistoryExpand {
 				n.events = append(n.events, id)
 			}
 			return 0

@@ -14,7 +14,7 @@ func TestHistoryRowsGrouping(t *testing.T) {
 		{ID: "b", OriginName: "Desktop", Timestamp: now.AddDate(0, 0, -1).Unix(), Text: "yesterday"},
 		{ID: "c", OriginName: "Laptop", Timestamp: now.AddDate(0, 0, -5).Unix(), Text: "earlier"},
 	}
-	rows := historyRows(items, now, nil)
+	rows := historyRows(items, now, nil, nil)
 	if len(rows) != 6 {
 		t.Fatal("expected 3 items plus 3 group rows", rows)
 	}
@@ -35,16 +35,16 @@ func TestHistoryRowsGrouping(t *testing.T) {
 func TestHistoryRowsMasking(t *testing.T) {
 	now := time.Now()
 	secret := history.Item{ID: "s", OriginName: "Desktop", Timestamp: now.Unix(), Type: history.ContentText, Sensitive: true, Text: "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"}
-	rows := historyRows([]history.Item{secret}, now, nil)
+	rows := historyRows([]history.Item{secret}, now, nil, nil)
 	if rows[1].preview != historyMaskedText {
 		t.Fatal("secret not masked", rows[1].preview)
 	}
-	rows = historyRows([]history.Item{secret}, now, map[string]bool{"s": true})
+	rows = historyRows([]history.Item{secret}, now, map[string]bool{"s": true}, nil)
 	if rows[1].preview == historyMaskedText || rows[1].preview == "" {
 		t.Fatal("revealed secret still masked", rows[1].preview)
 	}
 	plain := history.Item{ID: "p", OriginName: "Desktop", Timestamp: now.Unix(), Text: "обычный текст"}
-	rows = historyRows([]history.Item{plain}, now, map[string]bool{"p": true})
+	rows = historyRows([]history.Item{plain}, now, map[string]bool{"p": true}, nil)
 	if rows[1].preview != "обычный текст" {
 		t.Fatal("plain text changed", rows[1].preview)
 	}
@@ -53,7 +53,7 @@ func TestHistoryRowsMasking(t *testing.T) {
 func TestHistoryRowsURL(t *testing.T) {
 	now := time.Now()
 	item := history.Item{ID: "u", OriginName: "Desktop", Timestamp: now.Unix(), Type: history.ContentURL, Text: "https://github.com/SawGoD/clipare"}
-	rows := historyRows([]history.Item{item}, now, nil)
+	rows := historyRows([]history.Item{item}, now, nil, nil)
 	if !rows[1].url || rows[1].link != "https://github.com/SawGoD/clipare" {
 		t.Fatal("url row misclassified", rows[1])
 	}
@@ -61,16 +61,29 @@ func TestHistoryRowsURL(t *testing.T) {
 
 func TestHistoryPreview(t *testing.T) {
 	long := "первая строка\nвторая строка\nтретья строка\nчетвёртая строка"
-	preview := historyPreview(long)
+	preview, truncated, height := historyPreview(long, false)
 	if want := "первая строка\nвторая строка\nтретья строка\n…"; preview != want {
 		t.Fatalf("preview=%q want %q", preview, want)
 	}
-	runes := historyPreview("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789")
+	if !truncated {
+		t.Fatal("four-line text not marked truncated")
+	}
+	if height != historyRowHeight {
+		t.Fatal("collapsed height", height)
+	}
+	runes, _, _ := historyPreview("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789", false)
 	if len([]rune(runes)) != 81 {
 		t.Fatal("long line not truncated", runes)
 	}
-	if historyPreview("   \n\n  ") != "…" {
-		t.Fatal("empty preview", historyPreview("   \n\n  "))
+	if empty, _, _ := historyPreview("   \n\n  ", false); empty != "…" {
+		t.Fatal("empty preview", empty)
+	}
+	full, truncated, expandedH := historyPreview(long, true)
+	if full != long || !truncated {
+		t.Fatal("expanded preview mismatch", full)
+	}
+	if expandedH <= historyRowHeight {
+		t.Fatal("expanded height not larger", expandedH)
 	}
 }
 

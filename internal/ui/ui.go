@@ -71,6 +71,9 @@ const (
 	eventHistoryClear
 	eventHistoryEnabled
 	eventHistorySettings
+
+	// 40-44 are reserved: native adapters use those tags for help buttons.
+	eventHistoryExpand
 )
 
 type updateDesktop interface {
@@ -409,10 +412,11 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 	done := make(chan result, 1)
 	busy := false
 	// Clipboard history rendering state; row IDs map list selections to items.
-	// Reveal state is runtime-only and resets whenever the view is opened.
+	// Reveal and expansion are runtime-only and reset when the view is opened.
 	historyItems := map[string]history.Item{}
 	historyRowIDs := []string{}
 	revealed := map[string]bool{}
+	expanded := map[string]bool{}
 	var renderHistory func()
 	renderHistory = func() {
 		hd, ok := d.(historyDesktop)
@@ -433,7 +437,7 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 		for _, item := range items {
 			historyItems[item.ID] = item
 		}
-		rows := historyRows(items, time.Now(), revealed)
+		rows := historyRows(items, time.Now(), revealed, expanded)
 		historyRowIDs = historyRowIDs[:0]
 		for _, row := range rows {
 			historyRowIDs = append(historyRowIDs, row.id)
@@ -727,6 +731,10 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				historyDirty = false
 				renderHistory()
 			}
+			// An open History section refreshes itself as events are recorded.
+			if v, ok := d.(viewDesktop); ok && v.CurrentView() == ViewHistory {
+				renderHistory()
+			}
 			if deferredUpdateOffer && !outgoing && shownIncoming == "" && available != nil {
 				deferredUpdateOffer = false
 				ud.UpdatePrompt(updateOffer(clipare.Version(), available.Version))
@@ -812,9 +820,12 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 				draft = next
 				apply(next, true)
 			case eventHistoryOpen:
-				// Secrets never stay revealed across view switches.
+				// Secrets and expansion never survive a fresh view switch.
 				for id := range revealed {
 					delete(revealed, id)
+				}
+				for id := range expanded {
+					delete(expanded, id)
 				}
 				renderHistory()
 			case eventHistoryCopy:
@@ -838,6 +849,17 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					delete(revealed, id)
 				} else {
 					revealed[id] = true
+				}
+				renderHistory()
+			case eventHistoryExpand:
+				id, ok := selectedHistoryID(historyRowIDs, d.Selected())
+				if !ok {
+					continue
+				}
+				if expanded[id] {
+					delete(expanded, id)
+				} else {
+					expanded[id] = true
 				}
 				renderHistory()
 			case eventHistoryDelete:
