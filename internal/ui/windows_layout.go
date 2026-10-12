@@ -285,16 +285,17 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	}
 	headerRect := r
 	headerRect.Top += px(8)
-	headerRect.Bottom = headerRect.Top + px(20)
+	headerRect.Bottom = headerRect.Top + px(18)
 	n.drawText(d.DC, n.fontFor(n.home, 4), row.header, headerRect, muted, 0x8020)
 	previewColor := fg
 	if row.url {
 		previewColor = t.accent
 	}
 	previewRect := r
-	previewRect.Top += px(28)
-	previewRect.Bottom = d.Rect.Bottom - px(8)
-	n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x10)
+	previewRect.Top += px(26)
+	previewRect.Bottom = d.Rect.Bottom - px(4)
+	// Word wrap over two lines; DT_END_ELLIPSIS cuts the last line.
+	n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x8010)
 	if d.State&0x10 != 0 && n.keyboardFocusVisible() {
 		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
 	}

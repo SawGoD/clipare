@@ -242,7 +242,8 @@ func (n *nativeDesktop) positionHistoryButtons() {
 		}
 		size := int32(32 * dpi / 96)
 		x := client.Right - size - 8 - int32(slot)*int32(float64(38)*n.scale)
-		y := r.Top + (r.Bottom-r.Top-size)/2
+		// Buttons align with the device-name header line, not the row center.
+		y := r.Top + int32(float64(17)*n.scale) - size/2
 		point := struct{ X, Y int32 }{x, y}
 		call("MapWindowPoints", n.historyList, n.home, uintptr(unsafe.Pointer(&point)), 1)
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(size), uintptr(size), 0x10)

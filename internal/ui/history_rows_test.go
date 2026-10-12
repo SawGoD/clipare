@@ -60,26 +60,35 @@ func TestHistoryRowsURL(t *testing.T) {
 }
 
 func TestHistoryPreview(t *testing.T) {
-	long := "первая строка\nвторая строка\nтретья строка\nчетвёртая строка"
-	preview, truncated, height := historyPreview(long, false)
-	if want := "первая строка\nвторая строка\nтретья строка\n…"; preview != want {
-		t.Fatalf("preview=%q want %q", preview, want)
-	}
-	if !truncated {
-		t.Fatal("four-line text not marked truncated")
+	// Short text fits fully: no ellipsis, no expand control.
+	short, truncated, height := historyPreview("Обрати внимание на записи", false)
+	if short != "Обрати внимание на записи" || truncated {
+		t.Fatal("short text truncated", short, truncated)
 	}
 	if height != historyRowHeight {
 		t.Fatal("collapsed height", height)
 	}
-	runes, _, _ := historyPreview("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789", false)
-	if len([]rune(runes)) != 81 {
-		t.Fatal("long line not truncated", runes)
+	// Two lines within the cutoff stay untruncated.
+	twoLines := "первая строка\nвторая строка"
+	if p, tr, _ := historyPreview(twoLines, false); p != twoLines || tr {
+		t.Fatal("two-line text truncated", p, tr)
 	}
-	if empty, _, _ := historyPreview("   \n\n  ", false); empty != "…" {
+	// Three lines exceed the two-line preview and become expandable.
+	long := "первая строка\nвторая строка\nтретья строка"
+	p, tr, _ := historyPreview(long, false)
+	if p != long || !tr {
+		t.Fatal("expected full preview with expand flag", p, tr)
+	}
+	// A single continuous token past the cutoff is expandable.
+	runes, tr, _ := historyPreview("0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789", false)
+	if len([]rune(runes)) != 130 || !tr {
+		t.Fatal("continuous token capped or not expandable", len([]rune(runes)), tr)
+	}
+	if empty, _, _ := historyPreview("   \n\n  ", false); empty != "" {
 		t.Fatal("empty preview", empty)
 	}
-	full, truncated, expandedH := historyPreview(long, true)
-	if full != long || !truncated {
+	full, tr, expandedH := historyPreview(long, true)
+	if full != long || !tr {
 		t.Fatal("expanded preview mismatch", full)
 	}
 	if expandedH <= historyRowHeight {

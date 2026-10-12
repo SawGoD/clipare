@@ -72,7 +72,14 @@ const (
 	eventHistoryEnabled
 	eventHistorySettings
 
-	// 40-44 are reserved: native adapters use those tags for help buttons.
+	// Values 40-44 are reserved: native adapters use those tags for help
+	// buttons, so the expand action starts at 45.
+	eventReserved40
+	eventReserved41
+	eventReserved42
+	eventReserved43
+	eventReserved44
+
 	eventHistoryExpand
 )
 

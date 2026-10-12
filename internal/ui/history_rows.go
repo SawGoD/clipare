@@ -76,9 +76,12 @@ type viewDesktop interface{ CurrentView() ViewState }
 
 const (
 	historyGroupHeight  = 30
-	historyRowHeight    = 88
+	historyRowHeight    = 64
 	historyMaxExpand    = 560
 	historyExpandCutoff = 128
+	// Rough line capacity used to decide whether content exceeds the
+	// two-line preview; adapters do the real word wrapping.
+	historyLineCapacity = 80
 )
 
 func historyGroupLabel(moment, now time.Time) string {
@@ -130,13 +133,14 @@ func historyRows(items []history.Item, now time.Time, revealed, expanded map[str
 	return rows
 }
 
-// historyPreview renders one row's content: a capped three-line preview while
-// collapsed, the full text when expanded. It reports whether the row offers
-// an expand control and how tall the row must be.
+// historyPreview renders one row's content. Collapsed rows show at most two
+// word-wrapped lines (the cap itself is native); texts within the cutoff fit
+// fully and never get an ellipsis, longer content becomes expandable. It
+// reports whether the row offers an expand control and how tall the row is.
 func historyPreview(text string, expanded bool) (preview string, truncated bool, height int) {
 	trimmed := strings.TrimSpace(text)
 	runes := []rune(trimmed)
-	truncated = len(runes) > historyExpandCutoff || strings.Count(trimmed, "\n") >= 3
+	truncated = len(runes) > historyExpandCutoff || wrappedLines(trimmed) > 2
 	if expanded {
 		if len(runes) > 4000 {
 			// Gigantic clips stay bounded even when expanded.
@@ -147,46 +151,33 @@ func historyPreview(text string, expanded bool) (preview string, truncated bool,
 		}
 		return trimmed, truncated, expandedHeight(trimmed)
 	}
-	return collapseLines(trimmed), truncated, historyRowHeight
+	if len(runes) > 2000 {
+		// The preview is capped natively to two lines; keep the payload sane.
+		trimmed = string(runes[:2000])
+	}
+	return trimmed, truncated, historyRowHeight
 }
 
-func collapseLines(text string) string {
-	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
-	var out []string
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if r := []rune(line); len(r) > 80 {
-			line = string(r[:80]) + "…"
-		}
-		out = append(out, line)
-		if len(out) == 3 {
-			break
+// wrappedLines estimates how many display lines a text needs after word wrap.
+func wrappedLines(text string) int {
+	lines := 0
+	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+		if r := len([]rune(line)); r <= historyLineCapacity {
+			lines++
+		} else {
+			lines += (r + historyLineCapacity - 1) / historyLineCapacity
 		}
 	}
-	result := strings.Join(out, "\n")
-	if result == "" {
-		return "…"
+	if lines == 0 {
+		lines = 1
 	}
-	if len(out) == 3 && len(lines) > 3 {
-		result += "\n…"
-	}
-	return result
+	return lines
 }
 
 func expandedHeight(text string) int {
-	lines := 0
-	for _, line := range strings.Split(text, "\n") {
-		if r := len([]rune(line)); r <= 80 {
-			lines++
-		} else {
-			lines += (r + 79) / 80
-		}
-	}
-	if lines < 3 {
-		lines = 3
+	lines := wrappedLines(text)
+	if lines < 2 {
+		lines = 2
 	}
 	height := 40 + lines*17
 	if height > historyMaxExpand {
