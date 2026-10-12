@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"clipare/internal/config"
 	"clipare/internal/history"
 	"testing"
@@ -124,5 +126,29 @@ func TestSelectedHistoryItem(t *testing.T) {
 	}
 	if _, ok := selectedHistoryID(rowIDs, 0); ok {
 		t.Fatal("group row has id")
+	}
+}
+
+func TestSensitiveRowsNeverExpandManually(t *testing.T) {
+	now := time.Now()
+	longSecret := history.Item{
+		ID: "s", OriginName: "Desktop", Timestamp: now.Unix(), Sensitive: true,
+		Text: strings.Repeat("ghp_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 2),
+	}
+	// Hidden: masked, collapsed, no expand control.
+	rows := historyRows([]history.Item{longSecret}, now, nil, nil)
+	if rows[1].preview != historyMaskedText || rows[1].truncated || rows[1].height != historyRowHeight {
+		t.Fatal("hidden secret must stay masked and collapsed", rows[1])
+	}
+	// Revealed: expanded fully right away, still no expand control.
+	rows = historyRows([]history.Item{longSecret}, now, map[string]bool{"s": true}, nil)
+	if rows[1].truncated {
+		t.Fatal("sensitive rows must not offer the expand control")
+	}
+	if rows[1].height <= historyRowHeight {
+		t.Fatal("revealed secret must expand immediately")
+	}
+	if rows[1].preview != longSecret.Text {
+		t.Fatal("revealed secret not shown fully", rows[1].preview)
 	}
 }

@@ -108,10 +108,16 @@ func historyRows(items []history.Item, now time.Time, revealed, expanded map[str
 			lastGroup = label
 		}
 		isRevealed := item.Sensitive && revealed[item.ID]
-		isExpanded := expanded[item.ID] && (!item.Sensitive || isRevealed)
+		// Secrets never offer a manual expand control: hidden rows stay
+		// masked and collapsed; revealing with the eye expands them fully
+		// right away.
+		isExpanded := (!item.Sensitive && expanded[item.ID]) || (item.Sensitive && isRevealed)
 		preview, truncated, height := historyPreview(item.Text, isExpanded)
-		if item.Sensitive && !isRevealed {
-			preview = historyMaskedText
+		if item.Sensitive {
+			truncated = false
+			if !isRevealed {
+				preview = historyMaskedText
+			}
 		}
 		name := item.OriginName
 		if name == "" {
