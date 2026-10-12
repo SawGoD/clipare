@@ -27,7 +27,7 @@ func (n *nativeDesktop) updateRowTrash() {
 		index := len(n.rowTrash)
 		h := n.iconButton("Удалить устройство", "\ue74d", 0, 0, 32, 9000+index)
 		c := n.controls[h]
-		c.kind = 2
+		c.kind = 6 // ghost: card-colored fill, danger glyph, no frame.
 		n.controls[h] = c
 		n.rowTrash = append(n.rowTrash, h)
 	}

@@ -143,9 +143,12 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		if d.State&4 != 0 {
 			fill, border, fg = t.surface, t.border, t.muted
 		}
-		if c.kind == 5 { // ghost row action: no chrome, subtle hover fill.
+		if c.kind == 5 || c.kind == 6 { // ghost row actions: card-colored, no frame.
+			call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), n.surfaceBrush)
 			if d.State&4 != 0 {
 				fg = t.muted
+			} else if c.kind == 6 {
+				fg = t.danger
 			}
 			if d.State&0x1000 != 0 { // ODS_HOT
 				brush := gcall("CreateSolidBrush", uintptr(blendColor(t.surface, t.text, .08)))
