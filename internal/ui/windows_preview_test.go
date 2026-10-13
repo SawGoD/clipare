@@ -474,8 +474,10 @@ func TestWindowsFluentPreview(t *testing.T) {
 			t.Fatal("inline back lost pairing cancellation")
 		}
 	}
-	if len(n.helpTexts) != 4 {
-		t.Fatal("advanced help missing")
+	for _, id := range []int{40, 41, 42, 43, 144} {
+		if n.helpTexts[id] == "" {
+			t.Fatal("settings help missing", id)
+		}
 	}
 	states := []struct {
 		name string
