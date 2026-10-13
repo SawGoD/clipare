@@ -21,7 +21,7 @@ const winIcons: Record<IconName, ReactNode> = {
 
 const paths: Record<IconName, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
-  refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.7 9A7 7 0 0 1 18 6l2 1M4 17l2 1a7 7 0 0 0 12.3-3" /></>,
+  refresh: <><path d="M20 11a8 8 0 1 0-2.3 6.7" /><path d="M20 4v7h-7" /></>,
   back: <path d="m14 5-7 7 7 7M7 12h13" />,
   check: <path d="m4 12 5 5L20 6" />,
   down: <path d="m5 9 7 7 7-7" />,
