@@ -134,8 +134,7 @@ export function AdditionalSection({ snapshot, platform, perform }: Pick<SectionP
     </div>}</section>
 }
 
-export function AdvancedSection({ snapshot, platform, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'perform'>) {
-  const [expanded, setExpanded] = useState(false)
+export function AdvancedSection({ snapshot, platform, perform, expanded, onExpandedChange }: Pick<SectionProps, 'snapshot' | 'platform' | 'perform'> & { expanded: boolean; onExpandedChange(value: boolean): void }) {
   const [draft, setDraft] = useState<AdvancedSettings>(snapshot.advanced)
   const [deviceName, setDeviceName] = useState(snapshot.deviceName)
   const [code, setCode] = useState('')
@@ -144,7 +143,7 @@ export function AdvancedSection({ snapshot, platform, perform }: Pick<SectionPro
   useEffect(() => { setDeviceName(snapshot.deviceName) }, [snapshot.deviceName])
   const dirty = deviceName.trim() !== snapshot.deviceName || draft.listenAddress !== snapshot.advanced.listenAddress || draft.port !== snapshot.advanced.port
   const change = (field: keyof AdvancedSettings, value: string | number) => setDraft({ ...draft, [field]: value })
-  return <section className="disclosure technical"><button type="button" className="disclosure-trigger" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span>Расширенные параметры</span><Glyph platform={platform} name="down" /></button>
+  return <section className="disclosure technical"><button type="button" className="disclosure-trigger" aria-expanded={expanded} onClick={() => onExpandedChange(!expanded)}><span>Расширенные параметры</span><Glyph platform={platform} name="down" /></button>
     {expanded && <div className="disclosure-body"><div className="advanced-grid">
       <Field platform={platform} label="Имя устройства" value={deviceName} onChange={setDeviceName} />
       <Field platform={platform} label="Device ID" value={draft.deviceId} onChange={() => {}} disabled />

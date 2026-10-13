@@ -78,4 +78,13 @@ for (const platform of ['windows', 'macos'] as const) {
     await expect(page.getByText('Доступна версия 0.6.0-beta.5')).toBeVisible()
     await visual(page, `${platform}-update.png`)
   })
+
+  test(`${platform} settings icon opens advanced controls`, async ({ page }) => {
+    await page.goto(`/?platform=${platform}&theme=dark`)
+    const advanced = page.locator('#advanced-settings')
+    await expect(advanced.getByRole('button', { name: 'Расширенные параметры' })).toHaveAttribute('aria-expanded', 'false')
+    await page.getByRole('button', { name: 'Расширенные параметры' }).first().click()
+    await expect(advanced.getByRole('button', { name: 'Расширенные параметры' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(advanced.getByLabel('Device ID', { exact: true })).toBeVisible()
+  })
 }

@@ -75,12 +75,19 @@ func RunReactWithReady(parent context.Context, path string, log *slog.Logger, re
 	} else {
 		app.Event.OnApplicationEvent(events.Windows.SystemThemeChanged, func(*application.ApplicationEvent) { refreshAppearance() })
 	}
+	windowHeight := 760
+	if runtime.GOOS == "darwin" {
+		windowHeight = 620 // Keep the compact utility content in view without a large empty tail.
+	}
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "Clipare", Title: "Clipare", Width: 700, Height: 760, MinWidth: 520, MinHeight: 520,
+		Name: "Clipare", Title: "Clipare", Width: 700, Height: windowHeight, MinWidth: 520, MinHeight: 520,
 		BackgroundColour: application.NewRGB(36, 37, 41),
 	})
 	var activationCleanup func()
 	window.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
+		// The platform environment is not initialized before app.Run(). Read the
+		// actual appearance when the WebView first becomes visible (and on reopen).
+		refreshAppearance()
 		if activationCleanup != nil {
 			return
 		}
