@@ -35,10 +35,13 @@ func (t winTheme) buttonColors(kind int, disabled, hot, pressed bool, base uint3
 	if kind == 1 || kind == 3 {
 		fill, border, fg = t.accent, t.accent, t.onAccent
 	}
-	if kind == 2 || kind == 6 {
+	if kind == 2 || kind == 6 && (hot || pressed) {
 		fg = t.danger
 	}
-	if kind == 5 || kind == 6 {
+	if kind == 6 && !hot && !pressed {
+		fg = t.muted
+	}
+	if kind == 4 || kind == 5 || kind == 6 {
 		border = fill
 	}
 	if disabled {
@@ -50,7 +53,7 @@ func (t winTheme) buttonColors(kind int, disabled, hot, pressed bool, base uint3
 		} else if hot {
 			fill = blendColor(fill, fg, fluentHoverMix)
 		}
-		if kind == 1 || kind == 3 || kind == 5 || kind == 6 {
+		if kind == 1 || kind == 3 || kind == 4 || kind == 5 || kind == 6 {
 			border = fill
 		}
 	}
@@ -158,7 +161,7 @@ func (n *nativeDesktop) rowBackground(list uintptr, row int, selected bool) uint
 	hover, hot := n.hovered[list]
 	// Expanded rows host a native EDIT with its own background brush.
 	// Keep that surface uniform; selection is still shared with the body.
-	if list == n.historyList && row >= 0 && row < len(n.historyRows) && n.historyRows[row].expanded {
+	if list == n.historyList && row >= 0 && row < len(n.historyRows) && (n.historyRows[row].expanded || n.historyRows[row].group) {
 		hot = false
 	}
 	return n.theme.rowFill(selected, hot && hover == row)

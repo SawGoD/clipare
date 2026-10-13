@@ -377,6 +377,7 @@ func TestWindowsFluentPreview(t *testing.T) {
 	contrast.contrast = true
 	contrast.background, contrast.surface = 0, 0
 	contrast.text, contrast.muted, contrast.border = color(0xffffff), color(0xffffff), color(0xffffff)
+	contrast.online, contrast.danger = contrast.text, contrast.text
 	contrast.accent, contrast.onAccent = color(0xffff00), 0
 	n.setTheme(contrast)
 	captureWindow(t, n.home, filepath.Join(dir, "fluent-contrast.png"))

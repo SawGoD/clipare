@@ -10,7 +10,7 @@ func TestFluentVisualStates(t *testing.T) {
 		if dark {
 			theme.surface, theme.text, theme.muted = color(0x2b2b2b), color(0xf5f5f5), color(0xbcbcbc)
 		}
-		for _, kind := range []int{0, 1, 2, 3, 5, 6} {
+		for _, kind := range []int{0, 1, 2, 3, 4, 5, 6} {
 			idle, _, _ := theme.buttonColors(kind, false, false, false, theme.surface)
 			hover, _, _ := theme.buttonColors(kind, false, true, false, theme.surface)
 			pressed, _, _ := theme.buttonColors(kind, false, true, true, theme.surface)

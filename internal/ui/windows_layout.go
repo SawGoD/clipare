@@ -84,6 +84,19 @@ func (n *nativeDesktop) drawText(dc, font uintptr, text string, r winRect, fg ui
 	gcall("SelectObject", dc, old)
 }
 
+func (n *nativeDesktop) paintRow(dc uintptr, r winRect, fill uint32, px func(int) int32) {
+	call("FillRect", dc, uintptr(unsafe.Pointer(&r)), n.surfaceBrush)
+	if fill == n.theme.surface {
+		return
+	}
+	if !n.theme.contrast {
+		r.Left += px(4)
+		r.Right -= px(4)
+		r.Bottom -= px(2)
+	}
+	n.roundRect(dc, r, fill, fill, int(px(fluentControlRadius)))
+}
+
 func (n *nativeDesktop) drawItem(d drawItem) {
 	c := n.controls[d.Window]
 	dpi := int(call("GetDpiForWindow", c.parent))
@@ -238,9 +251,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	}
 	selected := d.State&1 != 0
 	fill := n.rowBackground(d.Window, int(d.Item), selected)
-	brush := gcall("CreateSolidBrush", uintptr(fill))
-	call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
-	gcall("DeleteObject", brush)
+	n.paintRow(d.DC, d.Rect, fill, px)
 	rows := n.rows[d.Window]
 	if d.Item == 0xffffffff || int(d.Item) >= len(rows) {
 		return
@@ -296,9 +307,7 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	t := n.theme
 	selected := d.State&1 != 0
 	fill := n.rowBackground(d.Window, int(d.Item), selected)
-	brush := gcall("CreateSolidBrush", uintptr(fill))
-	call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
-	gcall("DeleteObject", brush)
+	n.paintRow(d.DC, d.Rect, fill, px)
 	if d.Item == 0xffffffff || int(d.Item) >= len(n.historyRows) {
 		return
 	}

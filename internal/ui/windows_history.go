@@ -247,6 +247,9 @@ func (n *nativeDesktop) updateHistoryButtons() {
 			h := n.iconButton(label, glyph, 0, 0, 32, historyButtonBase+index)
 			c := n.controls[h]
 			c.kind = 5 // ghost: no frame, no fill until hover.
+			if kind == 3 {
+				c.kind = 6 // quiet destructive action, emphasized on interaction
+			}
 			n.controls[h] = c
 			n.historyButtons = append(n.historyButtons, h)
 		}

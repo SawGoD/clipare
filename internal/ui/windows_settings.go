@@ -72,7 +72,7 @@ func (n *nativeDesktop) layoutPreferences() {
 		y = 722 + delta
 	}
 	c := n.controls[n.advancedButton]
-	c.kind = 0
+	c.kind = 5 // settings icon is subtle until the technical section is open
 	if n.navigation.AdvancedExpanded {
 		c.kind = 1
 	}
