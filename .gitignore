@@ -62,6 +62,10 @@ GEMINI.md
 /dist/
 /internal/ui/screenshots/
 Clipare.app/
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 /config.yaml
 *.v1.backup
 *.test
