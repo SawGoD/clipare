@@ -3,7 +3,7 @@ import type { Backend, Command, Snapshot } from './types'
 
 // Only these two service methods are callable by the GUI. The Go service
 // validates the discriminated command and owns every privileged operation.
-const service = 'ui.ReactService'
+const service = 'clipare/internal/ui.ReactService'
 
 export class WailsBackend implements Backend {
   async snapshot(): Promise<Snapshot> {

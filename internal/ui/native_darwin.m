@@ -91,3 +91,11 @@ void clipare_history_rows(const char *json,const char *empty) { @autoreleasepool
 int clipare_history_enabled(void) {return desktop.historyEnable.state==NSControlStateValueOn;}
 void clipare_update_channel(int beta) { @autoreleasepool { desktop.restoringPreferences=YES;NSInteger index=beta?1:0;if(desktop.updateChannel.indexOfSelectedItem!=index)[desktop.updateChannel selectItemAtIndex:index];desktop.restoringPreferences=NO;} }
 int clipare_update_channel_beta(void) {return desktop.updateChannel.indexOfSelectedItem==1;}
+
+// Shared AppKit accent for the React host; no private API or custom theme file.
+char *clipare_react_accent(void) { @autoreleasepool {
+ NSColor *accent=[[NSColor controlAccentColor]colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
+ if(!accent)return strdup("#8b5db6");
+ NSString *hex=[NSString stringWithFormat:@"#%02X%02X%02X",(int)(accent.redComponent*255+0.5),(int)(accent.greenComponent*255+0.5),(int)(accent.blueComponent*255+0.5)];
+ return strdup(hex.UTF8String);
+} }

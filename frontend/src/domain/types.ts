@@ -46,15 +46,16 @@ export type UpdateState =
   | { kind: 'current' }
   | { kind: 'available'; version: string }
   | { kind: 'downloading'; version: string; progress?: number }
+  | { kind: 'installing'; version: string }
   | { kind: 'ready'; version: string }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; retry?: 'check' | 'install' }
 
 export interface Settings {
   autostart: boolean
   autoCheckUpdates: boolean
   updateChannel: UpdateChannel
   historyEnabled: boolean
-  historyRetention: '30m' | '2h' | '8h' | '24h' | '72h'
+  historyRetention: '30m' | '1h' | '6h' | '12h' | '24h' | '48h' | '72h'
   historyLimit: number
 }
 
@@ -103,7 +104,7 @@ export type Command =
   | { type: 'settings.updateChannel'; value: UpdateChannel }
   | { type: 'settings.historyRetention'; value: Settings['historyRetention'] }
   | { type: 'settings.historyLimit'; value: number }
-  | { type: 'settings.advanced'; value: Partial<AdvancedSettings> }
+  | { type: 'settings.advanced'; value: Partial<AdvancedSettings> & { deviceName?: string } }
   | { type: 'settings.generateLegacyKey' | 'settings.copyLegacyCode' }
   | { type: 'settings.manualPeer'; value: NonNullable<AdvancedSettings['manualPeer']> }
   | { type: 'update.check' | 'update.install' | 'update.dismiss' }

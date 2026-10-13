@@ -46,6 +46,8 @@ func run(args []string) error {
 	}
 	path := fs.String("config", defaultPath, "configuration file")
 	headless := fs.Bool("headless", false, "run without tray or settings")
+	react := fs.Bool("react-ui", false, "run the React desktop UI")
+	native := fs.Bool("native-ui", false, "use the legacy native GUI for recovery")
 	debug := fs.Bool("debug", false, "debug metadata logs")
 	ver := fs.Bool("version", false, "print version")
 	ready := fs.String("update-ready", "", "internal update startup acknowledgement")
@@ -81,7 +83,11 @@ func run(args []string) error {
 		if !guard.Primary {
 			return nil
 		}
-		return ui.RunWithReady(ctx, *path, log, func() error {
+		runGUI := ui.RunWithReady
+		if !*native && (*react || ui.HasPackagedReactUI()) {
+			runGUI = ui.RunReactWithReady
+		}
+		return runGUI(ctx, *path, log, func() error {
 			if *ready != "" {
 				return update.Acknowledge(*ready, *updateToken)
 			}
