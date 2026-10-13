@@ -156,6 +156,11 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 		gcall("LineTo", dc, uintptr(x+px(4)), uintptr(y))
 		gcall("SelectObject", dc, old)
 		gcall("DeleteObject", pen)
+	} else {
+		// NCCALCSIZE reserves text padding; paint that non-client strip too
+		// so the native edit does not leave a black seam above its contents.
+		inset := winRect{1, 1, r.Right - 1, px(4)}
+		call("FillRect", dc, uintptr(unsafe.Pointer(&inset)), n.surfaceBrush)
 	}
 	// Cover the native rectangular frame, then draw a restrained rounded outline.
 	call("FrameRect", dc, uintptr(unsafe.Pointer(&r)), n.surfaceBrush)

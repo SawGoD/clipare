@@ -537,7 +537,8 @@ func captureWindow(t *testing.T, hwnd uintptr, path string) {
 	bmp := gcall("CreateCompatibleBitmap", dc, uintptr(w), uintptr(h))
 	defer gcall("DeleteObject", bmp)
 	old := gcall("SelectObject", mem, bmp)
-	if filepath.Base(path) == "home-painted.png" {
+	painted := filepath.Base(path) == "home-painted.png" || strings.HasPrefix(filepath.Base(path), "history")
+	if painted {
 		call("RedrawWindow", hwnd, 0, 0, 0x185)
 		if gcall("BitBlt", mem, 0, 0, uintptr(w), uintptr(h), dc, 0, 0, 0x00cc0020) == 0 {
 			t.Fatal("capture of actual painted controls failed")
@@ -548,7 +549,7 @@ func captureWindow(t *testing.T, hwnd uintptr, path string) {
 	}
 	// DefWindowProc's WM_PRINT path explicitly asks for background + children;
 	// it avoids a DWM first-frame black client area in headless runners.
-	if filepath.Base(path) != "home-painted.png" {
+	if !painted {
 		call("SendMessageW", hwnd, 0x317, mem, 0x1e)
 	}
 	gcall("SelectObject", mem, old)
