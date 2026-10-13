@@ -22,19 +22,21 @@ function App() {
   const { snapshot, error, clearError, perform } = useClipare(backend)
   const [view, setView] = React.useState<View>('home')
   const pairWasShown = useRef(false)
+  const previousUpdateKind = useRef(snapshot?.update.kind)
 
   useEffect(() => {
     if (snapshot?.pairing) {
       pairWasShown.current = true
-      if (view === 'home') setView('pairing')
+      if (view !== 'pairing') setView('pairing')
     } else if (pairWasShown.current) {
       pairWasShown.current = false
       if (view === 'pairing') setView('home')
     }
   }, [snapshot?.pairing, view])
   useEffect(() => {
-    if (snapshot?.update.kind === 'available' && view === 'home') setView('updates')
-  }, [snapshot?.update.kind, view])
+    if (snapshot?.update.kind === 'available' && previousUpdateKind.current !== 'available') setView('updates')
+    previousUpdateKind.current = snapshot?.update.kind
+  }, [snapshot?.update.kind])
 
   if (!snapshot) return <main className="loading" role="status">{error || 'Открываем Clipare…'}</main>
   const open = (next: View) => {

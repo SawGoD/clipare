@@ -378,7 +378,9 @@ func (d *reactDesktop) action(c reactCommand) (queuedReactAction, error) {
 		switch c.View {
 		case "home":
 			a.view, a.setView = ViewHome, true
-			if d.view == ViewDiscovery {
+			if d.view == ViewHistory || len(d.snapshot.History) > 0 {
+				a.event = eventHistoryClose
+			} else if d.view == ViewDiscovery {
 				a.event = eventCloseDiscovery
 			} else if d.view == ViewPairing {
 				if d.snapshot.Pairing != nil && d.snapshot.Pairing.Direction == "incoming" {

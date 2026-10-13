@@ -82,6 +82,7 @@ const (
 
 	eventHistoryExpand
 	eventUpdateChannel
+	eventHistoryClose
 )
 
 type updateChannelDesktop interface {
@@ -940,6 +941,13 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					delete(expanded, id)
 				}
 				renderHistory()
+			case eventHistoryClose:
+				for id := range revealed {
+					delete(revealed, id)
+				}
+				for id := range expanded {
+					delete(expanded, id)
+				}
 			case eventHistoryCopy:
 				item, ok := selectedHistoryItem(historyRowIDs, historyItems, d.Selected())
 				if !ok {

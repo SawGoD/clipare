@@ -16,7 +16,12 @@ func (d *reactDesktop) Poll() int {
 	}
 	a := d.queue[0]
 	d.queue = d.queue[1:]
+	historyClosed := false
 	if a.setView {
+		if a.view != ViewHistory && len(d.snapshot.History) > 0 {
+			d.clearHistoryLocked()
+			historyClosed = true
+		}
 		d.view = a.view
 	}
 	if a.mutate != nil {
@@ -48,6 +53,9 @@ func (d *reactDesktop) Poll() int {
 				break
 			}
 		}
+	}
+	if historyClosed {
+		d.emitLocked()
 	}
 	return a.event
 }
@@ -131,6 +139,7 @@ func (d *reactDesktop) Discovered(lines, message string) {
 func (d *reactDesktop) Pair(title, code string, mode int) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.clearHistoryLocked()
 	direction := "outgoing"
 	name := strings.TrimPrefix(title, "Проверьте код на ")
 	if mode == 1 {
@@ -139,6 +148,10 @@ func (d *reactDesktop) Pair(title, code string, mode int) {
 	d.snapshot.Pairing = &reactPairing{Direction: direction, DeviceName: name, Code: code, AwaitingApproval: true, NeedsLocalConfirmation: mode == 2}
 	d.view = ViewPairing
 	d.emitLocked()
+}
+func (d *reactDesktop) clearHistoryLocked() {
+	d.snapshot.History = []reactHistoryEntry{}
+	d.historyIDs = nil
 }
 func (d *reactDesktop) PairClose() {
 	d.mu.Lock()
@@ -161,6 +174,7 @@ func (d *reactDesktop) UpdateEnabled() bool {
 func (d *reactDesktop) UpdatePrompt(p updatePrompt) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.clearHistoryLocked()
 	switch {
 	case p.Busy && strings.Contains(p.Text, "Проверка"):
 		d.snapshot.Update = reactUpdate{Kind: "checking"}

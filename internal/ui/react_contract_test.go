@@ -126,3 +126,25 @@ func TestReactUpdatePromptPreservesInstallRetryAndProgress(t *testing.T) {
 		t.Fatalf("retry: %+v", d.snapshot.Update)
 	}
 }
+
+func TestReactLeavingHistoryDiscardsVisibleSecret(t *testing.T) {
+	d := newReactDesktop(nil)
+	d.ShowHistory([]historyRow{{id: "secret", header: "Device · 10:45", preview: "sensitive-value", sensitive: true, revealed: true}}, false)
+	if len(d.snapshot.History) != 1 || d.snapshot.History[0].VisibleText != "sensitive-value" {
+		t.Fatal("test history not shown")
+	}
+	if err := (&ReactService{d}).Perform(reactCommand{Type: "view.open", View: "home"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Poll(); got != eventHistoryClose {
+		t.Fatalf("close event = %d", got)
+	}
+	if len((&ReactService{d}).Snapshot().History) != 0 {
+		t.Fatal("secret retained in React snapshot")
+	}
+	d.ShowHistory([]historyRow{{id: "secret", header: "Device · 10:45", preview: "sensitive-value", sensitive: true, revealed: true}}, false)
+	d.UpdatePrompt(updateOffer("0.6.0-beta.4", "0.6.0-beta.5"))
+	if len((&ReactService{d}).Snapshot().History) != 0 {
+		t.Fatal("secret retained after update interrupted history")
+	}
+}
