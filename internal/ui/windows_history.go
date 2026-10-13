@@ -284,12 +284,18 @@ func (n *nativeDesktop) positionHistoryText() {
 		call("SendMessageW", n.historyList, 0x198, uintptr(i), uintptr(unsafe.Pointer(&r)))
 		r.Top += int32(n.px(26))
 		r.Bottom -= int32(n.px(4))
-		if r.Top < 0 || r.Bottom > client.Bottom || r.Bottom <= r.Top {
+		if r.Bottom > client.Bottom {
+			r.Bottom = client.Bottom
+		}
+		if r.Top < 0 || r.Top >= client.Bottom || r.Bottom <= r.Top {
 			visible(h, false)
 			continue
 		}
 		point := struct{ X, Y int32 }{int32(n.px(16)), r.Top}
-		call("SendMessageW", h, 0x30, n.fontFor(n.home, 0), 0)
+		font := n.fontFor(n.home, 0)
+		if call("SendMessageW", h, 0x31, 0, 0) != font {
+			call("SendMessageW", h, 0x30, font, 0)
+		}
 		call("MapWindowPoints", n.historyList, n.home, uintptr(unsafe.Pointer(&point)), 1)
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(client.Right-int32(n.px(24))), uintptr(r.Bottom-r.Top), 0x10)
 		if windowText(h) != n.historyRows[i].preview {
@@ -330,7 +336,7 @@ func (n *nativeDesktop) positionHistoryButtons() {
 			continue
 		}
 		var r winRect
-		if int32(call("SendMessageW", n.historyList, 0x198, uintptr(row), uintptr(unsafe.Pointer(&r)))) < 0 || r.Top < 0 || r.Bottom > client.Bottom {
+		if int32(call("SendMessageW", n.historyList, 0x198, uintptr(row), uintptr(unsafe.Pointer(&r)))) < 0 || r.Top < 0 || r.Top+int32(n.px(33)) > client.Bottom {
 			visible(h, false)
 			continue
 		}

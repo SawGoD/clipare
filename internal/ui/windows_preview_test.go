@@ -269,6 +269,10 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("expand action is detached", expandRect, copyRect)
 	}
 	captureWindow(t, n.home, filepath.Join(dir, "history-expanded.png"))
+	n.ShowHistory([]historyRow{{group: true, header: "Сегодня", height: 30}, {id: "long", header: "Устройство", preview: longText, height: 560, truncated: true, expanded: true}}, false)
+	if call("IsWindowVisible", n.historyText[1]) == 0 || call("IsWindowVisible", n.historyButtons[historyKindsPerRow+4]) == 0 {
+		t.Fatal("partially visible expanded row lost its body or actions")
+	}
 	n.ShowHistory([]historyRow{{id: "secret", header: "Устройство", preview: "Скрыто", height: 64, sensitive: true, revealed: true}}, false)
 	if n.icons[n.historyButtons[1]] != "eye-off" {
 		t.Fatal("hidden-eye vector is not selected")
