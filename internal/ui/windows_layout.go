@@ -110,10 +110,10 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 	}
 	if d.Type == 3 {
 		fill, fg := t.surface, t.text
-		if d.State&1 != 0 {
+		if d.State&1 != 0 && d.State&0x1000 == 0 { // ODS_COMBOBOXEDIT: never highlight closed value
 			fill = blendColor(t.surface, t.accent, .14)
 		}
-		if t.contrast && d.State&1 != 0 {
+		if t.contrast && d.State&1 != 0 && d.State&0x1000 == 0 {
 			fill, fg = t.accent, t.onAccent
 		}
 		brush := gcall("CreateSolidBrush", uintptr(fill))
@@ -127,6 +127,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 				r := d.Rect
 				r.Left += px(10)
 				r.Right -= px(10)
+				r.Top += px(2)
 				n.drawText(d.DC, n.fontFor(c.parent, 0), syscall.UTF16ToString(text), r, fg, 0x8024)
 			}
 		}
@@ -144,7 +145,19 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			fill, border, fg = t.surface, t.border, t.muted
 		}
 		if c.kind == 5 || c.kind == 6 { // ghost row actions: card-colored, no frame.
-			call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), n.surfaceBrush)
+			fill = t.surface
+			if id := int(call("GetDlgCtrlID", d.Window)); id >= historyButtonBase && id < historyButtonBase+len(n.historyButtons) {
+				selected := int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0)))
+				if (id-historyButtonBase)/historyKindsPerRow == selected {
+					fill = blendColor(t.surface, t.accent, .13)
+					if t.contrast {
+						fill, fg = t.accent, t.onAccent
+					}
+				}
+			}
+			brush := gcall("CreateSolidBrush", uintptr(fill))
+			call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
+			gcall("DeleteObject", brush)
 			if d.State&4 != 0 {
 				fg = t.muted
 			} else if c.kind == 6 {
@@ -159,7 +172,11 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			if label == "" {
 				label = windowText(d.Window)
 			}
-			n.drawText(d.DC, n.fontFor(c.parent, 5), label, d.Rect, fg, 0x25)
+			if label == "eye-off" {
+				n.drawHiddenEye(d.DC, d.Rect, fg, px)
+			} else {
+				n.drawText(d.DC, n.fontFor(c.parent, 5), label, d.Rect, fg, 0x25)
+			}
 			if d.State&0x10 != 0 && n.keyboardFocusVisible() {
 				call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
 			}
@@ -300,7 +317,7 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	}
 	r := d.Rect
 	r.Left += px(16)
-	r.Right -= px(150) // keep clear of the per-row icon actions
+	r.Right -= px(8)
 	if row.group {
 		// Center the label within the compact group row deterministically.
 		lineH := px(18)
@@ -309,6 +326,7 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 		return
 	}
 	headerRect := r
+	headerRect.Right -= px(196) // action strip only overlaps the header, never the body
 	headerRect.Top += px(8)
 	headerRect.Bottom = headerRect.Top + px(18)
 	n.drawText(d.DC, n.fontFor(n.home, 4), row.header, headerRect, muted, 0x8020)
@@ -320,7 +338,9 @@ func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	previewRect.Top += px(26)
 	previewRect.Bottom = d.Rect.Bottom - px(4)
 	// Word wrap over two lines; DT_END_ELLIPSIS cuts the last line.
-	n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x8010)
+	if !row.expanded {
+		n.drawText(d.DC, n.fontFor(n.home, 0), row.preview, previewRect, previewColor, 0x8010)
+	}
 	if d.State&0x10 != 0 && n.keyboardFocusVisible() {
 		call("DrawFocusRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)))
 	}
@@ -386,6 +406,9 @@ func (n *nativeDesktop) layoutControls(hwnd uintptr) {
 		if id := call("GetDlgCtrlID", h); id >= historyButtonBase && id < historyButtonBase+uintptr(len(n.historyButtons)) {
 			continue
 		}
+		if c.kind == 7 {
+			continue
+		} // positioned inside its expanded history row
 		r := n.scaledRect(hwnd, c.bounds)
 		r.Left -= window.scrollX
 		r.Right -= window.scrollX

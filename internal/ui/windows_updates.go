@@ -16,7 +16,7 @@ func (n *nativeDesktop) installUpdateChannel() {
 		before[h] = true
 	}
 	n.label("Канал обновлений", 292, 552, 116)
-	n.updateChannel = n.control("COMBOBOX", "", 0x00210252, 412, 548, 116, 160, updateChannelID)
+	n.updateChannel = n.control("COMBOBOX", "", 0x00210253, 412, 548, 116, 160, updateChannelID)
 	n.styleCombo(n.updateChannel)
 	for _, label := range []string{"Стабильные", "Бета"} {
 		call("SendMessageW", n.updateChannel, 0x143, 0, uintptr(unsafe.Pointer(wide(label))))

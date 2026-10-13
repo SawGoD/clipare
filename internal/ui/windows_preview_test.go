@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -250,6 +251,33 @@ func TestWindowsFluentPreview(t *testing.T) {
 		t.Fatal("wrong history action", n.Selected(), n.events)
 	}
 	n.events = nil
+	// Long entries must not overflow LB_SETITEMHEIGHT's 255 physical-pixel
+	// limit. The full body remains available in a native scrolling text view.
+	longText := "Первая строка\n" + strings.Repeat("Длинный текст для проверки раскрытия\n", 40)
+	n.ShowHistory([]historyRow{{id: "long", header: "Устройство", preview: longText, height: 560, truncated: true, expanded: true}}, false)
+	height := call("SendMessageW", n.historyList, 0x1a1, 0, 0)
+	if height > 255 || height <= n.px(historyRowHeight) {
+		t.Fatal("expanded item has invalid native height", height)
+	}
+	if len(n.historyText) == 0 || call("IsWindowVisible", n.historyText[0]) == 0 || windowText(n.historyText[0]) != longText {
+		t.Fatal("expanded body is missing or truncated")
+	}
+	var expandRect, copyRect winRect
+	call("GetWindowRect", n.historyButtons[4], uintptr(unsafe.Pointer(&expandRect)))
+	call("GetWindowRect", n.historyButtons[0], uintptr(unsafe.Pointer(&copyRect)))
+	if copyRect.Left-expandRect.Right > int32(n.px(8)) || copyRect.Top != expandRect.Top {
+		t.Fatal("expand action is detached", expandRect, copyRect)
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "history-expanded.png"))
+	n.ShowHistory([]historyRow{{id: "secret", header: "Устройство", preview: "Скрыто", height: 64, sensitive: true, revealed: true}}, false)
+	if n.icons[n.historyButtons[1]] != "eye-off" {
+		t.Fatal("hidden-eye vector is not selected")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "history-secret.png"))
+	n.ShowHistory([]historyRow{{id: "long", header: "Устройство", preview: "Тест", height: 64, truncated: true}}, false)
+	if call("IsWindowVisible", n.historyText[0]) != 0 {
+		t.Fatal("collapsed body is still visible")
+	}
 	captureWindow(t, n.home, filepath.Join(dir, "history.png"))
 	n.navigate(ViewHome)
 	captureWindow(t, n.home, filepath.Join(dir, "home-painted.png"))

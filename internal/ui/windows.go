@@ -67,7 +67,7 @@ type nativeDesktop struct {
 	foundList, foundStatus, pairName, pairCode, pairHelp, pairAllow, pairReject        uintptr
 	pairIncoming                                                                       bool
 	theme                                                                              winTheme
-	surfaceBrush, backgroundBrush                                                      uintptr
+	surfaceBrush, backgroundBrush, historySelectionBrush                               uintptr
 	windows                                                                            map[uintptr]winWindow
 	controls                                                                           map[uintptr]winControl
 	fonts                                                                              map[[2]int]uintptr
@@ -104,6 +104,7 @@ type nativeDesktop struct {
 	historyControls, historySettings                                                   []uintptr
 	historyBase                                                                        map[uintptr]int
 	historyButtons                                                                     []uintptr
+	historyText                                                                        []uintptr
 	historyRows                                                                        []historyRow
 	historyOpen, historyListCallback                                                   uintptr
 	updateChannel                                                                      uintptr
@@ -216,6 +217,7 @@ func (n *nativeDesktop) Init() error {
 				if w>>16 == 0 { // BN_CLICKED, not focus notifications.
 					index := id - 9400
 					call("SendMessageW", n.historyList, 0x186, uintptr(index/historyKindsPerRow), 0)
+					n.positionHistoryButtons()
 					n.historyRowAction(index/historyKindsPerRow, index%historyKindsPerRow)
 				}
 				return 0
@@ -276,6 +278,9 @@ func (n *nativeDesktop) Init() error {
 			}
 			if id == 120 && w>>16 == 1 {
 				n.events = append(n.events, eventSelect)
+			} else if id == historyListID && w>>16 == 1 {
+				n.positionHistoryButtons()
+				n.positionHistoryText()
 			} else if id >= 1 && id <= eventUpdateChannel && w>>16 == 0 {
 				n.events = append(n.events, id)
 			}
@@ -336,8 +341,8 @@ func (n *nativeDesktop) installHome(class *uint16) {
 	n.button("Применить", 384, 116, 144, eventDeviceName)
 	n.homeStatus = n.control("STATIC", "Ожидание NetBird", 0x4000, 60, 158, 304, 22, 0)
 	n.statusDot = n.control("STATIC", "", 13, 40, 158, 12, 22, 0)
-	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 152, 104, 32, eventPause)
-	n.advancedButton = n.iconButton(advancedTitle, "\ue713", 492, 152, 36, 30)
+	n.pauseButton = n.control("BUTTON", "Пауза", 0x10000, 384, 12, 104, 32, eventPause)
+	n.advancedButton = n.iconButton(advancedTitle, "\ue713", 492, 12, 36, 30)
 	n.devicesHeader = n.heading(devicesTitle, 40, 224, 360, 2)
 	n.historyOpen = n.iconButton("История буфера обмена", "\ue81c", 492, 220, 36, eventHistoryOpen)
 	n.homeList = n.deviceList(40, 264, 488, 120, 120)
@@ -622,7 +627,7 @@ func (n *nativeDesktop) Close() {
 	for _, font := range n.fonts {
 		gcall("DeleteObject", font)
 	}
-	for _, brush := range []uintptr{n.surfaceBrush, n.backgroundBrush} {
+	for _, brush := range []uintptr{n.surfaceBrush, n.backgroundBrush, n.historySelectionBrush} {
 		if brush != 0 {
 			gcall("DeleteObject", brush)
 		}

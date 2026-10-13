@@ -74,13 +74,18 @@ func (n *nativeDesktop) applyTheme() {
 
 func (n *nativeDesktop) setTheme(t winTheme) {
 	n.theme = t
-	for _, b := range []uintptr{n.surfaceBrush, n.backgroundBrush} {
+	for _, b := range []uintptr{n.surfaceBrush, n.backgroundBrush, n.historySelectionBrush} {
 		if b != 0 {
 			gcall("DeleteObject", b)
 		}
 	}
 	n.surfaceBrush = gcall("CreateSolidBrush", uintptr(n.theme.surface))
 	n.backgroundBrush = gcall("CreateSolidBrush", uintptr(n.theme.background))
+	selection := blendColor(t.surface, t.accent, .13)
+	if t.contrast {
+		selection = t.accent
+	}
+	n.historySelectionBrush = gcall("CreateSolidBrush", uintptr(selection))
 	for hwnd := range n.windows {
 		dark := int32(0)
 		if n.theme.dark && !n.theme.contrast {
@@ -214,6 +219,13 @@ func (n *nativeDesktop) themeMessage(hwnd uintptr, msg uint32, w, l uintptr) (ui
 		}
 		if c.class == "EDIT" || c.class == "COMBOBOX" || c.class == "LISTBOX" {
 			brush, bg = n.surfaceBrush, n.theme.surface
+		}
+		if c.kind == 7 && int(call("GetDlgCtrlID", l))-9700 == int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0))) {
+			brush, bg = n.historySelectionBrush, blendColor(n.theme.surface, n.theme.accent, .13)
+			if n.theme.contrast {
+				bg = n.theme.accent
+				gcall("SetTextColor", w, uintptr(n.theme.onAccent))
+			}
 		}
 		gcall("SetBkColor", w, uintptr(bg))
 		return brush, true

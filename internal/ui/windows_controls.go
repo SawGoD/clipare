@@ -42,7 +42,18 @@ func (n *nativeDesktop) styleControl(h uintptr) {
 				comctl.NewProc("RemoveWindowSubclass").Call(h, n.controlCallback, 1)
 			}
 			r, _, _ := comctl.NewProc("DefSubclassProc").Call(h, uintptr(msg), w, l)
-			if !check && (msg == 0xf || msg == 0x85 || msg == 0x317 || msg == 0x318) {
+			if msg == 0x83 && c.class == "EDIT" && c.kind != 7 { // WM_NCCALCSIZE
+				// Reserve a small top inset without replacing native text editing.
+				var rect winRect
+				k32.NewProc("RtlMoveMemory").Call(uintptr(unsafe.Pointer(&rect)), l, unsafe.Sizeof(rect))
+				dpi := call("GetDpiForWindow", h)
+				if dpi == 0 {
+					dpi = 96
+				}
+				rect.Top += int32(2 * dpi / 96)
+				k32.NewProc("RtlMoveMemory").Call(l, uintptr(unsafe.Pointer(&rect)), unsafe.Sizeof(rect))
+			}
+			if !check && c.kind != 7 && (msg == 0xf || msg == 0x85 || msg == 0x317 || msg == 0x318) {
 				dc := uintptr(0)
 				if msg == 0x317 || msg == 0x318 {
 					dc = w
@@ -57,6 +68,24 @@ func (n *nativeDesktop) styleControl(h uintptr) {
 		})
 	}
 	comctl.NewProc("SetWindowSubclass").Call(h, n.controlCallback, 1, 0)
+	if n.controls[h].class == "EDIT" {
+		call("SetWindowPos", h, 0, 0, 0, 0, 0, 0x37) // recalculate native text inset
+	}
+}
+
+// Draw a crossed-out eye with GDI paths, independent of the installed icon font.
+func (n *nativeDesktop) drawHiddenEye(dc uintptr, r winRect, color uint32, px func(int) int32) {
+	x, y := (r.Left+r.Right)/2, (r.Top+r.Bottom)/2
+	pen := gcall("CreatePen", 0, uintptr(px(1)), uintptr(color))
+	oldPen := gcall("SelectObject", dc, pen)
+	oldBrush := gcall("SelectObject", dc, gcall("GetStockObject", 5))
+	gcall("Ellipse", dc, uintptr(x-px(9)), uintptr(y-px(5)), uintptr(x+px(9)), uintptr(y+px(5)))
+	gcall("Ellipse", dc, uintptr(x-px(2)), uintptr(y-px(2)), uintptr(x+px(2)), uintptr(y+px(2)))
+	gcall("MoveToEx", dc, uintptr(x-px(8)), uintptr(y-px(8)), 0)
+	gcall("LineTo", dc, uintptr(x+px(8)), uintptr(y+px(8)))
+	gcall("SelectObject", dc, oldBrush)
+	gcall("SelectObject", dc, oldPen)
+	gcall("DeleteObject", pen)
 }
 
 func (n *nativeDesktop) paintCheckbox(h, dc uintptr) {

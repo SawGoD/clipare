@@ -18,11 +18,13 @@ func (n *nativeDesktop) styleCombo(h uintptr) {
 		return
 	}
 	// The editable child is still native; remove its independent sunken frame.
-	style := call("GetWindowLongPtrW", info.Edit, ^uintptr(15))
-	call("SetWindowLongPtrW", info.Edit, ^uintptr(15), style&^0x00800000)
-	extended := call("GetWindowLongPtrW", info.Edit, ^uintptr(19))
-	call("SetWindowLongPtrW", info.Edit, ^uintptr(19), extended&^0x200)
-	call("SetWindowPos", info.Edit, 0, 0, 0, 0, 0, 0x37)
+	if call("GetWindowLongPtrW", h, ^uintptr(15))&3 != 3 {
+		style := call("GetWindowLongPtrW", info.Edit, ^uintptr(15))
+		call("SetWindowLongPtrW", info.Edit, ^uintptr(15), style&^0x00800000)
+		extended := call("GetWindowLongPtrW", info.Edit, ^uintptr(19))
+		call("SetWindowLongPtrW", info.Edit, ^uintptr(19), extended&^0x200)
+		call("SetWindowPos", info.Edit, 0, 0, 0, 0, 0, 0x37)
+	}
 	call("SendMessageW", h, 0x153, ^uintptr(0), uintptr(n.scaledRect(n.window, logicalRect{h: 26}).Bottom))
 	call("SendMessageW", h, 0x153, 0, uintptr(n.scaledRect(n.window, logicalRect{h: 32}).Bottom))
 	n.controls[info.List] = winControl{class: "COMBOLIST"}
