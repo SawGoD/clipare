@@ -148,7 +148,7 @@ func (n *nativeDesktop) selectRetention(duration string) {
 		call("SendMessageW", n.historyRetention, 0x14E, ^uintptr(0), 0) // CB_SETCURSEL -1
 		return
 	}
-	call("SendMessageW", n.historyRetention, 0x146, ^uintptr(0), uintptr(unsafe.Pointer(wide(label)))) // CB_SELECTSTRING over the whole list
+	call("SendMessageW", n.historyRetention, 0x14D, ^uintptr(0), uintptr(unsafe.Pointer(wide(label)))) // CB_SELECTSTRING over the whole list
 }
 
 func intLabel(v int) string {
