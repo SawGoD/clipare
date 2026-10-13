@@ -1,0 +1,99 @@
+.mac-app { --page: #f3f3f6; --surface: rgba(255,255,255,.82); --text: #232329; --muted: #6e7078; --stroke: rgba(54,57,68,.13); --hover: rgba(0,0,0,.045); --focus: var(--accent); min-height: calc(100vh - 43px); background: var(--page); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
+.mac-app.dark { --page: #292a2e; --surface: rgba(58,59,63,.84); --text: #f4f4f7; --muted: #b5b5bd; --stroke: rgba(255,255,255,.12); --hover: rgba(255,255,255,.08); }
+.mac-app .mac-shell { width: min(100%, 660px); margin: 0 auto; padding: 32px 27px 24px; display: grid; gap: 18px; }
+.mac-app .app-header { display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
+.mac-app .brand, .mac-app .header-actions, .mac-app .section-heading, .mac-app .flow-actions, .mac-app .row-actions { display: flex; align-items: center; gap: 10px; }
+.mac-app .brand-mark { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: var(--accent); border-radius: 8px; color: white; font-weight: bold; }
+.mac-app .brand-mark span { display: inline-block; width: 2px; height: 13px; background: currentColor; border-radius: 2px; transform: rotate(35deg); }
+.mac-app .brand-mark span + span { transform: rotate(-35deg); margin-left: 4px; }
+.mac-app h1 { font-size: 24px; letter-spacing: -.55px; margin: 0; font-weight: 650; }
+.mac-app h2 { font-size: 16px; font-weight: 620; margin: 0; }
+.mac-app .surface { background: var(--surface); border: 1px solid var(--stroke); border-radius: 16px; padding: 20px 22px; box-shadow: 0 6px 28px rgba(0,0,0,.035); }
+.mac-app .self-surface { padding: 18px 22px; }
+.mac-app .mac-self-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.mac-app .mac-self-top small { display: block; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .04em; margin-bottom: 4px; }
+.mac-app .mac-self-top h2 { font-size: 21px; }
+.mac-app .sync-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; color: var(--muted); }
+.mac-app .status-reason { margin: 9px 0 0; font-size: 12px; color: var(--muted); }
+.mac-app .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3ca75c; }
+.mac-app .sync-status.disabled .status-dot { background: #d34b53; }
+.mac-app .sync-status.degraded .status-dot { background: #d48b26; }
+.mac-app .section-heading { margin-bottom: 12px; }
+.mac-app .section-heading h2 { flex: 1; }
+.mac-app .action { min-height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--stroke); border-radius: 8px; background: color-mix(in srgb, var(--surface) 90%, var(--text)); color: var(--text); font-size: 13px; font-weight: 550; }
+.mac-app .action:hover:not(:disabled) { background: var(--hover); }
+.mac-app .action:active:not(:disabled) { transform: translateY(1px); }
+.mac-app .action.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mac-app .action.primary:hover:not(:disabled) { filter: brightness(.94); }
+.mac-app .action.subtle { border-color: transparent; background: transparent; padding: 5px 7px; }
+.mac-app .action.danger, .mac-app .delete-action:hover { color: #c03942; }
+.mac-app .action:disabled { opacity: .42; }
+.mac-app .device-list, .mac-app .discovered-list { display: grid; margin-bottom: 15px; border: 1px solid var(--stroke); border-radius: 10px; overflow: hidden; }
+.mac-app .device-row, .mac-app .discovered-row { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 12px; }
+.mac-app .device-row + .device-row, .mac-app .discovered-row + .discovered-row { border-top: 1px solid var(--stroke); }
+.mac-app .device-row:hover, .mac-app .discovered-row:hover, .mac-app .history-row:hover { background: var(--hover); }
+.mac-app .device-platform { color: var(--muted); }
+.mac-app .device-copy, .mac-app .discovered-row > div { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.mac-app .device-copy strong, .mac-app .discovered-row strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 550; }
+.mac-app .device-copy small, .mac-app .discovered-row small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.mac-app .peer-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9698a0; }
+.mac-app [data-online=true] .peer-dot { background: #3ca75c; }
+.mac-app .delete-action { color: var(--muted); }
+.mac-app .row-confirm { display: flex; align-items: center; gap: 5px; }
+.mac-app .empty-devices { min-height: 153px; display: grid; place-content: center; justify-items: center; gap: 11px; color: var(--muted); }
+.mac-app .big-add { width: 58px; height: 58px; border-radius: 50%; padding: 0; }
+.mac-app .big-add svg { width: 25px; height: 25px; }
+.mac-app .flow-content, .mac-app .pair-flow { display: grid; gap: 12px; }
+.mac-app .flow-empty { display: grid; place-content: center; justify-items: center; gap: 7px; text-align: center; min-height: 135px; color: var(--muted); }
+.mac-app .flow-empty strong { color: var(--text); }
+.mac-app p { margin: 0; }
+.mac-app .hint { color: var(--muted); font-size: 13px; }
+.mac-app .flow-actions { margin-top: 6px; }
+.mac-app .manual-fallback { border-top: 1px solid var(--stroke); padding-top: 12px; color: var(--muted); }
+.mac-app .inline-form { display: flex; align-items: end; gap: 10px; }
+.mac-app .inline-form .field { flex: 1; }
+.mac-app .sas-card { display: grid; justify-items: center; gap: 6px; border: 1px solid var(--stroke); background: var(--hover); border-radius: 12px; padding: 18px; }
+.mac-app .sas-card small { color: var(--muted); }
+.mac-app .sas-card strong { font-size: 39px; letter-spacing: 5px; font-variant-numeric: tabular-nums; }
+.mac-app .history-list { max-height: 370px; overflow-y: auto; }
+.mac-app .history-group { color: var(--muted); font-size: 11px; text-align: center; padding: 12px 0 6px; }
+.mac-app .history-row { border-radius: 9px; padding: 7px 11px; }
+.mac-app .history-row-top { display: flex; align-items: center; justify-content: space-between; }
+.mac-app .history-row-top small { color: var(--muted); font-size: 11px; }
+.mac-app .row-actions { gap: 2px; }
+.mac-app .history-text { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.mac-app .history-text.expanded { display: block; max-height: 210px; overflow: auto; white-space: pre-wrap; }
+.mac-app .mac-preferences { display: grid; gap: 1px; border-radius: 13px; border: 1px solid var(--stroke); overflow: hidden; background: var(--surface); }
+.mac-app .disclosure + #advanced-settings, .mac-app #advanced-settings { border-top: 1px solid var(--stroke); }
+.mac-app .disclosure-trigger { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; padding: 14px 18px; background: transparent; color: var(--text); text-align: left; font-weight: 550; }
+.mac-app .disclosure-trigger:hover { background: var(--hover); }
+.mac-app .disclosure-trigger svg { width: 16px; height: 16px; color: var(--muted); }
+.mac-app .disclosure-trigger[aria-expanded=true] svg { transform: rotate(180deg); }
+.mac-app .disclosure-body { padding: 0 18px 16px; display: grid; gap: 13px; }
+.mac-app .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 29px; position: relative; }
+.mac-app .toggle-row input { position: absolute; right: 0; opacity: 0; width: 42px; height: 25px; cursor: pointer; }
+.mac-app .switch-track { width: 41px; height: 24px; border-radius: 30px; background: #c4c4ca; padding: 3px; transition: background .12s; }
+.mac-app .switch-track::after { content: ''; display: block; height: 18px; width: 18px; border-radius: 50%; background: white; box-shadow: 0 1px 3px #0003; transition: transform .12s; }
+.mac-app .toggle-row input:checked + .switch-track { background: var(--accent); }
+.mac-app .toggle-row input:checked + .switch-track::after { transform: translateX(17px); }
+.mac-app .toggle-row input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mac-app .settings-inline, .mac-app .advanced-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: end; }
+.mac-app .settings-inline > label:first-child { align-self: center; }
+.mac-app .field { min-width: 0; display: grid; gap: 5px; font-size: 12px; }
+.mac-app .field > span { color: var(--muted); }
+.mac-app .field > input, .mac-app .field > select { width: 100%; min-height: 30px; background: color-mix(in srgb, var(--surface) 93%, var(--text)); border: 1px solid var(--stroke); border-radius: 7px; padding: 5px 8px; color: var(--text); }
+.mac-app .technical-note, .mac-app .technical-divider small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.mac-app .technical-divider { display: flex; align-items: baseline; gap: 8px; justify-content: space-between; border-top: 1px solid var(--stroke); padding-top: 12px; }
+.mac-app .technical-divider span { font-weight: 550; }
+.mac-app .legacy-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mac-app .legacy-row span { flex: 1; }
+.mac-app .manual-grid { border-top: 1px solid var(--stroke); padding-top: 12px; }
+.mac-app .update-content { display: grid; justify-items: start; align-content: center; min-height: 150px; gap: 12px; }
+.mac-app .update-content strong { font-size: 16px; }
+.mac-app .update-content p { color: var(--muted); }
+.mac-app .update-content progress { width: 100%; accent-color: var(--accent); }
+.mac-app .app-footer { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; padding: 0 9px; }
+.mac-app .notice-banner { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); border-radius: 9px; padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; }
+@media (max-width: 560px) { .mac-app .mac-shell { padding: 18px 14px; gap: 13px; } .mac-app .settings-inline, .mac-app .advanced-grid { grid-template-columns: 1fr; gap: 9px; } .mac-app .inline-form { flex-wrap: wrap; } .mac-app .mac-self-top { align-items: start; flex-direction: column; gap: 8px; } }
+@media (prefers-reduced-transparency: reduce) { .mac-app { --surface: #fff; } .mac-app.dark { --surface: #3a3b3f; } }
+@media (prefers-reduced-motion: reduce) { .mac-app .switch-track, .mac-app .switch-track::after { transition: none; } }

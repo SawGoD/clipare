@@ -1,0 +1,83 @@
+.win-app { --page: #f3f3f3; --surface: #fff; --text: #242424; --muted: #646464; --stroke: #dedede; --hover: #f4f4f4; --selection: color-mix(in srgb, var(--accent) 12%, var(--surface)); --focus: var(--accent); min-height: calc(100vh - 43px); background: var(--page); color: var(--text); font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.42; }
+.win-app.dark { --page: #202020; --surface: #2b2b2b; --text: #f5f5f5; --muted: #bbb; --stroke: #424242; --hover: #353535; }
+.win-app .win-shell { width: min(100%, 640px); margin: 0 auto; padding: 26px 26px 20px; display: flex; flex-direction: column; gap: 16px; }
+.win-app .app-header { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 2px; }
+.win-app h1 { font-size: 24px; line-height: 1.2; font-weight: 600; margin: 0; letter-spacing: -.3px; }
+.win-app h2 { font-size: 16px; line-height: 1.25; font-weight: 600; margin: 0; }
+.win-app .header-actions, .win-app .section-heading, .win-app .flow-actions, .win-app .row-actions { display: flex; align-items: center; gap: 8px; }
+.win-app .section-heading { margin-bottom: 14px; }
+.win-app .section-heading h2 { flex: 1; }
+.win-app .surface { background: var(--surface); border: 1px solid var(--stroke); border-radius: 10px; padding: 20px; }
+.win-app .self-surface { display: grid; gap: 10px; }
+.win-app .self-name { background: color-mix(in srgb, var(--surface) 96%, var(--text)); border: 1px solid var(--stroke); border-radius: 5px; padding: 7px 11px; font-weight: 600; }
+.win-app .sync-status { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.win-app .sync-status small { color: var(--muted); }
+.win-app .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #39865a; }
+.win-app .sync-status.disabled .status-dot { background: #c4313b; }
+.win-app .sync-status.degraded .status-dot { background: #c77600; }
+.win-app .device-list, .win-app .discovered-list { display: grid; gap: 2px; margin: 2px 0 14px; }
+.win-app .device-row { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 6px; min-height: 58px; }
+.win-app .device-row:hover, .win-app .history-row:hover { background: var(--hover); }
+.win-app .device-row + .device-row { border-top: 1px solid color-mix(in srgb, var(--stroke) 65%, transparent); }
+.win-app .device-platform { width: 24px; color: var(--muted); }
+.win-app .device-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.win-app .device-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.win-app .device-copy small, .win-app .discovered-row small { color: var(--muted); display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.win-app .peer-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9a9a9a; }
+.win-app [data-online=true] .peer-dot { background: #39865a; }
+.win-app .delete-action { color: var(--muted); }
+.win-app .delete-action:hover { color: #c4313b; }
+.win-app .row-confirm { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.win-app .empty-devices { min-height: 168px; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--muted); }
+.win-app .big-add { min-width: 62px; min-height: 62px; border-radius: 50%; }
+.win-app .big-add svg { width: 26px; height: 26px; }
+.win-app .discovered-row { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-radius: 6px; }
+.win-app .discovered-row:hover { background: var(--hover); }
+.win-app .discovered-row > div { flex: 1; display: grid; }
+.win-app .flow-empty { min-height: 142px; display: grid; place-content: center; justify-items: center; gap: 7px; text-align: center; color: var(--muted); }
+.win-app .flow-empty strong { color: var(--text); font-weight: 600; }
+.win-app p { margin: 0; }
+.win-app .hint { color: var(--muted); font-size: 13px; }
+.win-app .flow-actions { margin-top: 16px; flex-wrap: wrap; }
+.win-app .manual-fallback { border-top: 1px solid var(--stroke); margin-top: 20px; padding-top: 16px; color: var(--muted); font-size: 13px; }
+.win-app .inline-form { display: flex; align-items: end; gap: 10px; margin-top: 10px; }
+.win-app .inline-form .field { flex: 1; }
+.win-app .pair-flow { display: grid; gap: 14px; }
+.win-app .sas-card { border-radius: 8px; background: var(--hover); padding: 16px; display: grid; justify-items: center; gap: 4px; }
+.win-app .sas-card strong { font-size: 38px; font-weight: 600; letter-spacing: 4px; font-variant-numeric: tabular-nums; }
+.win-app .sas-card small { color: var(--muted); }
+.win-app .history-list { max-height: 366px; overflow-y: auto; padding-right: 3px; }
+.win-app .history-group { color: var(--muted); text-align: center; font-size: 11px; padding: 10px 0 6px; }
+.win-app .history-row { border-radius: 6px; padding: 8px 11px; min-height: 55px; }
+.win-app .history-row-top { display: flex; align-items: center; justify-content: space-between; min-height: 28px; }
+.win-app .history-row-top small { color: var(--muted); font-size: 11px; }
+.win-app .row-actions { gap: 1px; }
+.win-app .history-text { margin: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.win-app .history-text.expanded { display: block; max-height: 210px; overflow: auto; white-space: pre-wrap; }
+.win-app .disclosure { background: var(--surface); border: 1px solid var(--stroke); border-radius: 9px; overflow: hidden; }
+.win-app .disclosure-trigger { display: flex; width: 100%; align-items: center; justify-content: space-between; color: var(--text); background: transparent; border: 0; padding: 11px 15px; font-weight: 500; text-align: left; }
+.win-app .disclosure-trigger:hover { background: var(--hover); }
+.win-app .disclosure-trigger[aria-expanded=true] svg { transform: rotate(180deg); }
+.win-app .disclosure-body { border-top: 1px solid var(--stroke); padding: 14px 16px 16px; display: grid; gap: 13px; }
+.win-app .settings-inline, .win-app .advanced-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: end; }
+.win-app .settings-inline > label:first-child { align-self: center; }
+.win-app .field { min-width: 0; display: grid; gap: 5px; color: var(--text); font-size: 12px; }
+.win-app .field > span { font-weight: 500; }
+.win-app .field > input, .win-app .field > select { width: 100%; min-height: 31px; border-radius: 5px; background: var(--surface); border: 1px solid var(--stroke); color: var(--text); padding: 5px 9px; }
+.win-app .field > div { width: 100%; }
+.win-app .technical-note, .win-app .technical-divider small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.win-app .technical-divider { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-top: 1px solid var(--stroke); padding-top: 12px; }
+.win-app .technical-divider span { font-weight: 600; }
+.win-app .legacy-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.win-app .legacy-row > span { flex: 1; }
+.win-app .manual-grid { border-top: 1px solid var(--stroke); padding-top: 12px; }
+.win-app .update-content { display: grid; justify-items: start; gap: 12px; min-height: 140px; align-content: center; }
+.win-app .update-content strong { font-size: 16px; }
+.win-app .update-content p { color: var(--muted); }
+.win-app .update-content progress { width: 100%; accent-color: var(--accent); }
+.win-app .app-footer { display: flex; align-items: center; justify-content: space-between; color: var(--muted); padding: 0 4px; font-size: 12px; }
+.win-app .notice-banner { display: flex; justify-content: space-between; align-items: center; background: var(--selection); padding: 9px 12px; border-radius: 7px; }
+.win-app .action.danger { color: #b4232a; }
+.win-app.dark .action.danger { color: #ffadb0; }
+@media (max-width: 560px) { .win-app .win-shell { padding: 14px; gap: 12px; } .win-app .settings-inline, .win-app .advanced-grid { grid-template-columns: 1fr; gap: 10px; } .win-app .inline-form { flex-wrap: wrap; } }
+@media (forced-colors: active) { .win-app { --page: Canvas; --surface: Canvas; --text: CanvasText; --muted: CanvasText; --stroke: CanvasText; --hover: Highlight; } .win-app .device-row:hover { color: HighlightText; } .win-app .peer-dot, .win-app .status-dot { background: CanvasText; } }
