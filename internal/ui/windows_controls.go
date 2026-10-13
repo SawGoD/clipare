@@ -18,8 +18,8 @@ func (n *nativeDesktop) styleControl(h uintptr) {
 			check := c.class == "BUTTON"
 			if c.class == "COMBOBOX" && (msg == 0x133 || msg == 0x134) {
 				gcall("SetTextColor", w, uintptr(n.theme.text))
-				gcall("SetBkColor", w, uintptr(n.theme.surface))
-				return n.surfaceBrush
+				gcall("SetBkColor", w, uintptr(n.theme.inputFill()))
+				return n.inputBrush
 			}
 			if check && (msg == 0xf || msg == 0x318) {
 				if msg == 0x318 {
@@ -104,13 +104,23 @@ func (n *nativeDesktop) paintCheckbox(h, dc uintptr) {
 	if checked {
 		fill, border = t.accent, t.accent
 	}
+	if n.isHovered(h) && !t.contrast {
+		fill = blendColor(fill, t.text, fluentHoverMix)
+	}
+	if call("SendMessageW", h, 0xf2, 0, 0)&4 != 0 && !t.contrast {
+		fill = blendColor(fill, t.text, fluentPressedMix)
+	}
 	if call("IsWindowEnabled", h) == 0 {
 		fg, border, fill = t.muted, t.muted, t.surface
 	}
 	box := winRect{px(2), (r.Bottom - px(18)) / 2, px(20), (r.Bottom + px(18)) / 2}
 	n.roundRect(dc, box, fill, border, int(px(4)))
 	if checked {
-		pen := gcall("CreatePen", 0, uintptr(px(2)), uintptr(t.onAccent))
+		checkColor := t.onAccent
+		if call("IsWindowEnabled", h) == 0 {
+			checkColor = t.muted
+		}
+		pen := gcall("CreatePen", 0, uintptr(px(2)), uintptr(checkColor))
 		old := gcall("SelectObject", dc, pen)
 		gcall("MoveToEx", dc, uintptr(box.Left+px(4)), uintptr(box.Top+px(9)), 0)
 		gcall("LineTo", dc, uintptr(box.Left+px(7)), uintptr(box.Top+px(12)))
@@ -147,7 +157,7 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 	}
 	if combo {
 		arrow := winRect{r.Right - px(28), px(1), r.Right - px(1), r.Bottom - px(1)}
-		call("FillRect", dc, uintptr(unsafe.Pointer(&arrow)), n.surfaceBrush)
+		call("FillRect", dc, uintptr(unsafe.Pointer(&arrow)), n.inputBrush)
 		x, y := r.Right-px(14), r.Bottom/2-px(2)
 		pen := gcall("CreatePen", 0, uintptr(px(2)), uintptr(n.theme.muted))
 		old := gcall("SelectObject", dc, pen)
@@ -160,7 +170,7 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 		// NCCALCSIZE reserves text padding; paint that non-client strip too
 		// so the native edit does not leave a black seam above its contents.
 		inset := winRect{1, 1, r.Right - 1, px(4)}
-		call("FillRect", dc, uintptr(unsafe.Pointer(&inset)), n.surfaceBrush)
+		call("FillRect", dc, uintptr(unsafe.Pointer(&inset)), n.inputBrush)
 	}
 	// Cover the native rectangular frame, then draw a restrained rounded outline.
 	call("FrameRect", dc, uintptr(unsafe.Pointer(&r)), n.surfaceBrush)
@@ -171,7 +181,7 @@ func (n *nativeDesktop) paintInputFrame(h uintptr, combo bool, dc uintptr) {
 	pen := gcall("CreatePen", 0, 1, uintptr(border))
 	oldPen := gcall("SelectObject", dc, pen)
 	oldBrush := gcall("SelectObject", dc, gcall("GetStockObject", 5)) // hollow brush
-	gcall("RoundRect", dc, 0, 0, uintptr(r.Right), uintptr(r.Bottom), uintptr(px(10)), uintptr(px(10)))
+	gcall("RoundRect", dc, 0, 0, uintptr(r.Right), uintptr(r.Bottom), uintptr(px(fluentControlRadius*2)), uintptr(px(fluentControlRadius*2)))
 	gcall("SelectObject", dc, oldPen)
 	gcall("SelectObject", dc, oldBrush)
 	gcall("DeleteObject", pen)

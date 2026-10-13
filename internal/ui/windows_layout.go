@@ -109,7 +109,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		return
 	}
 	if d.Type == 3 {
-		fill, fg := t.surface, t.text
+		fill, fg := t.inputFill(), t.text
 		if d.State&1 != 0 && d.State&0x1000 == 0 { // ODS_COMBOBOXEDIT: never highlight closed value
 			fill = blendColor(t.surface, t.accent, .14)
 		}
@@ -134,39 +134,40 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		return
 	}
 	if d.Type == 4 { // native owner-drawn button
-		fill, border, fg := t.surface, t.border, t.text
-		if c.kind == 1 || c.kind == 3 {
-			fill, border, fg = t.accent, t.accent, t.onAccent
+		base := t.surface
+		for _, card := range n.windows[c.parent].cards {
+			if c.bounds.x >= card.x && c.bounds.y >= card.y && c.bounds.y < card.y+card.h {
+				base = t.surface
+				break
+			}
+			base = t.background
 		}
-		if c.kind == 2 {
-			fg = t.danger
-		}
-		if d.State&4 != 0 {
-			fill, border, fg = t.surface, t.border, t.muted
-		}
+		fill, border, fg := t.buttonColors(c.kind, d.State&4 != 0, n.isHovered(d.Window), d.State&1 != 0, base)
 		if c.kind == 5 || c.kind == 6 { // ghost row actions: card-colored, no frame.
-			fill = t.surface
 			if id := int(call("GetDlgCtrlID", d.Window)); id >= historyButtonBase && id < historyButtonBase+len(n.historyButtons) {
 				selected := int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0)))
+				base = n.rowBackground(n.historyList, (id-historyButtonBase)/historyKindsPerRow, (id-historyButtonBase)/historyKindsPerRow == selected)
 				if (id-historyButtonBase)/historyKindsPerRow == selected {
-					fill = blendColor(t.surface, t.accent, .13)
 					if t.contrast {
-						fill, fg = t.accent, t.onAccent
+						fg = t.onAccent
 					}
 				}
+			} else if id >= 9000 && id < 9000+len(n.rowTrash) {
+				selected := int(int32(call("SendMessageW", n.homeList, 0x188, 0, 0)))
+				base = n.rowBackground(n.homeList, id-9000, id-9000 == selected)
 			}
-			brush := gcall("CreateSolidBrush", uintptr(fill))
+			if t.contrast && base == t.accent {
+				fg = t.onAccent
+			}
+			brush := gcall("CreateSolidBrush", uintptr(base))
 			call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
 			gcall("DeleteObject", brush)
-			if d.State&4 != 0 {
-				fg = t.muted
-			} else if c.kind == 6 {
-				fg = t.danger
+			fill, _, actionFG := t.buttonColors(c.kind, d.State&4 != 0, n.isHovered(d.Window), d.State&1 != 0, base)
+			if !(t.contrast && base == t.accent) {
+				fg = actionFG
 			}
-			if d.State&0x1000 != 0 { // ODS_HOT
-				brush := gcall("CreateSolidBrush", uintptr(blendColor(t.surface, t.text, .08)))
-				call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
-				gcall("DeleteObject", brush)
+			if fill != base {
+				n.roundRect(d.DC, d.Rect, fill, fill, int(px(fluentControlRadius)))
 			}
 			label := n.icons[d.Window]
 			if label == "" {
@@ -182,15 +183,12 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 			}
 			return
 		}
-		if d.State&1 != 0 {
-			fill = blendColor(fill, t.text, .1)
-		}
 		r := d.Rect
 		r.Left++
 		r.Top++
 		r.Right--
 		r.Bottom--
-		radius, role := int(px(6)), 0
+		radius, role := int(px(fluentControlRadius)), 0
 		if c.kind == 3 {
 			radius, role = int(px(40)), 3
 		}
@@ -239,13 +237,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		return
 	}
 	selected := d.State&1 != 0
-	fill := t.surface
-	if selected {
-		fill = blendColor(t.surface, t.accent, .13)
-	}
-	if t.contrast && selected {
-		fill = t.accent
-	}
+	fill := n.rowBackground(d.Window, int(d.Item), selected)
 	brush := gcall("CreateSolidBrush", uintptr(fill))
 	call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
 	gcall("DeleteObject", brush)
@@ -254,6 +246,12 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 		return
 	}
 	row := rows[d.Item]
+	if int(d.Item)+1 < len(rows) && !selected {
+		line := winRect{d.Rect.Left + px(16), d.Rect.Bottom - px(1), d.Rect.Right - px(16), d.Rect.Bottom}
+		brush := gcall("CreateSolidBrush", uintptr(blendColor(t.surface, t.border, .45)))
+		call("FillRect", d.DC, uintptr(unsafe.Pointer(&line)), brush)
+		gcall("DeleteObject", brush)
+	}
 	fg, muted := t.text, t.muted
 	if t.contrast && selected {
 		fg, muted = t.onAccent, t.onAccent
@@ -297,13 +295,7 @@ func (n *nativeDesktop) drawItem(d drawItem) {
 func (n *nativeDesktop) drawHistoryItem(d drawItem, px func(int) int32) {
 	t := n.theme
 	selected := d.State&1 != 0
-	fill := t.surface
-	if selected {
-		fill = blendColor(t.surface, t.accent, .13)
-	}
-	if t.contrast && selected {
-		fill = t.accent
-	}
+	fill := n.rowBackground(d.Window, int(d.Item), selected)
 	brush := gcall("CreateSolidBrush", uintptr(fill))
 	call("FillRect", d.DC, uintptr(unsafe.Pointer(&d.Rect)), brush)
 	gcall("DeleteObject", brush)

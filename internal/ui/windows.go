@@ -68,6 +68,7 @@ type nativeDesktop struct {
 	pairIncoming                                                                       bool
 	theme                                                                              winTheme
 	surfaceBrush, backgroundBrush, historySelectionBrush                               uintptr
+	inputBrush                                                                         uintptr
 	windows                                                                            map[uintptr]winWindow
 	controls                                                                           map[uintptr]winControl
 	fonts                                                                              map[[2]int]uintptr
@@ -83,6 +84,8 @@ type nativeDesktop struct {
 	layingOut                                                                          bool
 	lastFocus                                                                          uintptr
 	controlCallback                                                                    uintptr
+	visualCallback                                                                     uintptr
+	hovered                                                                            map[uintptr]int
 	emptyAdd, compactAdd, removePeer, preferencesToggle, advancedButton                uintptr
 	preferencesExpanded                                                                bool
 	main, notice, noticeText                                                           uintptr
@@ -141,6 +144,9 @@ func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, i
 		}
 	}
 	call("SendMessageW", handle, 0x30, n.fontFor(n.window, 0), 1)
+	if class == "BUTTON" || class == "LISTBOX" || class == "EDIT" || class == "COMBOBOX" {
+		n.trackVisualState(handle)
+	}
 	if class == "EDIT" || class == "COMBOBOX" || class == "BUTTON" && style&15 == 3 {
 		n.styleControl(handle)
 	}
@@ -627,7 +633,7 @@ func (n *nativeDesktop) Close() {
 	for _, font := range n.fonts {
 		gcall("DeleteObject", font)
 	}
-	for _, brush := range []uintptr{n.surfaceBrush, n.backgroundBrush, n.historySelectionBrush} {
+	for _, brush := range []uintptr{n.surfaceBrush, n.backgroundBrush, n.historySelectionBrush, n.inputBrush} {
 		if brush != 0 {
 			gcall("DeleteObject", brush)
 		}

@@ -74,14 +74,15 @@ func (n *nativeDesktop) applyTheme() {
 
 func (n *nativeDesktop) setTheme(t winTheme) {
 	n.theme = t
-	for _, b := range []uintptr{n.surfaceBrush, n.backgroundBrush, n.historySelectionBrush} {
+	for _, b := range []uintptr{n.surfaceBrush, n.backgroundBrush, n.historySelectionBrush, n.inputBrush} {
 		if b != 0 {
 			gcall("DeleteObject", b)
 		}
 	}
 	n.surfaceBrush = gcall("CreateSolidBrush", uintptr(n.theme.surface))
 	n.backgroundBrush = gcall("CreateSolidBrush", uintptr(n.theme.background))
-	selection := blendColor(t.surface, t.accent, .13)
+	n.inputBrush = gcall("CreateSolidBrush", uintptr(n.theme.inputFill()))
+	selection := t.rowFill(true, false)
 	if t.contrast {
 		selection = t.accent
 	}
@@ -124,13 +125,13 @@ func (n *nativeDesktop) fontFor(hwnd uintptr, role int) uintptr {
 	case 1:
 		size, faceName = 20, "Segoe UI Semibold"
 	case 2:
-		size = 16
+		size, faceName = 16, "Segoe UI Semibold"
 	case 3:
 		size, faceName = 36, "Segoe UI Semibold"
 	case 4:
 		size = 12
 	case 5:
-		size, faceName = 20, "Segoe Fluent Icons"
+		size, faceName = 18, "Segoe Fluent Icons"
 	}
 	create := func(face string) uintptr {
 		var lf struct {
@@ -201,7 +202,7 @@ func (n *nativeDesktop) themeMessage(hwnd uintptr, msg uint32, w, l uintptr) (ui
 			r.Right -= v.scrollX
 			r.Top -= v.scrollY
 			r.Bottom -= v.scrollY
-			n.roundRect(w, r, n.theme.surface, n.theme.border, int(n.scaledRect(hwnd, logicalRect{w: 8}).Right))
+			n.roundRect(w, r, n.theme.surface, n.theme.border, int(n.scaledRect(hwnd, logicalRect{w: fluentCardRadius}).Right))
 		}
 		return 1, true
 	case 0x133, 0x134, 0x135, 0x138: // edit/list/button/static colors
@@ -220,8 +221,11 @@ func (n *nativeDesktop) themeMessage(hwnd uintptr, msg uint32, w, l uintptr) (ui
 		if c.class == "EDIT" || c.class == "COMBOBOX" || c.class == "LISTBOX" {
 			brush, bg = n.surfaceBrush, n.theme.surface
 		}
+		if (c.class == "EDIT" && c.kind != 7) || c.class == "COMBOBOX" {
+			brush, bg = n.inputBrush, n.theme.inputFill()
+		}
 		if c.kind == 7 && int(call("GetDlgCtrlID", l))-9700 == int(int32(call("SendMessageW", n.historyList, 0x188, 0, 0))) {
-			brush, bg = n.historySelectionBrush, blendColor(n.theme.surface, n.theme.accent, .13)
+			brush, bg = n.historySelectionBrush, n.theme.rowFill(true, false)
 			if n.theme.contrast {
 				bg = n.theme.accent
 				gcall("SetTextColor", w, uintptr(n.theme.onAccent))

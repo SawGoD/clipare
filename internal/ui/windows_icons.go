@@ -54,6 +54,9 @@ func (n *nativeDesktop) drawPlatform(dc uintptr, r winRect, platform string, col
 
 func (n *nativeDesktop) iconButton(label, glyph string, x, y, w, id int) uintptr {
 	h := n.control("BUTTON", label, 0x10000, x, y, w, 32, id)
+	c := n.controls[h]
+	c.kind = 5 // subtle icon action: emphasis only on hover/focus, no idle frame
+	n.controls[h] = c
 	n.icons[h] = glyph
 	if n.tooltip == 0 {
 		n.tooltip = call("CreateWindowExW", 8, uintptr(unsafe.Pointer(wide("tooltips_class32"))), 0, 0x80000003, 0, 0, 0, 0, n.main, 0, n.instance, 0)

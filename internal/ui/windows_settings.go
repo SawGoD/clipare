@@ -36,7 +36,20 @@ func (n *nativeDesktop) layoutPreferences() {
 		v.cards = v.cards[:3]
 	}
 	v.cards[2].h = 48
-	delta := n.layoutDiscovery()
+	delta := 0
+	if n.navigation.View == ViewHome && len(n.rows[n.homeList]) == 1 {
+		delta = -60 // one row needs no empty second-row slot
+	}
+	list := n.controls[n.homeList]
+	list.bounds.h = 120
+	if len(n.rows[n.homeList]) == 1 {
+		list.bounds.h = 60
+	}
+	n.controls[n.homeList] = list
+	add := n.controls[n.compactAdd]
+	add.bounds.y = 392 + delta
+	n.controls[n.compactAdd] = add
+	delta += n.layoutDiscovery()
 	delta += n.layoutPairing()
 	delta += n.layoutHistory()
 	v.cards[1].h = 228 + delta
