@@ -1,28 +1,35 @@
-.PHONY: mac windows windows-console release-mac release-windows test test-macos-ui
+.PHONY: frontend mac windows windows-console release-mac release-windows test test-macos-ui
 
 VERSION := $(strip $(shell sed -n '1p' VERSION))
 VERSION_CORE := $(word 1,$(subst -, ,$(VERSION)))
 COMMIT := $(shell git rev-parse HEAD)
 LDFLAGS := -X clipare.Commit=$(COMMIT)
 
-mac:
+frontend:
+	cd frontend && npm run build
+
+mac: frontend
 	mkdir -p dist/Clipare.app/Contents/MacOS
 	sed -e 's/@VERSION@/$(VERSION_CORE)/g' -e 's/@BUILD@/$(VERSION_CORE)/g' -e 's/@RELEASE_VERSION@/$(VERSION)/g' assets/Info.plist > dist/Clipare.app/Contents/Info.plist
 	CGO_ENABLED=1 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
+	mkdir -p dist/Clipare.app/Contents/Resources/ui
+	cp -R frontend/dist/. dist/Clipare.app/Contents/Resources/ui/
 
-windows:
+windows: frontend
 	mkdir -p dist
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS) -H=windowsgui" -o dist/Clipare.exe ./cmd/clipare
+	mkdir -p dist/ui
+	cp -R frontend/dist/. dist/ui/
 
 windows-console:
 	mkdir -p dist
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/clipare-console.exe ./cmd/clipare
 
-release-mac:
+release-mac: frontend
 	go run ./scripts/build -os darwin -arch arm64
 	go run ./scripts/build -os darwin -arch amd64
 
-release-windows:
+release-windows: frontend
 	go run ./scripts/build -os windows -arch amd64
 	go run ./scripts/build -os windows -arch arm64
 

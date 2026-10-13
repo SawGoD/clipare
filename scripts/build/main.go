@@ -1,4 +1,4 @@
-// Build desktop release archives using only Go and the platform SDK.
+// Build desktop release archives with the prebuilt React frontend and platform SDK.
 package main
 
 import (
@@ -39,6 +39,9 @@ func run() error {
 	}
 	if (*targetOS != "darwin" && *targetOS != "windows") || (*arch != "amd64" && *arch != "arm64") {
 		return errors.New("unsupported target")
+	}
+	if _, e := os.Stat("frontend/dist/index.html"); e != nil {
+		return errors.New("React frontend missing: run npm ci and npm run build in frontend")
 	}
 	if *targetOS == "darwin" && runtime.GOOS != "darwin" {
 		return errors.New("macOS builds require macOS and Xcode Command Line Tools")
@@ -84,6 +87,9 @@ func run() error {
 		if e = os.WriteFile(filepath.Join(bundle, "Info.plist"), []byte(plist), 0644); e != nil {
 			return e
 		}
+		if e = copyTree("frontend/dist", filepath.Join(bundle, "Resources", "ui")); e != nil {
+			return e
+		}
 		// Ad-hoc signing seals the bundle (required for Apple Silicon). Developer ID
 		// signing/notarization is a separate process that requires Apple credentials.
 		cmd := exec.Command("codesign", "--force", "--sign", "-", filepath.Join(stage, "Clipare.app"))
@@ -97,6 +103,9 @@ func run() error {
 			return e
 		}
 		if e = build(filepath.Join(stage, "clipare-console.exe"), flags); e != nil {
+			return e
+		}
+		if e = copyTree("frontend/dist", filepath.Join(stage, "ui")); e != nil {
 			return e
 		}
 	}
@@ -157,6 +166,25 @@ func copyFile(from, to string) error {
 		return e
 	}
 	return os.WriteFile(to, b, 0644)
+}
+func copyTree(from, to string) error {
+	return filepath.Walk(from, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(from, path)
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(to, rel)
+		if info.IsDir() {
+			return os.MkdirAll(dest, 0755)
+		}
+		if !info.Mode().IsRegular() {
+			return errors.New("unexpected frontend asset")
+		}
+		return copyFile(path, dest)
+	})
 }
 func archiveDir(dir, archive string) (result error) {
 	f, e := os.Create(archive)
