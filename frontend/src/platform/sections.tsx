@@ -12,7 +12,13 @@ export function DeviceSection({ snapshot, platform, view, open, perform }: Secti
   const inFlow = view === 'discovery' || view === 'pairing'
   return <section className="surface devices-surface" aria-label="Устройства">
     <div className="section-heading">
-      {inFlow && <Action platform={platform} kind="subtle" icon="back" label="К устройствам" onClick={() => open('home')} />}
+      {inFlow && <Action platform={platform} kind="subtle" icon="back" label="К устройствам" onClick={() => {
+        if (view === 'pairing') {
+          void perform({ type: snapshot.pairing?.direction === 'incoming' ? 'pair.reject' : 'pair.cancel' })
+          if (!snapshot.pairing) open('home')
+        }
+        else open('home')
+      }} />}
       <h2>{view === 'discovery' ? 'Добавить устройство' : view === 'pairing' ? 'Подключение устройства' : 'Устройства'}</h2>
       {!inFlow && <Action platform={platform} kind="subtle" icon="history" label="История буфера обмена" onClick={() => open('history')} />}
     </div>
@@ -59,7 +65,7 @@ function DiscoverySection({ snapshot, platform, open, perform }: Pick<SectionPro
 
 function PairingSection({ snapshot, platform, open, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'open' | 'perform'>) {
   const pair = snapshot.pairing
-  if (!pair) return <div className="flow-empty"><strong>Подключаем устройство…</strong><Action platform={platform} onClick={() => open('home')}>К устройствам</Action></div>
+  if (!pair) return <div className="flow-empty"><strong>Подключаем устройство…</strong><Action platform={platform} onClick={() => { void perform({ type: 'pair.cancel' }); open('home') }}>Отменить</Action></div>
   return <div className="pair-flow"><p>{pair.direction === 'incoming' ? `${pair.deviceName} хочет подключиться` : `Проверьте код на ${pair.deviceName}`}</p>
     <div className="sas-card"><small>Код проверки</small><strong aria-label={`Код проверки ${pair.code}`}>{pair.code}</strong></div>
     <p className="hint">Сравните код на обоих устройствах. Если коды различаются — отклоните подключение.</p>

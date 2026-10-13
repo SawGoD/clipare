@@ -56,6 +56,15 @@ for (const platform of ['windows', 'macos'] as const) {
     await visual(page, `${platform}-history.png`)
   })
 
+  test(`${platform} discovery flows into pairing and returns`, async ({ page }) => {
+    await page.goto(`/?platform=${platform}&scenario=empty`)
+    await page.getByRole('button', { name: 'Добавить устройство' }).click()
+    await page.getByRole('button', { name: 'Подключить' }).first().click()
+    await expect(page.getByText('482 731')).toBeVisible()
+    await page.getByRole('button', { name: 'Отменить' }).click()
+    await expect(page.getByRole('heading', { name: 'Устройства' })).toBeVisible()
+  })
+
   test(`${platform} settings and available update`, async ({ page }) => {
     await page.goto(`/?platform=${platform}&scenario=update`)
     await page.getByRole('button', { name: 'Дополнительно' }).click()

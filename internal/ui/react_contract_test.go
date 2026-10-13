@@ -97,6 +97,14 @@ func TestReactBridgeBackCancelsPairing(t *testing.T) {
 	if got := d.Poll(); got != eventCancelPair {
 		t.Fatalf("back event = %d", got)
 	}
+	d.view = ViewPairing
+	d.snapshot.Pairing = &reactPairing{Direction: "incoming"}
+	if err := (&ReactService{d}).Perform(reactCommand{Type: "view.open", View: "home"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Poll(); got != eventReject {
+		t.Fatalf("incoming back event = %d", got)
+	}
 }
 
 func TestReactUpdatePromptPreservesInstallRetryAndProgress(t *testing.T) {

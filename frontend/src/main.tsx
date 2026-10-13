@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useClipare } from './domain/useClipare'
 import { WailsBackend } from './domain/wailsBackend'
@@ -21,10 +21,16 @@ function App() {
   }, [])
   const { snapshot, error, clearError, perform } = useClipare(backend)
   const [view, setView] = React.useState<View>('home')
+  const pairWasShown = useRef(false)
 
   useEffect(() => {
-    if (snapshot?.pairing && view === 'home') setView('pairing')
-    if (!snapshot?.pairing && view === 'pairing') setView('home')
+    if (snapshot?.pairing) {
+      pairWasShown.current = true
+      if (view === 'home') setView('pairing')
+    } else if (pairWasShown.current) {
+      pairWasShown.current = false
+      if (view === 'pairing') setView('home')
+    }
   }, [snapshot?.pairing, view])
   useEffect(() => {
     if (snapshot?.update.kind === 'available' && view === 'home') setView('updates')
@@ -33,7 +39,7 @@ function App() {
   if (!snapshot) return <main className="loading" role="status">{error || 'Открываем Clipare…'}</main>
   const open = (next: View) => {
     setView(next)
-    void perform({ type: 'view.open', view: next })
+    if (next !== 'pairing') void perform({ type: 'view.open', view: next })
   }
   return <>
     {import.meta.env.DEV && backend instanceof MockBackend && <PreviewBar backend={backend} snapshot={snapshot} />}
