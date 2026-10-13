@@ -259,7 +259,7 @@ func TestWindowsFluentPreview(t *testing.T) {
 	if height > 255 || height <= n.px(historyRowHeight) {
 		t.Fatal("expanded item has invalid native height", height)
 	}
-	if len(n.historyText) == 0 || call("IsWindowVisible", n.historyText[0]) == 0 || windowText(n.historyText[0]) != longText {
+	if len(n.historyText) == 0 || call("IsWindowVisible", n.historyText[0]) == 0 || windowText(n.historyText[0]) != strings.ReplaceAll(longText, "\n", "\r\n") {
 		t.Fatal("expanded body is missing or truncated")
 	}
 	var expandRect, copyRect winRect

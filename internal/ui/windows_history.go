@@ -263,22 +263,30 @@ func (n *nativeDesktop) positionHistoryText() {
 	n.window = n.home
 	defer func() { n.window = previous }()
 	for len(n.historyText) < len(n.historyRows) {
-		h := n.control("EDIT", "", 0x00200844, 0, 0, 1, 1, 9700+len(n.historyText))
-		c := n.controls[h]
-		c.kind = 7 // borderless history body, not a settings input.
-		n.controls[h] = c
-		call("SetWindowPos", h, 0, 0, 0, 0, 0, 0x37)
-		n.historyText = append(n.historyText, h)
+		n.historyText = append(n.historyText, 0)
 	}
 	var client winRect
 	call("GetClientRect", n.historyList, uintptr(unsafe.Pointer(&client)))
 	for i, h := range n.historyText {
 		if n.navigation.View != ViewHistory || i >= len(n.historyRows) || !n.historyRows[i].expanded {
 			visible(h, false)
-			if i >= len(n.historyRows) || !n.historyRows[i].expanded {
+			if h != 0 && (i >= len(n.historyRows) || !n.historyRows[i].expanded) {
 				call("SetWindowTextW", h, uintptr(unsafe.Pointer(wide(""))))
 			}
 			continue
+		}
+		if h == 0 {
+			h = n.control("EDIT", "", 0x00200844, 0, 0, 1, 1, 9700+i)
+			c := n.controls[h]
+			c.kind = 7 // borderless history body, not a settings input.
+			n.controls[h] = c
+			call("SetWindowPos", h, 0, 0, 0, 0, 0, 0x37)
+			name := "Explorer"
+			if n.theme.dark {
+				name = "DarkMode_Explorer"
+			}
+			themes.NewProc("SetWindowTheme").Call(h, uintptr(unsafe.Pointer(wide(name))), 0)
+			n.historyText[i] = h
 		}
 		var r winRect
 		call("SendMessageW", n.historyList, 0x198, uintptr(i), uintptr(unsafe.Pointer(&r)))
@@ -298,8 +306,9 @@ func (n *nativeDesktop) positionHistoryText() {
 		}
 		call("MapWindowPoints", n.historyList, n.home, uintptr(unsafe.Pointer(&point)), 1)
 		call("SetWindowPos", h, 0, uintptr(point.X), uintptr(point.Y), uintptr(client.Right-int32(n.px(24))), uintptr(r.Bottom-r.Top), 0x10)
-		if windowText(h) != n.historyRows[i].preview {
-			call("SetWindowTextW", h, uintptr(unsafe.Pointer(wide(n.historyRows[i].preview))))
+		body := strings.ReplaceAll(strings.ReplaceAll(n.historyRows[i].preview, "\r\n", "\n"), "\n", "\r\n")
+		if windowText(h) != body {
+			call("SetWindowTextW", h, uintptr(unsafe.Pointer(wide(body))))
 		}
 		visible(h, true)
 	}
