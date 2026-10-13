@@ -283,6 +283,9 @@ func (n *nativeDesktop) Init() error {
 				call("SendMessageW", n.auto, 0xF1, call("SendMessageW", n.homeAuto, 0xF0, 0, 0), 0)
 			}
 			if id == 120 && w>>16 == 1 {
+				for _, h := range n.rowTrash {
+					call("InvalidateRect", h, 0, 0)
+				}
 				n.events = append(n.events, eventSelect)
 			} else if id == historyListID && w>>16 == 1 {
 				n.positionHistoryButtons()
@@ -578,11 +581,15 @@ func (n *nativeDesktop) SetPeer(p config.Peer) {
 	n.Actions(actionMask(n.Read()))
 }
 func (n *nativeDesktop) Update(status string, enabled bool, peers []config.Peer, states map[string]bool) {
+	countChanged := len(peers) != len(n.rows[n.homeList])
 	n.showDevicePresentation(len(peers))
 	lines := peerStatuses(peers, states)
 	rows := pairedRows(peers, states, n.platforms)
 	if lines != n.peerLines || !reflect.DeepEqual(rows, n.rows[n.homeList]) {
 		n.setRows(n.homeList, rows)
+	}
+	if countChanged && n.prepared {
+		n.layoutPreferences()
 	}
 	n.peerLines = lines
 	text := "Возобновить"

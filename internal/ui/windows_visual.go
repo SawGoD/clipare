@@ -85,6 +85,9 @@ func (n *nativeDesktop) trackVisualState(h uintptr) {
 				}
 				n.refreshHoveredRows()
 			case 7, 8, 0xa, 0x201, 0x202: // focus, enabled, pressed/released
+				if msg == 0xa && w == 0 {
+					n.setHovered(h, 0, false)
+				}
 				call("InvalidateRect", h, 0, 0)
 			case 0x82:
 				delete(n.hovered, h)
@@ -135,6 +138,10 @@ func (n *nativeDesktop) refreshHoveredRows() {
 		hot := call("IsWindowVisible", list) != 0 && p.X >= 0 && p.Y >= 0 && p.X < r.Right && p.Y < r.Bottom
 		item := call("SendMessageW", list, 0x1a9, uintptr(uint16(p.X))|uintptr(uint16(p.Y))<<16, 0) // LB_ITEMFROMPOINT
 		hot = hot && item>>16 == 0
+		var itemRect winRect
+		if int32(call("SendMessageW", list, 0x198, item&0xffff, uintptr(unsafe.Pointer(&itemRect)))) < 0 || p.Y < itemRect.Top || p.Y >= itemRect.Bottom {
+			hot = false // nearest item is not necessarily beneath the pointer
+		}
 		changed = n.setHovered(list, int(item&0xffff), hot) || changed
 	}
 	if !changed {

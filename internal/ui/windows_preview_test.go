@@ -305,6 +305,15 @@ func TestWindowsFluentPreview(t *testing.T) {
 	captureWindow(t, n.home, filepath.Join(dir, "home-expanded.png"))
 	n.preferencesExpanded = false
 	n.layoutPreferences()
+	n.Update("Синхронизация включена", true, peers[:1], nil)
+	if n.controls[n.homeList].bounds.h != 60 || n.windows[n.home].cards[1].h != 168 {
+		t.Fatal("one device retained an unused row slot")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "fluent-one-device.png"))
+	n.Update("Синхронизация включена", true, peers, nil)
+	if n.controls[n.homeList].bounds.h != 120 {
+		t.Fatal("adding another device did not restore the list viewport")
+	}
 	// Painting must not replace the native automatic-checkbox state machine.
 	before := call("SendMessageW", n.homeAuto, 0xf0, 0, 0)
 	call("SendMessageW", n.homeAuto, 0xf5, 0, 0) // BM_CLICK
