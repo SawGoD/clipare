@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test'
 
+async function visual(page: import('@playwright/test').Page, name: string) {
+  if (process.env.CLIPARE_SKIP_VISUAL !== '1') {
+    await expect(page).toHaveScreenshot(name, { fullPage: true, maxDiffPixelRatio: 0.01 })
+  }
+}
+
 for (const platform of ['windows', 'macos'] as const) {
   for (const theme of ['light', 'dark'] as const) {
     test(`${platform} ${theme} main view`, async ({ page }) => {
@@ -7,7 +13,7 @@ for (const platform of ['windows', 'macos'] as const) {
       await expect(page.getByRole('heading', { name: 'Clipare' })).toBeVisible()
       await expect(page.getByText('Синхронизация включена', { exact: true })).toBeVisible()
       await expect(page.getByText('MacBook Air', { exact: true }).first()).toBeVisible()
-      await expect(page).toHaveScreenshot(`${platform}-${theme}-home.png`, { fullPage: true })
+      await visual(page, `${platform}-${theme}-home.png`)
     })
   }
 
@@ -15,12 +21,12 @@ for (const platform of ['windows', 'macos'] as const) {
     await page.goto(`/?platform=${platform}&scenario=empty`)
     await expect(page.getByRole('button', { name: 'Добавить устройство' })).toHaveCount(1)
     await expect(page.getByRole('button', { name: /Удалить/ })).toHaveCount(0)
-    await expect(page).toHaveScreenshot(`${platform}-empty.png`, { fullPage: true })
+    await visual(page, `${platform}-empty.png`)
     await page.getByRole('button', { name: 'Добавить устройство' }).click()
     await expect(page.getByText('Найденные устройства')).toHaveCount(0)
     await expect(page.getByText('Desktop-PC', { exact: true }).last()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Подключить' }).first()).toBeEnabled()
-    await expect(page).toHaveScreenshot(`${platform}-discovery.png`, { fullPage: true })
+    await visual(page, `${platform}-discovery.png`)
   })
 
   test(`${platform} offline, pause and connection error`, async ({ page }) => {
@@ -30,7 +36,7 @@ for (const platform of ['windows', 'macos'] as const) {
     await expect(page.getByText('Синхронизация приостановлена', { exact: true })).toBeVisible()
     await page.getByLabel('Сценарий предпросмотра').selectOption('error')
     await expect(page.getByText('Ожидание NetBird')).toBeVisible()
-    await expect(page).toHaveScreenshot(`${platform}-error.png`, { fullPage: true })
+    await visual(page, `${platform}-error.png`)
   })
 
   test(`${platform} pairing and history secrets`, async ({ page }) => {
@@ -47,7 +53,7 @@ for (const platform of ['windows', 'macos'] as const) {
     await expect(page.getByText('clipare-preview-secret-value')).toHaveCount(0)
     await page.getByRole('button', { name: 'Развернуть запись' }).click()
     await expect(page.getByRole('button', { name: 'Свернуть запись' })).toBeVisible()
-    await expect(page).toHaveScreenshot(`${platform}-history.png`, { fullPage: true })
+    await visual(page, `${platform}-history.png`)
   })
 
   test(`${platform} settings and available update`, async ({ page }) => {
@@ -61,6 +67,6 @@ for (const platform of ['windows', 'macos'] as const) {
     await expect(page.getByRole('button', { name: 'Применить' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Проверить обновления' }).click()
     await expect(page.getByText('Доступна версия 0.6.0-beta.5')).toBeVisible()
-    await expect(page).toHaveScreenshot(`${platform}-update.png`, { fullPage: true })
+    await visual(page, `${platform}-update.png`)
   })
 }

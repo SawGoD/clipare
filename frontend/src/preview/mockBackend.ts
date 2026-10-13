@@ -80,11 +80,14 @@ export class MockBackend implements Backend {
       case 'settings.updateChannel': s.settings.updateChannel = command.value; break
       case 'settings.historyRetention': s.settings.historyRetention = command.value; break
       case 'settings.historyLimit': s.settings.historyLimit = command.value; break
-      case 'settings.advanced': s.advanced = { ...s.advanced, ...command.value }; break
+      case 'settings.advanced':
+        s.advanced = { ...s.advanced, ...command.value }
+        if (command.value.deviceName) s.deviceName = command.value.deviceName
+        break
       case 'settings.generateLegacyKey': s.advanced.legacyKeyPresent = true; s.notice = 'Legacy key создан (предпросмотр)'; break
       case 'settings.copyLegacyCode': s.notice = 'Код скопирован (предпросмотр)'; break
       case 'settings.manualPeer': s.devices.push({ id: command.value.id, name: command.value.name, platform: 'unknown', online: false, address: command.value.address }); break
-      case 'update.check': s.update = { kind: 'current' }; break
+      case 'update.check': s.update = s.update.kind === 'available' ? s.update : { kind: 'current' }; break
       case 'update.install': if (s.update.kind === 'available') s.update = { kind: 'downloading', version: s.update.version, progress: 42 }; break
       case 'update.dismiss': s.update = { kind: 'idle' }; break
       case 'notice.dismiss': s.notice = undefined; break

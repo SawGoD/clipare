@@ -59,17 +59,17 @@ function DiscoverySection({ snapshot, platform, open, perform }: Pick<SectionPro
 
 function PairingSection({ snapshot, platform, open, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'open' | 'perform'>) {
   const pair = snapshot.pairing
-  if (!pair) return <div className="flow-empty"><strong>Подключение завершено</strong><Action platform={platform} onClick={() => open('home')}>К устройствам</Action></div>
+  if (!pair) return <div className="flow-empty"><strong>Подключаем устройство…</strong><Action platform={platform} onClick={() => open('home')}>К устройствам</Action></div>
   return <div className="pair-flow"><p>{pair.direction === 'incoming' ? `${pair.deviceName} хочет подключиться` : `Проверьте код на ${pair.deviceName}`}</p>
     <div className="sas-card"><small>Код проверки</small><strong aria-label={`Код проверки ${pair.code}`}>{pair.code}</strong></div>
     <p className="hint">Сравните код на обоих устройствах. Если коды различаются — отклоните подключение.</p>
     <div className="flow-actions">{pair.direction === 'incoming' ? <>
-      <Action platform={platform} kind="primary" onClick={() => { void perform({ type: 'pair.approve' }); open('home') }}>Разрешить</Action>
-      <Action platform={platform} onClick={() => { void perform({ type: 'pair.reject' }); open('home') }}>Отклонить</Action>
+      <Action platform={platform} kind="primary" onClick={() => void perform({ type: 'pair.approve' })}>Разрешить</Action>
+      <Action platform={platform} onClick={() => void perform({ type: 'pair.reject' })}>Отклонить</Action>
     </> : <>
-      {pair.needsLocalConfirmation && <Action platform={platform} kind="primary" onClick={() => { void perform({ type: 'pair.confirmLocal' }); open('home') }}>Коды совпадают</Action>}
+      {pair.needsLocalConfirmation && <Action platform={platform} kind="primary" onClick={() => void perform({ type: 'pair.confirmLocal' })}>Коды совпадают</Action>}
       <span className="hint">Ожидание подтверждения…</span>
-      <Action platform={platform} onClick={() => { void perform({ type: 'pair.cancel' }); open('home') }}>Отменить</Action>
+      <Action platform={platform} onClick={() => void perform({ type: 'pair.cancel' })}>Отменить</Action>
     </>}</div>
   </div>
 }
@@ -109,8 +109,9 @@ export function UpdateSection({ snapshot, platform, open, perform }: SectionProp
       {state.kind === 'current' && <><strong>Установлена последняя версия Clipare</strong><p>Текущая версия: {versionLabel(snapshot.version)}</p><Action platform={platform} onClick={() => { void perform({ type: 'update.dismiss' }); open('home') }}>Понятно</Action></>}
       {state.kind === 'available' && <><strong>Доступна версия {versionLabel(state.version)}</strong><p>Установлена: {versionLabel(snapshot.version)}</p><div className="flow-actions"><Action platform={platform} kind="primary" onClick={() => void perform({ type: 'update.install' })}>Обновить</Action><Action platform={platform} onClick={() => { void perform({ type: 'update.dismiss' }); open('home') }}>Позже</Action></div></>}
       {state.kind === 'downloading' && <><strong>Загрузка Clipare {versionLabel(state.version)}</strong><progress max={100} value={state.progress} aria-label="Загрузка обновления" /></>}
+      {state.kind === 'installing' && <><strong>Обновление готово</strong><p>Clipare перезапустится для установки…</p><progress aria-label="Установка обновления" /></>}
       {state.kind === 'ready' && <><strong>Обновление готово</strong><p>Clipare перезапустится для установки.</p><Action platform={platform} kind="primary" onClick={() => void perform({ type: 'update.install' })}>Установить и перезапустить</Action></>}
-      {state.kind === 'error' && <><strong>Не удалось обновить Clipare</strong><p>{state.message}</p><div className="flow-actions"><Action platform={platform} kind="primary" onClick={() => void perform({ type: 'update.check' })}>Повторить</Action><Action platform={platform} onClick={() => open('home')}>Закрыть</Action></div></>}
+      {state.kind === 'error' && <><strong>Не удалось обновить Clipare</strong><p>{state.message}</p><div className="flow-actions"><Action platform={platform} kind="primary" onClick={() => void perform({ type: state.retry === 'install' ? 'update.install' : 'update.check' })}>Повторить</Action><Action platform={platform} onClick={() => open('home')}>Закрыть</Action></div></>}
     </div></section>
 }
 
@@ -122,7 +123,7 @@ export function AdditionalSection({ snapshot, platform, perform }: Pick<SectionP
       <div className="settings-inline"><Toggle platform={platform} label="Авто-проверка обновлений" checked={s.autoCheckUpdates} onChange={value => void perform({ type: 'settings.autoCheckUpdates', value })} />
         <Choice platform={platform} label="Канал обновлений" value={s.updateChannel} values={[{ value: 'stable', label: 'Стабильные' }, { value: 'beta', label: 'Бета' }]} onChange={value => void perform({ type: 'settings.updateChannel', value: value as 'stable' | 'beta' })} /></div>
       <Toggle platform={platform} label="Сохранять историю" checked={s.historyEnabled} onChange={value => void perform({ type: 'settings.historyEnabled', value })} />
-      {s.historyEnabled && <div className="settings-inline"><Choice platform={platform} label="Хранить" value={s.historyRetention} values={[{ value: '30m', label: '30 минут' }, { value: '2h', label: '2 часа' }, { value: '8h', label: '8 часов' }, { value: '24h', label: '24 часа' }, { value: '72h', label: '72 часа' }]} onChange={value => void perform({ type: 'settings.historyRetention', value: value as typeof s.historyRetention })} />
+      {s.historyEnabled && <div className="settings-inline"><Choice platform={platform} label="Хранить" value={s.historyRetention} values={[{ value: '30m', label: '30 минут' }, { value: '1h', label: '1 час' }, { value: '6h', label: '6 часов' }, { value: '12h', label: '12 часов' }, { value: '24h', label: '1 день' }, { value: '48h', label: '2 дня' }, { value: '72h', label: '3 дня' }]} onChange={value => void perform({ type: 'settings.historyRetention', value: value as typeof s.historyRetention })} />
         <Field platform={platform} label="Максимум записей" value={String(s.historyLimit)} type="number" onChange={value => { const count = Number(value); if (count > 0) void perform({ type: 'settings.historyLimit', value: count }) }} /></div>}
     </div>}</section>
 }
@@ -130,19 +131,21 @@ export function AdditionalSection({ snapshot, platform, perform }: Pick<SectionP
 export function AdvancedSection({ snapshot, platform, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'perform'>) {
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState<AdvancedSettings>(snapshot.advanced)
+  const [deviceName, setDeviceName] = useState(snapshot.deviceName)
   const [code, setCode] = useState('')
   const [peer, setPeer] = useState({ name: '', id: '', address: '', port: 45873 })
   useEffect(() => { setDraft(snapshot.advanced) }, [snapshot.advanced])
-  const dirty = draft.listenAddress !== snapshot.advanced.listenAddress || draft.port !== snapshot.advanced.port
+  useEffect(() => { setDeviceName(snapshot.deviceName) }, [snapshot.deviceName])
+  const dirty = deviceName.trim() !== snapshot.deviceName || draft.listenAddress !== snapshot.advanced.listenAddress || draft.port !== snapshot.advanced.port
   const change = (field: keyof AdvancedSettings, value: string | number) => setDraft({ ...draft, [field]: value })
   return <section className="disclosure technical"><button type="button" className="disclosure-trigger" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span>Расширенные параметры</span><Glyph platform={platform} name="down" /></button>
     {expanded && <div className="disclosure-body"><div className="advanced-grid">
-      <Field platform={platform} label="Имя устройства" value={snapshot.deviceName} onChange={value => void perform({ type: 'device.rename', name: value })} />
+      <Field platform={platform} label="Имя устройства" value={deviceName} onChange={setDeviceName} />
       <Field platform={platform} label="Device ID" value={draft.deviceId} onChange={() => {}} disabled />
       <Choice platform={platform} label="NetBird IP" value={draft.listenAddress} values={draft.addresses.map(address => ({ value: address, label: address }))} onChange={value => change('listenAddress', value)} />
       <Field platform={platform} label="Порт" value={String(draft.port)} type="number" onChange={value => change('port', Number(value))} />
     </div><p className="technical-note">Протокол 1 · Public key SHA-256: {draft.publicKeyFingerprint}</p>
-      {dirty && <Action platform={platform} kind="primary" disabled={draft.port < 1 || draft.port > 65535 || !draft.listenAddress} onClick={() => void perform({ type: 'settings.advanced', value: { listenAddress: draft.listenAddress, port: draft.port } })}>Применить</Action>}
+      {dirty && <Action platform={platform} kind="primary" disabled={!deviceName.trim() || draft.port < 1 || draft.port > 65535 || !draft.listenAddress} onClick={() => void perform({ type: 'settings.advanced', value: { deviceName: deviceName.trim(), listenAddress: draft.listenAddress, port: draft.port } })}>Применить</Action>}
       <div className="technical-divider"><span>Legacy и ручное подключение</span><small>Только для старых версий или диагностики</small></div>
       <div className="legacy-row"><span>Общий legacy key: {draft.legacyKeyPresent ? 'создан' : 'не создан'}</span><Action platform={platform} onClick={() => void perform({ type: 'settings.generateLegacyKey' })}>Создать ключ</Action><Action platform={platform} disabled={!draft.legacyKeyPresent} onClick={() => void perform({ type: 'settings.copyLegacyCode' })}>Копировать код</Action></div>
       <div className="inline-form"><Field platform={platform} label="Код подключения" value={code} onChange={setCode} placeholder="clipare1:…" /><Action platform={platform} disabled={!code.trim()} onClick={() => void perform({ type: 'device.importCode', code: code.trim() })}>Добавить по коду</Action></div>
@@ -151,6 +154,6 @@ export function AdvancedSection({ snapshot, platform, perform }: Pick<SectionPro
     </div>}</section>
 }
 
-export function Footer({ snapshot, platform, open }: Pick<SectionProps, 'snapshot' | 'platform' | 'open'>) {
-  return <footer className="app-footer"><span>Версия: {versionLabel(snapshot.version)}</span><Action platform={platform} kind="subtle" icon="refresh" label="Проверить обновления" onClick={() => open('updates')} /></footer>
+export function Footer({ snapshot, platform, open, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'open' | 'perform'>) {
+  return <footer className="app-footer"><span>Версия: {versionLabel(snapshot.version)}</span><Action platform={platform} kind="subtle" icon="refresh" label="Проверить обновления" onClick={() => { open('updates'); void perform({ type: 'update.check' }) }} /></footer>
 }

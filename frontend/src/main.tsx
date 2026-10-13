@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useClipare } from './domain/useClipare'
 import { WailsBackend } from './domain/wailsBackend'
@@ -6,10 +6,9 @@ import { MockBackend } from './preview/mockBackend'
 import { PreviewBar } from './preview/PreviewBar'
 import type { Platform, View } from './domain/types'
 import type { Scenario } from './preview/fixtures'
+import WindowsApp from './platform/windows/WindowsApp'
+import MacApp from './platform/macos/MacApp'
 import './styles/base.css'
-
-const WindowsApp = lazy(() => import('./platform/windows/WindowsApp'))
-const MacApp = lazy(() => import('./platform/macos/MacApp'))
 
 function App() {
   const backend = useMemo(() => {
@@ -27,6 +26,9 @@ function App() {
     if (snapshot?.pairing && view === 'home') setView('pairing')
     if (!snapshot?.pairing && view === 'pairing') setView('home')
   }, [snapshot?.pairing, view])
+  useEffect(() => {
+    if (snapshot?.update.kind === 'available' && view === 'home') setView('updates')
+  }, [snapshot?.update.kind, view])
 
   if (!snapshot) return <main className="loading" role="status">{error || 'Открываем Clipare…'}</main>
   const open = (next: View) => {
@@ -35,11 +37,9 @@ function App() {
   }
   return <>
     {import.meta.env.DEV && backend instanceof MockBackend && <PreviewBar backend={backend} snapshot={snapshot} />}
-    <Suspense fallback={<main className="loading">Открываем Clipare…</main>}>
-      {snapshot.platform === 'windows'
-        ? <WindowsApp snapshot={snapshot} view={view} open={open} perform={perform} error={error} clearError={clearError} />
-        : <MacApp snapshot={snapshot} view={view} open={open} perform={perform} error={error} clearError={clearError} />}
-    </Suspense>
+    {snapshot.platform === 'windows'
+      ? <WindowsApp snapshot={snapshot} view={view} open={open} perform={perform} error={error} clearError={clearError} />
+      : <MacApp snapshot={snapshot} view={view} open={open} perform={perform} error={error} clearError={clearError} />}
   </>
 }
 

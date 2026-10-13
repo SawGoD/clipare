@@ -16,7 +16,7 @@ export default function MacApp(props: PlatformProps) {
       {view === 'history' ? <HistorySection {...props} platform="macos" /> : view === 'updates' ? <UpdateSection {...props} platform="macos" /> : <DeviceSection {...props} platform="macos" />}
       <div className="mac-preferences"><AdditionalSection snapshot={s} platform="macos" perform={perform} />
         <section id="advanced-settings"><AdvancedSection snapshot={s} platform="macos" perform={perform} /></section></div>
-      <Footer snapshot={s} platform="macos" open={open} />
+      <Footer snapshot={s} platform="macos" open={open} perform={perform} />
       <div className="sr-only" aria-live="polite">{s.sync.message}. {s.devices.filter(d => d.online).length} устройств в сети.</div>
     </div>
   </div>

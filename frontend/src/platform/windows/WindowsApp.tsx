@@ -21,7 +21,7 @@ export default function WindowsApp(props: PlatformProps) {
       {view === 'history' ? <HistorySection {...props} platform="windows" /> : view === 'updates' ? <UpdateSection {...props} platform="windows" /> : <DeviceSection {...props} platform="windows" />}
       <AdditionalSection snapshot={s} platform="windows" perform={perform} />
       <section id="advanced-settings"><AdvancedSection snapshot={s} platform="windows" perform={perform} /></section>
-      <Footer snapshot={s} platform="windows" open={open} />
+      <Footer snapshot={s} platform="windows" open={open} perform={perform} />
       <div className="sr-only" aria-live="polite">{s.sync.message}. {s.devices.filter(d => d.online).length} устройств в сети.</div>
     </div>
   </FluentProvider>
