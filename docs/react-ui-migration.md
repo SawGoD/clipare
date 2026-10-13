@@ -59,3 +59,38 @@ Production platform comes from the desktop host, never the URL. Browser
 snapshots use fixed viewport, pixel ratio and mock data. Real Windows 11 and
 macOS checks remain release gates, including memory/CPU comparison to the
 native baseline.
+
+## Integration in this branch
+
+`internal/ui/react_contract.go` is the allowlisted Wails bridge. It exposes a
+typed snapshot and commands, then queues GUI actions into the existing Go
+loop. No raw configuration, private identity key or legacy secret is sent to
+React. History links are looked up by ID in the current visible snapshot and
+only HTTP(S) URLs are opened. All sync, pairing, history encryption and update
+installation remain Go-owned. The browser frontend subscribes to state events
+and releases the subscription when unmounted; it does not poll continuously.
+
+`internal/ui/react_host_desktop.go` owns the WebView window and native tray.
+Closing the window hides it while the Go loop keeps running; Quit cancels the
+loop and releases resources. The packaged UI is selected automatically when
+`ui/index.html` exists beside Windows binaries or in the macOS bundle
+Resources directory. `--native-ui` retains the previous implementation as a
+rollback path; direct Go builds without UI assets use it as well. Windows
+second-instance activation uses the existing named-instance handshake and a
+window subclass. This needs physical Windows validation.
+
+The release builder copies hashed frontend assets into the archive and the
+existing updater replaces the whole package, including the `ui/` directory.
+Node.js is a build-time dependency only. Do not remove the native adapters
+until physical Windows and macOS acceptance verifies tray reopening, autostart,
+Mac ↔ Windows sync, pairing, history, updates, high DPI and accessibility.
+
+## Validation limits
+
+Playwright covers deterministic browser states, not WebView2/WKWebView system
+integration. Current macOS smoke uses a temporary config and does not perform
+real pairing or clipboard sync. A Windows executable can be cross-built on
+macOS, but that does not validate its tray, window activation, WebView2 runtime
+or scaling. Wails v3 remains a pinned beta and increases runtime footprint;
+measure actual RAM/CPU on both OSes before replacing the native GUI in a
+release. No release is produced by this branch.

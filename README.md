@@ -1,5 +1,29 @@
 # Clipare
 
+## React GUI (ветка `refactor/react-platform-ui`)
+
+Новый интерфейс использует React + TypeScript в системном WebView (Wails v3):
+WebView2 на Windows и WKWebView на macOS. Синхронизация, pairing, история,
+обновления и конфигурация остаются в Go. Production-запуск не требует Node.js
+или локального HTTP-сервера; собранные файлы `frontend/dist` входят в пакет.
+При наличии этих файлов приложение выбирает React GUI автоматически.
+Для восстановления прежнего интерфейса запустите `Clipare --native-ui`;
+`--headless` по-прежнему не загружает WebView. Нативный GUI пока сохранён
+до ручной приёмки обеих платформ.
+
+Для разработки выполните `cd frontend && npm ci && npm run dev`, затем откройте
+`http://localhost:5173/?platform=windows` или `?platform=macos`. Это
+предпросмотр с тестовыми данными, а не живой Clipare. Сценарий выбирается
+параметром `scenario` (`empty`, `offline`, `error`, `pairing`, `update`), тема —
+`theme=light|dark`. В production URL не выбирает платформу. Проверки:
+`npm run build`, `npm run test:e2e`; снимки обновляются только после визуальной
+проверки командой `npm run test:e2e:update`. Для `make mac`, `make windows`
+и релизной упаковки сначала нужен Node.js 22 для сборки frontend; пользователю
+он не нужен. Подробнее: [архитектура миграции](docs/react-ui-migration.md).
+
+Следующий раздел описывает прежний нативный Windows-интерфейс, доступный через
+`--native-ui`.
+
 ## Windows-интерфейс 0.5.0
 
 Windows использует лёгкий Win32-интерфейс в направлении Fluent / Windows 11: карточки с радиусами 6–8 px, Segoe UI с Natural ClearType, системный accent и Light/Dark. Для крупных заголовков используется отдельное Semibold-начертание, без искусственного утолщения текста. Галочки, рамки полей и стрелка списка оформлены в общей стилистике. Тема обновляется при изменении системных настроек, Contrast themes сохраняют системные цвета. HWND controls, стандартное редактирование и навигация остаются нативными; Electron, WebView и новый UI runtime не добавлены. Рамка окна использует поддерживаемые DWM dark mode и rounded corners; клиентская область намеренно непрозрачна — это безопасный fallback, а не имитация Mica ручным blur.
@@ -258,7 +282,7 @@ internal/autostart     LaunchAgent / HKCU Run
 
 Windows использует `AddClipboardFormatListener` с message-only window. Очередь WinAPI-событий обслуживается каждые 20 мс; сам clipboard не опрашивается. macOS проверяет `NSPasteboard.changeCount` каждые 400 мс. Уведомления объединяются, а текст читается под общей блокировкой с удалённой записью, чтобы отложенное событие не отправило старый snapshot. Память очередей и cache ограничена. Context cancellation завершает watcher и workers, HTTP server получает до 5 секунд на shutdown.
 
-Перед выбором изучены [golang.design/x/clipboard](https://github.com/golang-design/clipboard), его [releases](https://github.com/golang-design/clipboard/releases), [go.mod](https://github.com/golang-design/clipboard/blob/main/go.mod), и [fyne-io/systray](https://github.com/fyne-io/systray). Универсальный clipboard-пакет поддерживает больше форматов и платформ, чем требуется MVP, и имеет несколько зависимостей. Собственные текстовые адаптеры позволяют контролировать лимиты, event loop и shutdown. Для GUI также используются прямые системные API: AppKit через CGO на Mac, Win32 без CGO на Windows. Новых Go-зависимостей для tray/settings не добавлено; браузерного frontend и GUI runtime нет.
+Перед выбором изучены [golang.design/x/clipboard](https://github.com/golang-design/clipboard), его [releases](https://github.com/golang-design/clipboard/releases), [go.mod](https://github.com/golang-design/clipboard/blob/main/go.mod), и [fyne-io/systray](https://github.com/fyne-io/systray). Универсальный clipboard-пакет поддерживает больше форматов и платформ, чем требуется MVP, и имеет несколько зависимостей. Собственные текстовые адаптеры позволяют контролировать лимиты, event loop и shutdown. Прежний нативный GUI использует прямые системные API: AppKit через CGO на Mac, Win32 без CGO на Windows. В ветке React GUI добавлены Wails runtime и frontend-зависимости.
 
 ## Проверки и приёмка
 
