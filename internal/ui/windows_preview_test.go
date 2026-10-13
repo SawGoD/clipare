@@ -343,6 +343,36 @@ func TestWindowsFluentPreview(t *testing.T) {
 		n.Poll()
 		captureWindow(t, n.home, filepath.Join(dir, "home-"+v.name+".png"))
 	}
+	// Composed snapshots include the overlaid native row actions, not just
+	// PrintWindow's parent/child paint order. No real system theme is changed.
+	n.preferencesExpanded = false
+	n.layoutPreferences()
+	for _, v := range variants {
+		n.setTheme(v.theme)
+		n.Poll()
+		captureWindow(t, n.home, filepath.Join(dir, "fluent-home-"+v.name+".png"))
+	}
+	n.setHovered(n.pauseButton, 0, true)
+	if !n.isHovered(n.pauseButton) {
+		t.Fatal("owner-drawn hover state not retained")
+	}
+	captureWindow(t, n.home, filepath.Join(dir, "fluent-hover.png"))
+	call("SendMessageW", n.pauseButton, 0xf3, 1, 0) // BM_SETSTATE, no click/event
+	captureWindow(t, n.home, filepath.Join(dir, "fluent-pressed.png"))
+	call("SendMessageW", n.pauseButton, 0xf3, 0, 0)
+	call("SendMessageW", n.pauseButton, 0x2a3, 0, 0)
+	if n.isHovered(n.pauseButton) {
+		t.Fatal("hover state survived WM_MOUSELEAVE")
+	}
+	contrast := variants[1].theme
+	contrast.contrast = true
+	contrast.background, contrast.surface = 0, 0
+	contrast.text, contrast.muted, contrast.border = color(0xffffff), color(0xffffff), color(0xffffff)
+	contrast.accent, contrast.onAccent = color(0xffff00), 0
+	n.setTheme(contrast)
+	captureWindow(t, n.home, filepath.Join(dir, "fluent-contrast.png"))
+	n.preferencesExpanded = true
+	n.layoutPreferences()
 	n.scrollWindow(n.home, 1, 10000, true)
 	if call("GetWindowLongPtrW", n.home, ^uintptr(19))&0x02000000 == 0 {
 		t.Fatal("content panel lacks native buffered descendant painting")
@@ -537,7 +567,7 @@ func captureWindow(t *testing.T, hwnd uintptr, path string) {
 	bmp := gcall("CreateCompatibleBitmap", dc, uintptr(w), uintptr(h))
 	defer gcall("DeleteObject", bmp)
 	old := gcall("SelectObject", mem, bmp)
-	painted := filepath.Base(path) == "home-painted.png" || strings.HasPrefix(filepath.Base(path), "history")
+	painted := filepath.Base(path) == "home-painted.png" || strings.HasPrefix(filepath.Base(path), "history") || strings.HasPrefix(filepath.Base(path), "fluent-")
 	if painted {
 		call("RedrawWindow", hwnd, 0, 0, 0x185)
 		if gcall("BitBlt", mem, 0, 0, uintptr(w), uintptr(h), dc, 0, 0, 0x00cc0020) == 0 {
