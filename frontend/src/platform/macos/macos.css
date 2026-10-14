@@ -1,11 +1,13 @@
 .mac-app { --page: #f5f5f7; --surface: #fff; --inset: #f7f7f9; --text: #202124; --muted: #696b73; --stroke: #dcdde2; --hover: #e9e9ed; --focus: var(--accent); color-scheme: light; min-height: calc(100vh - 43px); background: var(--page); color: var(--text); font: 13px/1.4 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
 .mac-app.dark { --page: #25262a; --surface: #303136; --inset: #292a2f; --text: #f3f3f5; --muted: #b3b4bc; --stroke: #484a51; --hover: #414248; color-scheme: dark; }
-.mac-app .mac-shell { width: min(100%, 680px); margin: 0 auto; padding: 23px 26px 18px; display: grid; gap: 16px; }
+.mac-app.native-glass { --surface: rgba(255, 255, 255, .78); --inset: rgba(255, 255, 255, .42); --stroke: rgba(64, 66, 72, .18); --hover: rgba(255, 255, 255, .62); background: transparent; }
+.mac-app.native-glass.dark { --surface: rgba(38, 40, 45, .76); --inset: rgba(47, 49, 54, .55); --stroke: rgba(255, 255, 255, .16); --hover: rgba(255, 255, 255, .1); }
+.mac-app .mac-shell { width: min(100%, 680px); margin: 0 auto; padding: var(--space-5); display: grid; gap: var(--space-4); }
 .mac-app .app-header { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 0 2px; }
 .mac-app .brand, .mac-app .header-actions, .mac-app .section-heading, .mac-app .flow-actions, .mac-app .row-actions { display: flex; align-items: center; gap: 10px; }
 .mac-app h1 { font-size: 19px; letter-spacing: -.35px; margin: 0; font-weight: 650; }
 .mac-app h2 { font-size: 14px; font-weight: 620; margin: 0; }
-.mac-app .surface { background: var(--surface); border: 1px solid var(--stroke); border-radius: 11px; padding: 16px 18px; box-shadow: 0 1px 2px rgba(0,0,0,.025); }
+.mac-app .surface { background: var(--surface); border: 1px solid var(--stroke); border-radius: 11px; padding: var(--space-4); box-shadow: 0 1px 2px rgba(0,0,0,.025); }
 .mac-app .self-surface { padding: 15px 18px; }
 .mac-app .mac-self-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .mac-app .mac-self-top small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 2px; }
@@ -33,6 +35,8 @@
 .mac-app .device-row + .device-row, .mac-app .discovered-row + .discovered-row { border-top: 1px solid var(--stroke); }
 .mac-app .device-row:hover, .mac-app .discovered-row:hover, .mac-app .history-row:hover { background: var(--hover); }
 .mac-app .device-platform { color: var(--muted); }
+.mac-app .device-platform svg { display: block; width: 20px; height: 20px; }
+.mac-app .device-platform[data-platform=macos] { color: var(--accent); }
 .mac-app .device-copy, .mac-app .discovered-row > div { display: grid; flex: 1; min-width: 0; gap: 3px; }
 .mac-app .device-copy strong, .mac-app .discovered-row strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 550; }
 .mac-app .device-copy small, .mac-app .discovered-row small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
@@ -63,13 +67,21 @@
 .mac-app .row-actions { gap: 2px; }
 .mac-app .history-text { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .mac-app .history-text.expanded { display: block; max-height: 210px; overflow: auto; white-space: pre-wrap; }
+.mac-app .copied-action { color: var(--accent); animation: mac-copy-confirm 180ms ease-out; }
 .mac-app .mac-preferences { display: grid; gap: 1px; border-radius: 10px; border: 1px solid var(--stroke); overflow: hidden; background: var(--surface); }
 .mac-app .disclosure + #advanced-settings, .mac-app #advanced-settings { border-top: 1px solid var(--stroke); }
 .mac-app .disclosure-trigger { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; padding: 11px 16px; background: transparent; color: var(--text); text-align: left; font-weight: 550; }
 .mac-app .disclosure-trigger:hover { background: var(--hover); }
 .mac-app .disclosure-trigger svg { width: 16px; height: 16px; color: var(--muted); }
 .mac-app .disclosure-trigger[aria-expanded=true] svg { transform: rotate(180deg); }
+.mac-app .disclosure-trigger svg { transition: transform 180ms ease-out; }
 .mac-app .disclosure-body { padding: 0 18px 16px; display: grid; gap: 13px; }
+.mac-app .disclosure-trigger[aria-expanded=true] + .disclosure-body { animation: mac-disclosure-in 180ms ease-out; }
+.mac-app .technical-heading { margin: 0; padding: 12px 18px; font-size: 13px; }
+.mac-app .technical .disclosure-body { border-top: 1px solid var(--stroke); padding-top: 14px; }
+.mac-app #advanced-settings { animation: mac-disclosure-in 180ms ease-out; }
+@keyframes mac-disclosure-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mac-copy-confirm { from { transform: scale(.9); } to { transform: scale(1); } }
 .mac-app .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 29px; position: relative; }
 .mac-app .toggle-row input { position: absolute; right: 0; opacity: 0; width: 42px; height: 25px; cursor: pointer; }
 .mac-app .switch-track { width: 41px; height: 24px; border-radius: 30px; background: #c4c4ca; padding: 3px; transition: background .12s; }
@@ -97,4 +109,5 @@
 .mac-app .notice-banner { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); border-radius: 9px; padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; }
 @media (max-width: 560px) { .mac-app .mac-shell { padding: 18px 14px; gap: 13px; } .mac-app .settings-inline, .mac-app .advanced-grid { grid-template-columns: 1fr; gap: 9px; } .mac-app .inline-form { flex-wrap: wrap; } .mac-app .mac-self-top { align-items: start; flex-direction: column; gap: 8px; } }
 @media (prefers-contrast: more) { .mac-app { --stroke: #777981; } .mac-app.dark { --stroke: #adb0b8; } }
-@media (prefers-reduced-motion: reduce) { .mac-app .switch-track, .mac-app .switch-track::after { transition: none; } }
+@media (prefers-reduced-transparency: reduce) { .mac-app.native-glass { --surface: #fff; --inset: #f7f7f9; --hover: #e9e9ed; } .mac-app.native-glass.dark { --surface: #303136; --inset: #292a2f; --hover: #414248; } }
+@media (prefers-reduced-motion: reduce) { .mac-app .switch-track, .mac-app .switch-track::after, .mac-app .disclosure-trigger svg { transition: none; } .mac-app .disclosure-trigger[aria-expanded=true] + .disclosure-body, .mac-app .copied-action, .mac-app #advanced-settings { animation: none; } }

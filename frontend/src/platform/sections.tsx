@@ -38,9 +38,11 @@ export function DeviceSection({ snapshot, platform, view, open, perform }: Secti
 function DeviceRow({ device, platform, removing, onRemove, onCancel, onConfirm }: {
   device: Device; platform: Platform; removing: boolean; onRemove(): void; onCancel(): void; onConfirm(): void
 }) {
+  const platformLabel = device.platform === 'windows' ? 'Windows' : device.platform === 'macos' ? 'macOS' : 'Тип устройства неизвестен'
+  const platformIcon = device.platform === 'windows' ? 'platformWindows' : device.platform === 'macos' ? 'platformMac' : 'device'
   return <div className="device-row" data-online={device.online}>
-    <div className="device-platform" aria-label={device.platform === 'unknown' ? 'Устройство' : device.platform === 'windows' ? 'Windows' : 'macOS'}>
-      <Glyph platform={platform} name={device.platform === 'unknown' ? 'desktop' : device.platform === 'windows' ? 'desktop' : 'laptop'} />
+    <div className="device-platform" data-platform={device.platform} title={platformLabel} role="img" aria-label={platformLabel}>
+      <Glyph platform={platform} name={platformIcon} />
     </div>
     <div className="device-copy"><strong title={device.name}>{device.name}</strong><small><i className="peer-dot" />{device.online ? 'Подключено' : 'Не в сети'}</small></div>
     {removing ? <div className="row-confirm"><span>Удалить?</span><Action platform={platform} kind="danger" onClick={onConfirm}>Да</Action><Action platform={platform} kind="subtle" onClick={onCancel}>Отмена</Action></div>
@@ -97,11 +99,17 @@ export function HistorySection({ snapshot, platform, open, perform }: SectionPro
 }
 
 function HistoryRow({ entry, platform, perform }: { entry: HistoryEntry; platform: Platform; perform: SectionProps['perform'] }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 1600)
+    return () => window.clearTimeout(timer)
+  }, [copied])
   return <article className="history-row"><div className="history-row-top"><small>{entry.source} · {entry.time}</small><div className="row-actions">
     {entry.truncated && <Action platform={platform} kind="subtle" icon="down" label={entry.expanded ? 'Свернуть запись' : 'Развернуть запись'} onClick={() => void perform({ type: 'history.expand', id: entry.id })} />}
     {entry.sensitive && <Action platform={platform} kind="subtle" icon={entry.revealed ? 'eyeOff' : 'eye'} label={entry.revealed ? 'Скрыть значение' : 'Показать значение'} onClick={() => void perform({ type: 'history.reveal', id: entry.id })} />}
     {entry.url && <Action platform={platform} kind="subtle" icon="link" label="Открыть ссылку" onClick={() => void perform({ type: 'history.openLink', id: entry.id })} />}
-    <Action platform={platform} kind="subtle" icon="copy" label="Копировать запись" onClick={() => void perform({ type: 'history.copy', id: entry.id })} />
+    <Action platform={platform} kind="subtle" icon={copied ? 'check' : 'copy'} label={copied ? 'Скопировано' : 'Копировать запись'} className={copied ? 'copied-action' : ''} onClick={async () => { if (await perform({ type: 'history.copy', id: entry.id })) setCopied(true) }} />
     <Action platform={platform} kind="subtle" icon="delete" label="Удалить запись" className="delete-action" onClick={() => void perform({ type: 'history.delete', id: entry.id })} />
   </div></div><p className={entry.expanded ? 'history-text expanded' : 'history-text'}>{entry.visibleText}</p></article>
 }
@@ -134,7 +142,7 @@ export function AdditionalSection({ snapshot, platform, perform }: Pick<SectionP
     </div>}</section>
 }
 
-export function AdvancedSection({ snapshot, platform, perform, expanded, onExpandedChange }: Pick<SectionProps, 'snapshot' | 'platform' | 'perform'> & { expanded: boolean; onExpandedChange(value: boolean): void }) {
+export function AdvancedSection({ snapshot, platform, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'perform'>) {
   const [draft, setDraft] = useState<AdvancedSettings>(snapshot.advanced)
   const [deviceName, setDeviceName] = useState(snapshot.deviceName)
   const [code, setCode] = useState('')
@@ -143,8 +151,8 @@ export function AdvancedSection({ snapshot, platform, perform, expanded, onExpan
   useEffect(() => { setDeviceName(snapshot.deviceName) }, [snapshot.deviceName])
   const dirty = deviceName.trim() !== snapshot.deviceName || draft.listenAddress !== snapshot.advanced.listenAddress || draft.port !== snapshot.advanced.port
   const change = (field: keyof AdvancedSettings, value: string | number) => setDraft({ ...draft, [field]: value })
-  return <section className="disclosure technical"><button type="button" className="disclosure-trigger" aria-expanded={expanded} onClick={() => onExpandedChange(!expanded)}><span>Расширенные параметры</span><Glyph platform={platform} name="down" /></button>
-    {expanded && <div className="disclosure-body"><div className="advanced-grid">
+  return <section className="disclosure technical" aria-label="Расширенные параметры"><h2 className="technical-heading">Расширенные параметры</h2>
+    <div className="disclosure-body"><div className="advanced-grid">
       <Field platform={platform} label="Имя устройства" value={deviceName} onChange={setDeviceName} />
       <Field platform={platform} label="Device ID" value={draft.deviceId} onChange={() => {}} disabled />
       <Choice platform={platform} label="NetBird IP" value={draft.listenAddress} values={draft.addresses.map(address => ({ value: address, label: address }))} onChange={value => change('listenAddress', value)} />
@@ -156,7 +164,7 @@ export function AdvancedSection({ snapshot, platform, perform, expanded, onExpan
       <div className="inline-form"><Field platform={platform} label="Код подключения" value={code} onChange={setCode} placeholder="clipare1:…" /><Action platform={platform} disabled={!code.trim()} onClick={() => void perform({ type: 'device.importCode', code: code.trim() })}>Добавить по коду</Action></div>
       <div className="advanced-grid manual-grid"><Field platform={platform} label="Имя устройства" value={peer.name} onChange={value => setPeer({ ...peer, name: value })} /><Field platform={platform} label="Device ID другого устройства" value={peer.id} onChange={value => setPeer({ ...peer, id: value })} /><Field platform={platform} label="IP или FQDN" value={peer.address} onChange={value => setPeer({ ...peer, address: value })} /><Field platform={platform} label="Порт устройства" value={String(peer.port)} type="number" onChange={value => setPeer({ ...peer, port: Number(value) })} /></div>
       <Action platform={platform} disabled={!peer.name.trim() || !peer.id.trim() || !peer.address.trim() || peer.port < 1 || peer.port > 65535} onClick={() => void perform({ type: 'settings.manualPeer', value: peer })}>Добавить вручную</Action>
-    </div>}</section>
+    </div></section>
 }
 
 export function Footer({ snapshot, platform, open, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'open' | 'perform'>) {

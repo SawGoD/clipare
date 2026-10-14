@@ -8,7 +8,10 @@ import {
 } from '@fluentui/react-icons'
 import type { Platform } from '../domain/types'
 
-export type IconName = 'add' | 'refresh' | 'back' | 'check' | 'down' | 'copy' | 'delete' | 'close' | 'eye' | 'eyeOff' | 'history' | 'laptop' | 'link' | 'more' | 'settings' | 'desktop'
+export type IconName = 'add' | 'refresh' | 'back' | 'check' | 'down' | 'copy' | 'delete' | 'close' | 'eye' | 'eyeOff' | 'history' | 'laptop' | 'link' | 'more' | 'settings' | 'desktop' | 'platformWindows' | 'platformMac' | 'device'
+
+const windowsMark = <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M2.5 4.8 11 3.6v7.7H2.5Zm9.8-1.4 9.2-1.3v9.2h-9.2ZM2.5 12.7H11v7.7l-8.5-1.2Zm9.8 0h9.2v9.2l-9.2-1.3Z" /></svg>
+const genericDevice = <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 20h8M12 17v3" /><circle cx="18" cy="14" r=".7" fill="currentColor" /></svg>
 
 const winIcons: Record<IconName, ReactNode> = {
   add: <Add20Regular />, refresh: <ArrowClockwise20Regular />, back: <ArrowLeft20Regular />,
@@ -17,6 +20,7 @@ const winIcons: Record<IconName, ReactNode> = {
   eyeOff: <EyeOff20Regular />, history: <History20Regular />, laptop: <Laptop20Regular />,
   link: <Link20Regular />, more: <MoreHorizontal20Regular />, settings: <Settings20Regular />,
   desktop: <Desktop20Regular />,
+  platformWindows: windowsMark, platformMac: <Laptop20Regular />, device: genericDevice,
 }
 
 const paths: Record<IconName, ReactNode> = {
@@ -36,6 +40,9 @@ const paths: Record<IconName, ReactNode> = {
   more: <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M9.8 3.4 10 2h4l.2 1.4 1.8.8 1.2-.7 2.8 2.8-.7 1.2.8 1.8L22 10v4l-1.4.2-.8 1.8.7 1.2-2.8 2.8-1.2-.7-1.8.8L14 22h-4l-.2-1.4-1.8-.8-1.2.7L4 17.7l.7-1.2-.8-1.8L2 14v-4l1.4-.2.8-1.8-.7-1.2L6.3 4l1.2.7 2.3-1.3Z" /></>,
   desktop: <><rect x="3" y="4" width="18" height="13" rx="1.5" /><path d="M12 17v3M8 20h8" /></>,
+  platformWindows: <path d="M2.5 4.8 11 3.6v7.7H2.5Zm9.8-1.4 9.2-1.3v9.2h-9.2ZM2.5 12.7H11v7.7l-8.5-1.2Zm9.8 0h9.2v9.2l-9.2-1.3Z" fill="currentColor" stroke="none" />,
+  platformMac: <><rect x="4" y="4" width="16" height="12" rx="1.5" /><path d="M2 19h20" /></>,
+  device: <><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 20h8M12 17v3" /><circle cx="18" cy="14" r=".7" fill="currentColor" /></>,
 }
 
 export function Glyph({ platform, name }: { platform: Platform; name: IconName }) {
@@ -43,12 +50,12 @@ export function Glyph({ platform, name }: { platform: Platform; name: IconName }
   return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-export function Action({ platform, children, icon, label, kind = 'secondary', disabled, onClick, className = '' }: {
-  platform: Platform; children?: ReactNode; icon?: IconName; label?: string; kind?: 'primary' | 'secondary' | 'subtle' | 'danger'; disabled?: boolean; onClick?: () => void; className?: string
+export function Action({ platform, children, icon, label, kind = 'secondary', disabled, onClick, className = '', expanded }: {
+  platform: Platform; children?: ReactNode; icon?: IconName; label?: string; kind?: 'primary' | 'secondary' | 'subtle' | 'danger'; disabled?: boolean; onClick?: () => void; className?: string; expanded?: boolean
 }) {
   const accessible = label || (typeof children === 'string' ? children : undefined)
-  if (platform === 'windows') return <Button title={label} aria-label={accessible} className={`action ${kind} ${!children ? 'icon-only' : ''} ${className}`} appearance={kind === 'primary' ? 'primary' : kind === 'subtle' || kind === 'danger' ? 'subtle' : 'secondary'} icon={icon && <Glyph platform={platform} name={icon} />} disabled={disabled} onClick={onClick}>{children}</Button>
-  return <button type="button" title={label} aria-label={accessible} className={`action ${kind} ${className}`} disabled={disabled} onClick={onClick}>{icon && <Glyph platform={platform} name={icon} />}{children && <span>{children}</span>}</button>
+  if (platform === 'windows') return <Button title={label} aria-label={accessible} aria-expanded={expanded} className={`action ${kind} ${!children ? 'icon-only' : ''} ${className}`} appearance={kind === 'primary' ? 'primary' : kind === 'subtle' || kind === 'danger' ? 'subtle' : 'secondary'} icon={icon && <Glyph platform={platform} name={icon} />} disabled={disabled} onClick={onClick}>{children}</Button>
+  return <button type="button" title={label} aria-label={accessible} aria-expanded={expanded} className={`action ${kind} ${className}`} disabled={disabled} onClick={onClick}>{icon && <Glyph platform={platform} name={icon} />}{children && <span>{children}</span>}</button>
 }
 
 export function Toggle({ platform, label, checked, onChange }: { platform: Platform; label: string; checked: boolean; onChange(value: boolean): void }) {
@@ -63,11 +70,11 @@ export function Field({ platform, label, value, onChange, disabled, placeholder,
 }
 
 export function Choice({ platform, label, value, values, onChange }: { platform: Platform; label: string; value: string; values: { value: string; label: string }[]; onChange(value: string): void }) {
-  return <label className="field choice"><span>{label}</span>{platform === 'windows'
-    ? <Dropdown aria-label={label} value={values.find(item => item.value === value)?.label || value} selectedOptions={[value]} onOptionSelect={(_, data) => onChange(data.optionValue || value)}>
-        {values.map(item => <Option key={item.value} value={item.value}>{item.label}</Option>)}
+  return <div className="field choice"><span>{label}</span>{platform === 'windows'
+    ? <Dropdown inlinePopup aria-label={label} value={values.find(item => item.value === value)?.label || value} selectedOptions={[value]} onOptionSelect={(_, data) => onChange(data.optionValue || value)}>
+        {values.map(item => <Option key={item.value} value={item.value} text={item.label}>{item.label}</Option>)}
       </Dropdown>
-    : <select aria-label={label} value={value} onChange={event => onChange(event.target.value)}>{values.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>}</label>
+    : <select aria-label={label} value={value} onChange={event => onChange(event.target.value)}>{values.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>}</div>
 }
 
 export function CompactToggle({ platform, checked, onChange, label }: { platform: Platform; checked: boolean; onChange(value: boolean): void; label: string }) {
