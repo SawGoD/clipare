@@ -11,7 +11,7 @@ frontend:
 mac: frontend
 	mkdir -p dist/Clipare.app/Contents/MacOS
 	sed -e 's/@VERSION@/$(VERSION_CORE)/g' -e 's/@BUILD@/$(VERSION_CORE)/g' -e 's/@RELEASE_VERSION@/$(VERSION)/g' assets/Info.plist > dist/Clipare.app/Contents/Info.plist
-	CGO_ENABLED=1 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
+	CGO_ENABLED=1 go build -tags private_mac_apis -trimpath -ldflags "$(LDFLAGS)" -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
 	mkdir -p dist/Clipare.app/Contents/Resources/ui
 	cp -R frontend/dist/. dist/Clipare.app/Contents/Resources/ui/
 

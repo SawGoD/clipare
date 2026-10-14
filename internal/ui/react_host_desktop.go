@@ -76,13 +76,23 @@ func RunReactWithReady(parent context.Context, path string, log *slog.Logger, re
 		app.Event.OnApplicationEvent(events.Windows.SystemThemeChanged, func(*application.ApplicationEvent) { refreshAppearance() })
 	}
 	windowHeight := 760
+	minWindowHeight := 520
 	if runtime.GOOS == "darwin" {
-		windowHeight = 620 // Keep the compact utility content in view without a large empty tail.
+		windowHeight = 520 // Content fits without the unused tail; expanded settings scroll.
+		minWindowHeight = 480
 	}
-	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "Clipare", Title: "Clipare", Width: 700, Height: windowHeight, MinWidth: 520, MinHeight: 520,
+	windowOptions := application.WebviewWindowOptions{
+		Name: "Clipare", Title: "Clipare", Width: 700, Height: windowHeight, MinWidth: 520, MinHeight: minWindowHeight,
 		BackgroundColour: application.NewRGB(36, 37, 41),
-	})
+	}
+	if runtime.GOOS == "darwin" {
+		// Native NSGlassEffectView on macOS 26; Wails falls back to
+		// NSVisualEffectView on older supported versions.
+		windowOptions.Mac.Backdrop = application.MacBackdropLiquidGlass
+		windowOptions.Mac.LiquidGlass.Material = application.NSVisualEffectMaterialWindowBackground
+		windowOptions.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
+	}
+	window := app.Window.NewWithOptions(windowOptions)
 	var activationCleanup func()
 	window.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
 		// The platform environment is not initialized before app.Run(). Read the

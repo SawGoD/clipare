@@ -62,7 +62,12 @@ func run() error {
 	flags := "-s -w -X clipare.Commit=" + commit
 	env := append(os.Environ(), "GOOS="+*targetOS, "GOARCH="+*arch, "CGO_ENABLED=0")
 	build := func(path, ldflags string) error {
-		cmd := exec.Command("go", "build", "-trimpath", "-ldflags", ldflags, "-o", path, "./cmd/clipare")
+		args := []string{"build", "-trimpath", "-ldflags", ldflags, "-o", path, "./cmd/clipare"}
+		if *targetOS == "darwin" {
+			// WKWebView transparency requires Wails' guarded macOS implementation.
+			args = append([]string{"build", "-tags", "private_mac_apis"}, args[1:]...)
+		}
+		cmd := exec.Command("go", args...)
 		cmd.Env = env
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
