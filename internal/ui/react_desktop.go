@@ -54,7 +54,7 @@ func (d *reactDesktop) Poll() int {
 			}
 		}
 	}
-	if historyClosed {
+	if a.setView || historyClosed {
 		d.emitLocked()
 	}
 	return a.event
@@ -151,7 +151,19 @@ func (d *reactDesktop) Pair(title, code string, mode int) {
 }
 func (d *reactDesktop) clearHistoryLocked() {
 	d.snapshot.History = []reactHistoryEntry{}
+	d.snapshot.HistoryKeyLost = false
+	d.snapshot.CopyReceipt = nil
 	d.historyIDs = nil
+}
+func (d *reactDesktop) HistoryCopied(id string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	revision := uint64(1)
+	if d.snapshot.CopyReceipt != nil {
+		revision = d.snapshot.CopyReceipt.Revision + 1
+	}
+	d.snapshot.CopyReceipt = &reactCopyReceipt{ID: id, Revision: revision}
+	d.emitLocked()
 }
 func (d *reactDesktop) PairClose() {
 	d.mu.Lock()
@@ -262,6 +274,7 @@ func (d *reactDesktop) ShowHistory(rows []historyRow, keyLost bool) {
 		entries = append(entries, reactHistoryEntry{ID: row.id, Group: group, Source: source, Time: clock, VisibleText: row.preview, Sensitive: row.sensitive, Revealed: row.revealed, Expanded: row.expanded, Truncated: row.truncated, URL: link})
 	}
 	d.snapshot.History = entries
+	d.snapshot.HistoryKeyLost = keyLost
 	if keyLost {
 		d.snapshot.Notice = historyKeyLostText
 	}

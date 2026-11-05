@@ -6,12 +6,22 @@ const previewSecrets: Record<string, string> = { h2: 'clipare-preview-secret-val
 export class MockBackend implements Backend {
   private state: Snapshot
   private listeners = new Set<(snapshot: Snapshot) => void>()
+  private snapshotFailures: number
+  private connectFails: boolean
 
   constructor(platform: Platform, scenario: Scenario, theme: 'light' | 'dark') {
     this.state = fixture(platform, scenario, theme)
+    this.snapshotFailures = scenario === 'snapshot-error' ? 2 : 0
+    this.connectFails = scenario === 'connect-error'
   }
 
-  async snapshot(): Promise<Snapshot> { return structuredClone(this.state) }
+  async snapshot(): Promise<Snapshot> {
+    if (this.snapshotFailures > 0) {
+      this.snapshotFailures--
+      throw new Error('Preview snapshot unavailable')
+    }
+    return structuredClone(this.state)
+  }
 
   subscribe(listener: (snapshot: Snapshot) => void): () => void {
     this.listeners.add(listener)
@@ -50,9 +60,11 @@ export class MockBackend implements Backend {
       case 'device.remove': s.devices = s.devices.filter(device => device.id !== command.id); break
       case 'device.discover': s.discoveryMessage = s.discovered.length ? undefined : 'Устройства Clipare не найдены'; break
       case 'device.connect': {
+        if (this.connectFails) throw new Error('Не удалось проверить подключение. Повторите попытку.')
         const target = s.discovered.find(device => device.id === command.id)
         if (!target) throw new Error('Устройство больше недоступно')
         s.pairing = { direction: 'outgoing', deviceName: target.name, code: '482 731', awaitingApproval: true, needsLocalConfirmation: s.devices.length > 0 }
+        s.view = 'pairing'
         break
       }
       case 'device.importCode':
@@ -62,13 +74,13 @@ export class MockBackend implements Backend {
       case 'pair.confirmLocal': {
         const name = s.pairing?.deviceName
         if (name && !s.devices.some(device => device.name === name)) s.devices.push({ id: 'paired-' + name, name, platform: 'unknown', online: true })
-        s.pairing = undefined; s.notice = 'Устройство подключено'; break
+        s.pairing = undefined; s.view = 'home'; s.notice = 'Устройство подключено'; break
       }
-      case 'pair.reject': case 'pair.cancel': s.pairing = undefined; s.notice = 'Подключение отменено'; break
+      case 'pair.reject': case 'pair.cancel': s.pairing = undefined; s.view = 'home'; s.notice = 'Подключение отменено'; break
       case 'history.open': s.history = s.history.map(entry => ({ ...entry, revealed: false, visibleText: entry.sensitive ? '•••• •••• •••• ••••' : entry.visibleText })); break
-      case 'history.clear': s.history = []; break
+      case 'history.clear': s.history = []; s.historyKeyLost = false; break
       case 'history.delete': s.history = s.history.filter(entry => entry.id !== command.id); break
-      case 'history.copy': s.notice = 'Запись скопирована (предпросмотр)'; break
+      case 'history.copy': s.copyReceipt = { id: command.id, revision: (s.copyReceipt?.revision || 0) + 1 }; break
       case 'history.openLink': s.notice = 'Ссылка открыта (предпросмотр)'; break
       case 'history.reveal':
         s.history = s.history.map(entry => entry.id === command.id ? { ...entry, revealed: !entry.revealed, visibleText: entry.revealed ? '•••• •••• •••• ••••' : previewSecrets[entry.id] || entry.visibleText } : entry)
@@ -91,7 +103,7 @@ export class MockBackend implements Backend {
       case 'update.install': if (s.update.kind === 'available') s.update = { kind: 'downloading', version: s.update.version, progress: 42 }; break
       case 'update.dismiss': s.update = { kind: 'idle' }; break
       case 'notice.dismiss': s.notice = undefined; break
-      case 'view.open': if (command.view === 'history') await this.perform({ type: 'history.open' }); break
+      case 'view.open': s.view = command.view; if (command.view === 'history') await this.perform({ type: 'history.open' }); break
     }
     this.publish()
   }

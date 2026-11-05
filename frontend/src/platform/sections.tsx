@@ -58,10 +58,10 @@ function DiscoverySection({ snapshot, platform, open, perform }: Pick<SectionPro
     {devices.length === 0 ? <div className="flow-empty"><Glyph platform={platform} name="desktop" /><strong>Устройства Clipare не найдены</strong><p>Убедитесь, что NetBird и Clipare запущены на других устройствах.</p></div>
       : <div className="discovered-list">{devices.map(device => <div className="discovered-row" key={device.id}>
         <Glyph platform={platform} name={device.platform === 'macos' ? 'laptop' : 'desktop'} /><div><strong>{device.name}</strong><small>{device.address}</small></div>
-        <Action platform={platform} kind="primary" onClick={() => { void perform({ type: 'device.connect', id: device.id }); open('pairing') }}>Подключить</Action>
+        <Action platform={platform} kind="primary" onClick={async () => { if (await perform({ type: 'device.connect', id: device.id })) open('pairing') }}>Подключить</Action>
       </div>)}</div>}
     <div className="flow-actions"><Action platform={platform} kind="subtle" icon="refresh" label="Обновить список устройств" onClick={() => void perform({ type: 'device.discover' })} /></div>
-    <div className="manual-fallback"><p>Не нашли устройство? Добавьте его по коду.</p><div className="inline-form"><Field platform={platform} label="Код подключения" value={code} onChange={setCode} placeholder="clipare1:…" /><Action platform={platform} kind="secondary" disabled={!code.trim()} onClick={async () => { if (await perform({ type: 'device.importCode', code: code.trim() })) { setCode(''); open('home') } }}>Добавить по коду</Action></div></div>
+    <div className="manual-fallback"><p>Не нашли устройство? Добавьте его по коду.</p><div className="inline-form"><Field platform={platform} label="Код подключения" value={code} onChange={setCode} placeholder="clipare1:…" /><Action platform={platform} kind="secondary" disabled={!code.trim()} onClick={() => void perform({ type: 'device.importCode', code: code.trim() })}>Добавить по коду</Action></div></div>
   </div>
 }
 
@@ -87,19 +87,20 @@ export function HistorySection({ snapshot, platform, open, perform }: SectionPro
   let lastGroup = ''
   return <section className="surface history-surface" aria-label="История">
     <div className="section-heading"><Action platform={platform} kind="subtle" icon="back" label="К устройствам" onClick={() => open('home')} /><h2>История</h2>
-      {snapshot.history.length > 0 && <Action platform={platform} kind="subtle" icon="delete" label="Очистить историю" onClick={() => setConfirmClear(true)} />}</div>
+      {(snapshot.history.length > 0 || snapshot.historyKeyLost) && <Action platform={platform} kind="subtle" icon="delete" label="Очистить историю" onClick={() => setConfirmClear(true)} />}</div>
     {confirmClear && <div className="inline-error">Очистить всю историю на этом устройстве?<Action platform={platform} kind="danger" onClick={() => { void perform({ type: 'history.clear' }); setConfirmClear(false) }}>Очистить</Action><Action platform={platform} onClick={() => setConfirmClear(false)}>Отмена</Action></div>}
-    {snapshot.history.length === 0 ? <div className="flow-empty"><Glyph platform={platform} name="history" /><strong>История пока пуста</strong><p>Скопированный текст появится здесь, когда сохранение истории включено.</p></div>
+    {snapshot.history.length === 0 ? <div className="flow-empty"><Glyph platform={platform} name="history" /><strong>{snapshot.historyKeyLost ? 'Историю не удалось открыть' : 'История пока пуста'}</strong><p>{snapshot.historyKeyLost ? 'Ключ хранения изменился. Очистите историю, чтобы начать заново.' : 'Скопированный текст появится здесь, когда сохранение истории включено.'}</p></div>
       : <div className="history-list">{snapshot.history.map(entry => {
         const showGroup = lastGroup !== entry.group
         lastGroup = entry.group
-        return <div key={entry.id}>{showGroup && <div className="history-group">{entry.group}</div>}<HistoryRow entry={entry} platform={platform} perform={perform} /></div>
+        return <div key={entry.id}>{showGroup && <div className="history-group">{entry.group}</div>}<HistoryRow entry={entry} platform={platform} perform={perform} copyReceipt={snapshot.copyReceipt} /></div>
       })}</div>}
   </section>
 }
 
-function HistoryRow({ entry, platform, perform }: { entry: HistoryEntry; platform: Platform; perform: SectionProps['perform'] }) {
+function HistoryRow({ entry, platform, perform, copyReceipt }: { entry: HistoryEntry; platform: Platform; perform: SectionProps['perform']; copyReceipt?: { id: string; revision: number } }) {
   const [copied, setCopied] = useState(false)
+  useEffect(() => { if (copyReceipt?.id === entry.id) setCopied(true) }, [copyReceipt?.id, copyReceipt?.revision, entry.id])
   useEffect(() => {
     if (!copied) return
     const timer = window.setTimeout(() => setCopied(false), 1600)
@@ -109,7 +110,7 @@ function HistoryRow({ entry, platform, perform }: { entry: HistoryEntry; platfor
     {entry.truncated && <Action platform={platform} kind="subtle" icon="down" label={entry.expanded ? 'Свернуть запись' : 'Развернуть запись'} onClick={() => void perform({ type: 'history.expand', id: entry.id })} />}
     {entry.sensitive && <Action platform={platform} kind="subtle" icon={entry.revealed ? 'eyeOff' : 'eye'} label={entry.revealed ? 'Скрыть значение' : 'Показать значение'} onClick={() => void perform({ type: 'history.reveal', id: entry.id })} />}
     {entry.url && <Action platform={platform} kind="subtle" icon="link" label="Открыть ссылку" onClick={() => void perform({ type: 'history.openLink', id: entry.id })} />}
-    <Action platform={platform} kind="subtle" icon={copied ? 'check' : 'copy'} label={copied ? 'Скопировано' : 'Копировать запись'} className={copied ? 'copied-action' : ''} onClick={async () => { if (await perform({ type: 'history.copy', id: entry.id })) setCopied(true) }} />
+    <Action platform={platform} kind="subtle" icon={copied ? 'check' : 'copy'} label={copied ? 'Скопировано' : 'Копировать запись'} className={copied ? 'copied-action' : ''} onClick={() => void perform({ type: 'history.copy', id: entry.id })} />
     <Action platform={platform} kind="subtle" icon="delete" label="Удалить запись" className="delete-action" onClick={() => void perform({ type: 'history.delete', id: entry.id })} />
   </div></div><p className={entry.expanded ? 'history-text expanded' : 'history-text'}>{entry.visibleText}</p></article>
 }
@@ -132,13 +133,25 @@ export function UpdateSection({ snapshot, platform, open, perform }: SectionProp
 export function AdditionalSection({ snapshot, platform, perform }: Pick<SectionProps, 'snapshot' | 'platform' | 'perform'>) {
   const [expanded, setExpanded] = useState(false)
   const s = snapshot.settings
+  const [limitDraft, setLimitDraft] = useState(String(s.historyLimit))
+  const [limitError, setLimitError] = useState(false)
+  useEffect(() => { setLimitDraft(String(s.historyLimit)); setLimitError(false) }, [s.historyLimit])
+  const commitLimit = () => {
+    const value = Number(limitDraft)
+    if (!/^\d+$/.test(limitDraft) || value < 3 || value > 50) {
+      setLimitError(true)
+      return
+    }
+    setLimitError(false)
+    if (value !== s.historyLimit) void perform({ type: 'settings.historyLimit', value })
+  }
   return <section className="disclosure"><button type="button" className="disclosure-trigger" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span>Дополнительно</span><Glyph platform={platform} name="down" /></button>
     {expanded && <div className="disclosure-body"><Toggle platform={platform} label="Запускать при входе в систему" checked={s.autostart} onChange={value => void perform({ type: 'settings.autostart', value })} />
       <div className="settings-inline"><Toggle platform={platform} label="Авто-проверка обновлений" checked={s.autoCheckUpdates} onChange={value => void perform({ type: 'settings.autoCheckUpdates', value })} />
         <Choice platform={platform} label="Канал обновлений" value={s.updateChannel} values={[{ value: 'stable', label: 'Стабильные' }, { value: 'beta', label: 'Бета' }]} onChange={value => void perform({ type: 'settings.updateChannel', value: value as 'stable' | 'beta' })} /></div>
       <Toggle platform={platform} label="Сохранять историю" checked={s.historyEnabled} onChange={value => void perform({ type: 'settings.historyEnabled', value })} />
       {s.historyEnabled && <div className="settings-inline"><Choice platform={platform} label="Хранить" value={s.historyRetention} values={[{ value: '30m', label: '30 минут' }, { value: '1h', label: '1 час' }, { value: '6h', label: '6 часов' }, { value: '12h', label: '12 часов' }, { value: '24h', label: '1 день' }, { value: '48h', label: '2 дня' }, { value: '72h', label: '3 дня' }]} onChange={value => void perform({ type: 'settings.historyRetention', value: value as typeof s.historyRetention })} />
-        <Field platform={platform} label="Максимум записей" value={String(s.historyLimit)} type="number" onChange={value => { const count = Number(value); if (count > 0) void perform({ type: 'settings.historyLimit', value: count }) }} /></div>}
+        <div><Field platform={platform} label="Максимум записей" value={limitDraft} type="number" onChange={value => { setLimitDraft(value); setLimitError(false) }} onBlur={commitLimit} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} />{limitError && <small role="alert" className="field-error">Введите число от 3 до 50</small>}</div></div>}
     </div>}</section>
 }
 
@@ -147,7 +160,7 @@ export function AdvancedSection({ snapshot, platform, perform }: Pick<SectionPro
   const [deviceName, setDeviceName] = useState(snapshot.deviceName)
   const [code, setCode] = useState('')
   const [peer, setPeer] = useState({ name: '', id: '', address: '', port: 45873 })
-  useEffect(() => { setDraft(snapshot.advanced) }, [snapshot.advanced])
+  useEffect(() => { setDraft(snapshot.advanced) }, [snapshot.advanced.deviceId, snapshot.advanced.listenAddress, snapshot.advanced.port, snapshot.advanced.publicKeyFingerprint, snapshot.advanced.legacyKeyPresent])
   useEffect(() => { setDeviceName(snapshot.deviceName) }, [snapshot.deviceName])
   const dirty = deviceName.trim() !== snapshot.deviceName || draft.listenAddress !== snapshot.advanced.listenAddress || draft.port !== snapshot.advanced.port
   const change = (field: keyof AdvancedSettings, value: string | number) => setDraft({ ...draft, [field]: value })

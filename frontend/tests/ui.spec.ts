@@ -112,9 +112,53 @@ test('Windows dropdowns remain interactive inside additional settings', async ({
   await page.getByRole('button', { name: 'Дополнительно' }).click()
   await page.getByRole('combobox', { name: 'Канал обновлений' }).click()
   await page.getByRole('option', { name: 'Стабильные' }).click()
+  await expect(page.getByRole('combobox', { name: 'Канал обновлений' })).toContainText('Стабильные')
   await expect(page.getByRole('heading', { name: 'Clipare' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Хранить' }).click()
   await page.getByRole('option', { name: '1 час' }).click()
+  await expect(page.getByRole('combobox', { name: 'Хранить' })).toContainText('1 час')
   await expect(page.getByRole('heading', { name: 'Clipare' })).toBeVisible()
   expect(errors).toEqual([])
 })
+
+test('initial bridge failure offers retry instead of a blank window', async ({ page }) => {
+  await page.goto('/?platform=windows&scenario=snapshot-error')
+  await expect(page.getByRole('alert')).toContainText('Не удалось загрузить состояние Clipare')
+  await page.getByRole('button', { name: 'Повторить' }).click()
+  await expect(page.getByRole('heading', { name: 'Clipare' })).toBeVisible()
+})
+
+test('render failure shows a recoverable screen', async ({ page }) => {
+  await page.goto('/?platform=windows&scenario=render-error')
+  await expect(page.getByRole('alert')).toContainText('Не удалось показать Clipare')
+  await expect(page.getByRole('button', { name: 'Перезагрузить интерфейс' })).toBeVisible()
+})
+
+for (const platform of ['windows', 'macos'] as const) {
+  test(`${platform} failed discovery connect stays in device list`, async ({ page }) => {
+    await page.goto(`/?platform=${platform}&scenario=connect-error`)
+    await page.getByRole('button', { name: 'Добавить устройство' }).click()
+    await page.getByRole('button', { name: 'Подключить' }).first().click()
+    await expect(page.getByRole('alert')).toContainText('Не удалось проверить подключение')
+    await expect(page.getByRole('heading', { name: 'Добавить устройство' })).toBeVisible()
+  })
+
+  test(`${platform} lost history key offers recovery`, async ({ page }) => {
+    await page.goto(`/?platform=${platform}&scenario=key-lost`)
+    await page.getByRole('button', { name: 'История буфера обмена' }).click()
+    await expect(page.getByText('Историю не удалось открыть')).toBeVisible()
+    await page.getByRole('button', { name: 'Очистить историю' }).click()
+    await expect(page.getByText('Очистить всю историю на этом устройстве?')).toBeVisible()
+  })
+
+  test(`${platform} history limit is committed only after editing`, async ({ page }) => {
+    await page.goto(`/?platform=${platform}`)
+    await page.getByRole('button', { name: 'Дополнительно' }).click()
+    const limit = page.getByLabel('Максимум записей')
+    await limit.fill('')
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await limit.fill('12')
+    await limit.press('Enter')
+    await expect(limit).toHaveValue('12')
+  })
+}

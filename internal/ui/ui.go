@@ -957,6 +957,9 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					d.Alert("Не удалось скопировать запись")
 					continue
 				}
+				if react, ok := d.(*reactDesktop); ok {
+					react.HistoryCopied(item.ID)
+				}
 				// The watcher re-records the copy; the row moves to the top on
 				// the next refresh instead of duplicating.
 			case eventHistoryEye:
@@ -1206,6 +1209,9 @@ func runDesktopReady(parent context.Context, path string, log *slog.Logger, d de
 					err = next.Validate()
 				}
 				if err != nil {
+					if _, ok := d.(*reactDesktop); ok {
+						d.Show(toForm(draft), draft.Peers, config.Addresses())
+					}
 					d.Alert("Проверьте настройки: " + err.Error())
 					continue
 				}

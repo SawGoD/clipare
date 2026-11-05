@@ -38,7 +38,21 @@ func RunReactWithReady(parent context.Context, path string, log *slog.Logger, re
 	var app *application.App
 	var tray *application.SystemTray
 	var statusItem *application.MenuItem
+	var window *application.WebviewWindow
+	wasIncomingPair := false
 	d := newReactDesktop(func(snapshot reactSnapshot) {
+		incomingPair := snapshot.Pairing != nil && snapshot.Pairing.Direction == "incoming"
+		if incomingPair && !wasIncomingPair && window != nil {
+			// Publishing happens under the desktop state lock. Showing the window
+			// asynchronously avoids re-entering that lock via WindowShow.
+			go func() {
+				if !window.IsVisible() {
+					window.Show()
+					window.Focus()
+				}
+			}()
+		}
+		wasIncomingPair = incomingPair
 		if app != nil {
 			app.Event.Emit("clipare:state", snapshot)
 		}
@@ -92,7 +106,7 @@ func RunReactWithReady(parent context.Context, path string, log *slog.Logger, re
 		windowOptions.Mac.LiquidGlass.Material = application.NSVisualEffectMaterialWindowBackground
 		windowOptions.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
 	}
-	window := app.Window.NewWithOptions(windowOptions)
+	window = app.Window.NewWithOptions(windowOptions)
 	var activationCleanup func()
 	window.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
 		// The platform environment is not initialized before app.Run(). Read the

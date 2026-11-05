@@ -44,6 +44,10 @@ type reactHistoryEntry struct {
 	Truncated   bool   `json:"truncated"`
 	URL         string `json:"url,omitempty"`
 }
+type reactCopyReceipt struct {
+	ID       string `json:"id"`
+	Revision uint64 `json:"revision"`
+}
 type reactDiscovered struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -86,6 +90,7 @@ type reactSync struct {
 }
 type reactSnapshot struct {
 	Platform         string              `json:"platform"`
+	View             string              `json:"view"`
 	Theme            string              `json:"theme"`
 	Accent           string              `json:"accent"`
 	Version          string              `json:"version"`
@@ -93,6 +98,8 @@ type reactSnapshot struct {
 	Sync             reactSync           `json:"sync"`
 	Devices          []reactDevice       `json:"devices"`
 	History          []reactHistoryEntry `json:"history"`
+	HistoryKeyLost   bool                `json:"historyKeyLost"`
+	CopyReceipt      *reactCopyReceipt   `json:"copyReceipt,omitempty"`
 	Discovered       []reactDiscovered   `json:"discovered"`
 	DiscoveryMessage string              `json:"discoveryMessage,omitempty"`
 	Pairing          *reactPairing       `json:"pairing,omitempty"`
@@ -131,7 +138,7 @@ func newReactDesktop(publish func(reactSnapshot)) *reactDesktop {
 		platform = "macos"
 	}
 	return &reactDesktop{selected: -1, discoverySelected: -1, publish: publish,
-		snapshot: reactSnapshot{Platform: platform, Theme: "light", Accent: "#0f6cbd", Version: clipare.Version(),
+		snapshot: reactSnapshot{Platform: platform, View: "home", Theme: "light", Accent: "#0f6cbd", Version: clipare.Version(),
 			Sync:    reactSync{State: "degraded", Message: "Запуск Clipare…"},
 			Devices: []reactDevice{}, History: []reactHistoryEntry{}, Discovered: []reactDiscovered{},
 			Update: reactUpdate{Kind: "idle"}, Advanced: reactAdvanced{Addresses: []string{}}}}
@@ -153,6 +160,7 @@ func cloneReactSnapshot(source reactSnapshot) reactSnapshot {
 	return copy
 }
 func (d *reactDesktop) emitLocked() {
+	d.snapshot.View = reactViewName(d.view)
 	if d.publish == nil {
 		return
 	}
@@ -164,6 +172,20 @@ func (d *reactDesktop) emitLocked() {
 	var copy reactSnapshot
 	if json.Unmarshal(encoded, &copy) == nil {
 		d.publish(copy)
+	}
+}
+func reactViewName(view ViewState) string {
+	switch view {
+	case ViewDiscovery:
+		return "discovery"
+	case ViewPairing:
+		return "pairing"
+	case ViewUpdate:
+		return "updates"
+	case ViewHistory:
+		return "history"
+	default:
+		return "home"
 	}
 }
 func (d *reactDesktop) hasPeer(id string) bool {
@@ -212,6 +234,9 @@ func (s *ReactService) Perform(c reactCommand) error {
 	a, err := d.action(c)
 	if err != nil {
 		return err
+	}
+	if d.snapshot.Busy && a.event != eventNone && c.Type != "view.open" {
+		return errors.New("Дождитесь завершения применения настроек")
 	}
 	if a.event == eventNone && !a.setView {
 		return nil

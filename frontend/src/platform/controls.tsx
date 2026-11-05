@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { Button, Checkbox, Dropdown, Input, Option, Switch } from '@fluentui/react-components'
 import {
   Add20Regular, ArrowClockwise20Regular, ArrowLeft20Regular, Checkmark20Regular,
@@ -63,10 +63,10 @@ export function Toggle({ platform, label, checked, onChange }: { platform: Platf
   return <label className="toggle-row"><span>{label}</span><input type="checkbox" role="switch" checked={checked} onChange={event => onChange(event.target.checked)} /><span className="switch-track" aria-hidden="true" /></label>
 }
 
-export function Field({ platform, label, value, onChange, disabled, placeholder, type = 'text' }: { platform: Platform; label: string; value: string; onChange(value: string): void; disabled?: boolean; placeholder?: string; type?: string }) {
+export function Field({ platform, label, value, onChange, onBlur, onKeyDown, disabled, placeholder, type = 'text' }: { platform: Platform; label: string; value: string; onChange(value: string): void; onBlur?: () => void; onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void; disabled?: boolean; placeholder?: string; type?: string }) {
   return <label className="field"><span>{label}</span>{platform === 'windows'
-    ? <Input aria-label={label} type={type === 'number' ? 'text' : type as 'text' | 'password'} inputMode={type === 'number' ? 'numeric' : undefined} value={value} placeholder={placeholder} disabled={disabled} onChange={(_, data) => onChange(data.value)} />
-    : <input aria-label={label} type={type} value={value} placeholder={placeholder} disabled={disabled} onChange={event => onChange(event.target.value)} />}</label>
+    ? <Input aria-label={label} type={type === 'number' ? 'text' : type as 'text' | 'password'} inputMode={type === 'number' ? 'numeric' : undefined} value={value} placeholder={placeholder} disabled={disabled} onChange={(_, data) => onChange(data.value)} onBlur={onBlur} onKeyDown={onKeyDown} />
+    : <input aria-label={label} type={type} value={value} placeholder={placeholder} disabled={disabled} onChange={event => onChange(event.target.value)} onBlur={onBlur} onKeyDown={onKeyDown} />}</label>
 }
 
 export function Choice({ platform, label, value, values, onChange }: { platform: Platform; label: string; value: string; values: { value: string; label: string }[]; onChange(value: string): void }) {

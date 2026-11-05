@@ -46,6 +46,17 @@ func TestReactBridgeValidatesAndSelectsPeer(t *testing.T) {
 	}
 }
 
+func TestReactBridgeRejectsActionsWhileApplying(t *testing.T) {
+	d := newReactDesktop(nil)
+	d.snapshot.Busy = true
+	if err := (&ReactService{d}).Perform(reactCommand{Type: "sync.toggle"}); err == nil {
+		t.Fatal("action silently accepted while applying settings")
+	}
+	if got := d.Poll(); got != eventNone {
+		t.Fatalf("queued busy action: %d", got)
+	}
+}
+
 func TestReactBridgeAdvancedSettingsPreserveDraftUntilApply(t *testing.T) {
 	d := newReactDesktop(nil)
 	service := &ReactService{d}
@@ -104,6 +115,42 @@ func TestReactBridgeBackCancelsPairing(t *testing.T) {
 	}
 	if got := d.Poll(); got != eventReject {
 		t.Fatalf("incoming back event = %d", got)
+	}
+}
+
+func TestReactSnapshotTracksPairingFailure(t *testing.T) {
+	d := newReactDesktop(nil)
+	d.discovered = []reactDiscovered{{ID: "0", Name: "Laptop"}}
+	if err := (&ReactService{d}).Perform(reactCommand{Type: "device.connect", ID: "0"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Poll(); got != eventConnect || d.snapshot.View != "pairing" {
+		t.Fatalf("connect = %d, view = %q", got, d.snapshot.View)
+	}
+	d.PairClose()
+	if d.snapshot.View != "home" || d.snapshot.Pairing != nil {
+		t.Fatalf("pairing failure left stale screen: %+v", d.snapshot)
+	}
+}
+
+func TestReactHistoryKeyLossAndCopyReceipt(t *testing.T) {
+	d := newReactDesktop(nil)
+	d.ShowHistory(nil, true)
+	if !d.snapshot.HistoryKeyLost || d.snapshot.View != "history" {
+		t.Fatalf("key-loss recovery state: %+v", d.snapshot)
+	}
+	d.ShowHistory(nil, false)
+	d.HistoryCopied("entry")
+	if d.snapshot.HistoryKeyLost || d.snapshot.CopyReceipt == nil || d.snapshot.CopyReceipt.ID != "entry" {
+		t.Fatalf("copy receipt state: %+v", d.snapshot)
+	}
+	d.HistoryCopied("entry")
+	if d.snapshot.CopyReceipt.Revision != 2 {
+		t.Fatalf("copy revision = %d", d.snapshot.CopyReceipt.Revision)
+	}
+	d.PairClose()
+	if d.snapshot.View != "home" {
+		t.Fatalf("view = %q", d.snapshot.View)
 	}
 }
 

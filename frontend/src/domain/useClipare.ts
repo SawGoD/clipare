@@ -4,6 +4,7 @@ import type { Backend, Command, Snapshot } from './types'
 export function useClipare(backend: Backend) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -12,7 +13,7 @@ export function useClipare(backend: Backend) {
       if (alive) setError('Не удалось загрузить состояние Clipare')
     })
     return () => { alive = false; off() }
-  }, [backend])
+  }, [backend, attempt])
 
   const perform = useCallback(async (command: Command): Promise<boolean> => {
     try {
@@ -25,5 +26,5 @@ export function useClipare(backend: Backend) {
     }
   }, [backend])
 
-  return { snapshot, error, clearError: () => setError(null), perform }
+  return { snapshot, error, retrySnapshot: () => { setError(null); setAttempt(value => value + 1) }, clearError: () => setError(null), perform }
 }

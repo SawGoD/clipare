@@ -72,6 +72,7 @@ export interface AdvancedSettings {
 
 export interface Snapshot {
   platform: Platform
+  view: View
   theme: 'light' | 'dark'
   accent: string
   version: string
@@ -79,6 +80,8 @@ export interface Snapshot {
   sync: { state: SyncState; message: string; reason?: string }
   devices: Device[]
   history: HistoryEntry[]
+  historyKeyLost: boolean
+  copyReceipt?: { id: string; revision: number }
   discovered: DiscoveredDevice[]
   discoveryMessage?: string
   pairing?: PairingState
