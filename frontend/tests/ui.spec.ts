@@ -164,13 +164,17 @@ for (const platform of ['windows', 'macos'] as const) {
 }
 
 test('Windows backdrop preserves opaque fallback in contrast mode', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'no-preference' }] })
   await page.goto('/?platform=windows&scenario=backdrop&theme=dark')
   const app = page.locator('.win-app')
   await expect(app).toHaveClass(/system-backdrop/)
   const translucent = await app.evaluate(el => getComputedStyle(el).backgroundColor)
   expect(translucent).toContain('0.78')
-  await page.emulateMedia({ forcedColors: 'active' })
+  await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'forced-colors', value: 'active' }] })
   const opaque = await app.evaluate(el => getComputedStyle(el).backgroundColor)
   expect(opaque).not.toContain('0.78')
+  await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }, { name: 'forced-colors', value: 'none' }] })
+  expect(await app.evaluate(el => getComputedStyle(el).backgroundColor)).not.toContain('0.78')
   await expect(page.getByText('Синхронизация включена', { exact: true })).toBeVisible()
 })
