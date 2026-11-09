@@ -82,7 +82,21 @@ func StartWithControl(parent context.Context, c config.Config, b clipboard.Backe
 		manager.SetObserver(observe)
 		waitHistory = wait
 	}
-	if e = manager.Initialize(); e != nil {
+	for {
+		e = manager.Initialize()
+		retry, canRetry := b.(interface{ RetryInitialization() bool })
+		if e == nil || !canRetry || !retry.RetryInitialization() {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			e = ctx.Err()
+		case <-time.After(2 * time.Second):
+			continue
+		}
+		break
+	}
+	if e != nil {
 		cancel()
 		listener.Close()
 		workers.Wait()

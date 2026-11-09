@@ -30,6 +30,13 @@ func installReactActivation(window *application.WebviewWindow, path string) (fun
 		return nil, errors.New("activation message unavailable")
 	}
 	callback := syscall.NewCallback(func(h, msg, wp, lp, id, ref uintptr) uintptr {
+		if msg == 0x112 && wp&0xfff0 == 0xf060 {
+			state, _, _ := user.NewProc("GetKeyState").Call(0x12)
+			if state&0x8000 != 0 {
+				go application.Get().Quit()
+				return 0
+			}
+		}
 		if msg == message {
 			go func() { window.Show(); window.Focus() }()
 			return 1

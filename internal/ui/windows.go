@@ -117,6 +117,19 @@ func wide(s string) *uint16 {
 }
 func call(name string, args ...uintptr) uintptr { r, _, _ := win.NewProc(name).Call(args...); return r }
 func (n *nativeDesktop) px(v int) uintptr       { return uintptr(int(float64(v) * n.scale)) }
+
+const (
+	wmSysCommand = 0x0112
+	scClose      = 0xf060
+	vkMenu       = 0x12
+)
+
+// altCloseCommand reports whether a window message is the Alt+F4 close
+// command. The caption close button sends the same SC_CLOSE command, so the
+// Alt state is the only reliable discriminator.
+func altCloseCommand(msg uint32, w uintptr, altDown bool) bool {
+	return msg == wmSysCommand && w&0xfff0 == scClose && altDown
+}
 func (n *nativeDesktop) control(class, text string, style uintptr, x, y, w, h, id int) uintptr {
 	kind := 0
 	if class == "BUTTON" && style&15 == 0 {
@@ -199,6 +212,14 @@ func (n *nativeDesktop) Init() error {
 		case 0x2e0:
 			n.dpiChanged(hwnd, w, l)
 			return 0
+		case 0x112:
+			// Alt+F4 and the caption close button both arrive here as SC_CLOSE.
+			// Only Alt+F4 must terminate the process; a plain close keeps
+			// hiding the window to the tray through WM_CLOSE below.
+			if altCloseCommand(msg, w, call("GetKeyState", vkMenu)&0x8000 != 0) {
+				n.events = append(n.events, eventQuit)
+				return 0
+			}
 		case 0x10:
 			n.back(hwnd == n.main)
 			return 0

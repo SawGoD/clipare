@@ -29,7 +29,8 @@ var moveMemory = syscall.NewLazyDLL("ntdll.dll").NewProc("RtlMoveMemory")
 
 type Native struct{}
 
-func New() (Backend, error) { return &Native{}, nil }
+func New() (Backend, error)               { return &Native{}, nil }
+func (*Native) RetryInitialization() bool { return true }
 func open(owner uintptr) error {
 	for i := 0; i < 5; i++ {
 		r, _, _ := openClipboard.Call(owner)
@@ -143,7 +144,20 @@ type winMessage struct {
 	Private uint32
 }
 
-func (*Native) Watch(ctx context.Context, ch chan<- struct{}) error {
+func (n *Native) Watch(ctx context.Context, ch chan<- struct{}) error {
+	for {
+		if err := n.watchOnce(ctx, ch); err == nil || ctx.Err() != nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func (*Native) watchOnce(ctx context.Context, ch chan<- struct{}) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	name, _ := syscall.UTF16PtrFromString("ClipareClipboardListener")
