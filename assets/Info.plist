@@ -4,6 +4,7 @@
 <key>CFBundleName</key><string>Clipare</string>
 <key>CFBundleDisplayName</key><string>Clipare</string>
 <key>CFBundleIdentifier</key><string>io.clipare.app</string>
+<key>CFBundleIconFile</key><string>Clipare</string>
 <key>CFBundleExecutable</key><string>Clipare</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>@VERSION@</string>

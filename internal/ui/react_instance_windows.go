@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/w32"
 )
 
 const gwlpReactSubclassID = 0x434c4950
@@ -53,7 +54,14 @@ func installReactActivation(window *application.WebviewWindow, path string) (fun
 		comctl.NewProc("RemoveWindowSubclass").Call(hwnd, callback, gwlpReactSubclassID)
 		return nil, errors.New("cannot publish activation window")
 	}
+	smallIcon, iconErr := w32.CreateSmallHIconFromImage(appIcon)
+	if iconErr == nil && smallIcon != 0 {
+		user.NewProc("SendMessageW").Call(hwnd, 0x80, 0, uintptr(smallIcon))
+	}
 	return func() {
+		if smallIcon != 0 {
+			user.NewProc("DestroyIcon").Call(uintptr(smallIcon))
+		}
 		user.NewProc("RemovePropW").Call(hwnd, uintptr(unsafe.Pointer(w)))
 		comctl.NewProc("RemoveWindowSubclass").Call(hwnd, callback, gwlpReactSubclassID)
 	}, nil

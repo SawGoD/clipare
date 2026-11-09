@@ -14,6 +14,7 @@ mac: frontend
 	CGO_ENABLED=1 go build -tags private_mac_apis -trimpath -ldflags "$(LDFLAGS)" -o dist/Clipare.app/Contents/MacOS/Clipare ./cmd/clipare
 	mkdir -p dist/Clipare.app/Contents/Resources/ui
 	cp -R frontend/dist/. dist/Clipare.app/Contents/Resources/ui/
+	cp assets/Clipare.icns dist/Clipare.app/Contents/Resources/Clipare.icns
 
 windows: frontend
 	mkdir -p dist

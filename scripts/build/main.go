@@ -95,6 +95,9 @@ func run() error {
 		if e = copyTree("frontend/dist", filepath.Join(bundle, "Resources", "ui")); e != nil {
 			return e
 		}
+		if e = copyFile("assets/Clipare.icns", filepath.Join(bundle, "Resources", "Clipare.icns")); e != nil {
+			return e
+		}
 		// Ad-hoc signing seals the bundle (required for Apple Silicon). Developer ID
 		// signing/notarization is a separate process that requires Apple credentials.
 		cmd := exec.Command("codesign", "--force", "--sign", "-", filepath.Join(stage, "Clipare.app"))

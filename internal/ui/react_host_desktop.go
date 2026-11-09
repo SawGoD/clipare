@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"clipare/internal/clipboard"
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"image"
 	imgcolor "image/color"
+	"image/draw"
 	"image/png"
 	"log/slog"
 	"os"
@@ -65,7 +67,7 @@ func RunReactWithReady(parent context.Context, path string, log *slog.Logger, re
 		}
 	})
 	app = application.New(application.Options{
-		Name: "Clipare", Description: "Clipboard synchronization over NetBird",
+		Name: "Clipare", Description: "Clipboard synchronization over NetBird", Icon: appIcon,
 		Assets:   application.AssetOptions{Handler: application.BundledAssetFileServer(os.DirFS(assets)), DisableLogging: true},
 		Services: []application.Service{application.NewService(&ReactService{d: d})},
 		Windows:  application.WindowsOptions{DisableQuitOnLastWindowClosed: true},
@@ -193,6 +195,12 @@ func HasPackagedReactUI() bool {
 	return false
 }
 
+//go:embed icon/clipare.png
+var appIcon []byte
+
+//go:embed icon/tray.png
+var trayIconPNG []byte
+
 var trayIcons sync.Map
 
 func reactTrayIcon(state, theme string) []byte {
@@ -200,31 +208,27 @@ func reactTrayIcon(state, theme string) []byte {
 	if cached, ok := trayIcons.Load(key); ok {
 		return cached.([]byte)
 	}
-	img := image.NewNRGBA(image.Rect(0, 0, 32, 32))
-	// Two opposing clipboard arrows are intentionally simple at tray size.
-	ink := imgcolor.NRGBA{R: 44, G: 48, B: 54, A: 255}
-	if theme == "dark" {
-		ink = imgcolor.NRGBA{R: 225, G: 230, B: 235, A: 255}
+	base, err := png.Decode(bytes.NewReader(trayIconPNG))
+	if err != nil {
+		panic("invalid embedded tray icon")
 	}
-	for x := 8; x <= 23; x++ {
-		img.Set(x, 9, ink)
-		img.Set(x, 21, ink)
-	}
-	for i := 0; i < 6; i++ {
-		img.Set(22-i, 6+i, ink)
-		img.Set(9+i, 18+i, ink)
-	}
+	img := image.NewNRGBA(base.Bounds())
+	draw.Draw(img, img.Bounds(), base, base.Bounds().Min, draw.Src)
 	badge := imgcolor.NRGBA{R: 231, G: 153, B: 53, A: 255}
 	if state == "active" {
-		badge = imgcolor.NRGBA{R: 62, G: 179, B: 112, A: 255}
+		badge = imgcolor.NRGBA{R: 48, G: 164, B: 96, A: 255}
 	}
 	if state == "disabled" {
-		badge = imgcolor.NRGBA{R: 215, G: 75, B: 78, A: 255}
+		badge = imgcolor.NRGBA{R: 207, G: 61, B: 67, A: 255}
 	}
-	for y := 22; y < 32; y++ {
-		for x := 22; x < 32; x++ {
-			dx, dy := x-27, y-27
-			if dx*dx+dy*dy <= 23 {
+	for y := 39; y < 64; y++ {
+		for x := 39; x < 64; x++ {
+			dx, dy := x-51, y-51
+			d := dx*dx + dy*dy
+			if d <= 144 {
+				img.Set(x, y, imgcolor.NRGBA{R: 255, G: 255, B: 255, A: 255})
+			}
+			if d <= 81 {
 				img.Set(x, y, badge)
 			}
 		}
