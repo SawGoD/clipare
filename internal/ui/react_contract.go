@@ -90,6 +90,7 @@ type reactSync struct {
 }
 type reactSnapshot struct {
 	Platform         string              `json:"platform"`
+	WindowsBackdrop  bool                `json:"windowsBackdrop"`
 	View             string              `json:"view"`
 	Theme            string              `json:"theme"`
 	Accent           string              `json:"accent"`

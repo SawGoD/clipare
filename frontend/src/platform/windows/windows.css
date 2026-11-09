@@ -92,3 +92,10 @@
 @media (max-width: 560px) { .win-app .win-shell { padding: 14px; gap: 12px; } .win-app .settings-inline, .win-app .advanced-grid { grid-template-columns: 1fr; gap: 10px; } .win-app .inline-form { flex-wrap: wrap; } }
 @media (forced-colors: active) { .win-app { --page: Canvas; --surface: Canvas; --text: CanvasText; --muted: CanvasText; --stroke: CanvasText; --hover: Highlight; } .win-app .device-row:hover { color: HighlightText; } .win-app .peer-dot, .win-app .status-dot { background: CanvasText; } }
 @media (prefers-reduced-motion: reduce) { .win-app .disclosure-trigger svg { transition: none; } .win-app .disclosure-trigger[aria-expanded=true] + .disclosure-body, .win-app .copied-action, .win-app #advanced-settings { animation: none; } }
+
+/* DWM provides the blur; keep content surfaces readable and let the window
+   show through only where the supported system backdrop is active. */
+.win-app.system-backdrop { background: color-mix(in srgb, var(--page) 78%, transparent); }
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .win-app.system-backdrop { background: var(--page); }
+}

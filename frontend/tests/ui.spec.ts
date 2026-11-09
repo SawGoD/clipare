@@ -162,3 +162,15 @@ for (const platform of ['windows', 'macos'] as const) {
     await expect(limit).toHaveValue('12')
   })
 }
+
+test('Windows backdrop preserves opaque fallback in contrast mode', async ({ page }) => {
+  await page.goto('/?platform=windows&scenario=backdrop&theme=dark')
+  const app = page.locator('.win-app')
+  await expect(app).toHaveClass(/system-backdrop/)
+  const translucent = await app.evaluate(el => getComputedStyle(el).backgroundColor)
+  expect(translucent).toContain('0.78')
+  await page.emulateMedia({ forcedColors: 'active' })
+  const opaque = await app.evaluate(el => getComputedStyle(el).backgroundColor)
+  expect(opaque).not.toContain('0.78')
+  await expect(page.getByText('Синхронизация включена', { exact: true })).toBeVisible()
+})

@@ -14,7 +14,7 @@ export default function WindowsApp(props: PlatformProps) {
   }
   const base = s.theme === 'dark' ? webDarkTheme : webLightTheme
   const theme = { ...base, colorBrandBackground: s.accent, colorBrandBackgroundHover: s.accent, colorBrandBackgroundPressed: s.accent, colorCompoundBrandBackground: s.accent }
-  return <FluentProvider theme={theme} className={`clipare-app win-app ${s.theme}`} style={{ '--accent': s.accent } as React.CSSProperties}>
+  return <FluentProvider theme={theme} className={`clipare-app win-app ${s.theme} ${s.windowsBackdrop ? 'system-backdrop' : ''}`} style={{ '--accent': s.accent } as React.CSSProperties}>
     <div className="win-shell"><header className="app-header"><h1>Clipare</h1><div className="header-actions">
       <Action platform="windows" onClick={() => void perform({ type: 'sync.toggle' })}>{s.sync.state === 'disabled' ? 'Возобновить' : 'Пауза'}</Action>
       <Action platform="windows" kind="subtle" icon="settings" label="Расширенные параметры" expanded={advancedExpanded} onClick={showAdvanced} />

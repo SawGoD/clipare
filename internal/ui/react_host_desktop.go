@@ -101,6 +101,11 @@ func RunReactWithReady(parent context.Context, path string, log *slog.Logger, re
 		Name: "Clipare", Title: "Clipare", Width: 700, Height: windowHeight, MinWidth: 520, MinHeight: minWindowHeight,
 		BackgroundColour: application.NewRGB(36, 37, 41),
 	}
+	if runtime.GOOS == "windows" && reactWindowsBackdropSupported() {
+		windowOptions.BackgroundType = application.BackgroundTypeTranslucent
+		windowOptions.Windows.BackdropType = application.Acrylic
+		d.snapshot.WindowsBackdrop = true
+	}
 	if runtime.GOOS == "darwin" {
 		// Native NSGlassEffectView on macOS 26; Wails falls back to
 		// NSVisualEffectView on older supported versions.

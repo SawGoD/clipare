@@ -72,6 +72,7 @@ export interface AdvancedSettings {
 
 export interface Snapshot {
   platform: Platform
+  windowsBackdrop?: boolean
   view: View
   theme: 'light' | 'dark'
   accent: string

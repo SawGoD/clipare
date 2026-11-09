@@ -1,6 +1,6 @@
 import type { Platform, Snapshot } from '../domain/types'
 
-export type Scenario = 'default' | 'empty' | 'offline' | 'error' | 'pairing' | 'update' | 'secret' | 'key-lost' | 'snapshot-error' | 'connect-error' | 'render-error'
+export type Scenario = 'default' | 'empty' | 'offline' | 'error' | 'pairing' | 'update' | 'secret' | 'key-lost' | 'snapshot-error' | 'connect-error' | 'render-error' | 'backdrop'
 
 export function fixture(platform: Platform, scenario: Scenario = 'default', theme: 'light' | 'dark' = 'light'): Snapshot {
   const devices: Snapshot['devices'] = [
@@ -13,7 +13,7 @@ export function fixture(platform: Platform, scenario: Scenario = 'default', them
     { id: 'h3', group: 'Вчера', source: 'MacBook Air', time: '21:32', visibleText: 'https://github.com/SawGoD/clipare — заметка о выпуске и настройке устройств через NetBird', sensitive: false, revealed: false, expanded: false, truncated: true, url: 'https://github.com/SawGoD/clipare' },
   ]
   return {
-    platform, view: scenario === 'pairing' ? 'pairing' : 'home', theme, accent: platform === 'windows' ? '#0f6cbd' : '#8b5db6', version: '0.6.0-beta.4',
+    platform, windowsBackdrop: platform === 'windows' && scenario === 'backdrop', view: scenario === 'pairing' ? 'pairing' : 'home', theme, accent: platform === 'windows' ? '#0f6cbd' : '#8b5db6', version: '0.6.0-beta.4',
     deviceName: platform === 'windows' ? 'Desktop-PC' : 'MacBook Air',
     sync: scenario === 'error' ? { state: 'degraded', message: 'Синхронизация недоступна', reason: 'Ожидание NetBird' } : { state: 'active', message: 'Синхронизация включена' },
     devices: scenario === 'empty' ? [] : scenario === 'offline' ? devices.map(device => ({ ...device, online: false })) : devices,
